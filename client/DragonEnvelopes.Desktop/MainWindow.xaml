@@ -81,7 +81,9 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="250" />
+                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
@@ -98,7 +100,13 @@
                          Text="Search routes..."
                          IsReadOnly="True" />
 
-                <Border Grid.Column="2"
+                <TextBlock Grid.Column="2"
+                           Margin="0,0,14,0"
+                           VerticalAlignment="Center"
+                           Text="{Binding AuthStatus}"
+                           Style="{StaticResource CaptionTextStyle}" />
+
+                <Border Grid.Column="3"
                         Padding="12,8"
                         CornerRadius="8"
                         Background="{StaticResource AccentMutedBrush}"
@@ -107,6 +115,13 @@
                         VerticalAlignment="Center">
                     <TextBlock Text="Dark Theme" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource PrimaryTextBrush}" FontWeight="SemiBold" />
                 </Border>
+
+                <Button Grid.Column="4"
+                        Margin="12,0,0,0"
+                        VerticalAlignment="Center"
+                        MinWidth="92"
+                        Content="{Binding AuthActionLabel}"
+                        Command="{Binding ToggleAuthenticationCommand}" />
             </Grid>
         </Border>
 

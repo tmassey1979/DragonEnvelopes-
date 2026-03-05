@@ -126,6 +126,23 @@ API health endpoints:
   - `GET /api/v1/auth/me` (requires `AnyFamilyMemberPolicy`)
   - `GET /api/v1/auth/parent-only` (requires `ParentPolicy`)
 
+## Desktop OIDC Sign-In (WPF)
+
+- Desktop client uses OIDC Authorization Code + PKCE with system browser callback loopback.
+- Default desktop auth settings:
+  - Authority: `http://localhost:18080/realms/dragonenvelopes`
+  - Client Id: `dragonenvelopes-desktop`
+  - Redirect URI: `http://127.0.0.1:7890/callback/`
+  - Scope: `openid profile email offline_access`
+- Optional environment overrides:
+  - `DRAGONENVELOPES_AUTH_AUTHORITY`
+  - `DRAGONENVELOPES_AUTH_CLIENT_ID`
+  - `DRAGONENVELOPES_AUTH_REDIRECT_URI`
+  - `DRAGONENVELOPES_AUTH_SCOPE`
+- Session persistence:
+  - Token session is encrypted at rest using Windows DPAPI (`DataProtectionScope.CurrentUser`).
+  - Session file location: `%LOCALAPPDATA%\\DragonEnvelopes\\session.dat`.
+
 ## API Versioning and Error Contract
 
 - Versioning mode: URL segment.
