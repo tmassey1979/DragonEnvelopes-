@@ -41,6 +41,33 @@ docker compose up -d --build
 docker compose ps
 ```
 
+### Environment Variables
+
+`docker-compose.yml` and API startup rely on these variables from `.env`:
+
+- `POSTGRES_USER`: Postgres username.
+- `POSTGRES_PASSWORD`: Postgres password.
+- `POSTGRES_DB`: Initial bootstrap database.
+- `APP_DB_NAME`: Application database name.
+- `KEYCLOAK_DB_NAME`: Keycloak database name.
+- `POSTGRES_PORT`: Host port mapped to Postgres container `5432`.
+- `PGADMIN_PORT`: Host port mapped to pgAdmin container `80`.
+- `KEYCLOAK_PORT`: Host port mapped to Keycloak container `8080`.
+- `API_PORT`: Host port mapped to API container `8080`.
+- `PGADMIN_DEFAULT_EMAIL`: pgAdmin login email.
+- `PGADMIN_DEFAULT_PASSWORD`: pgAdmin login password.
+- `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME`: Keycloak bootstrap admin username.
+- `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`: Keycloak bootstrap admin password.
+- `KEYCLOAK_REALM`: Realm used by API auth config.
+- `KEYCLOAK_CLIENT_ID`: Client/audience used by API auth config.
+
+### Secret Handling Guidance
+
+- Do not commit real credentials; `.env` is ignored by git.
+- Commit only `.env.example` with non-secret local defaults.
+- For production, use your platform secret store (for example GitHub Actions Secrets, Azure Key Vault, AWS Secrets Manager, or HashiCorp Vault).
+- Rotate credentials after sharing dev environments or exporting compose volumes.
+
 Default local endpoints:
 
 - API: `http://localhost:18088`
