@@ -97,5 +97,24 @@ API health endpoints:
   - `dragonenvelopes-api`
   - `dragonenvelopes-desktop`
 
+## API Authentication and Authorization
+
+- API auth settings are bound from configuration/environment:
+  - `Authentication__Authority`
+  - `Authentication__Audience`
+- JWT bearer validation uses Keycloak issuer metadata from `Authority` and validates `Audience`.
+- Keycloak realm/client role claims are mapped to API role claims.
+- Configured authorization policies:
+  - `ParentPolicy`
+  - `AdultPolicy`
+  - `TeenPolicy`
+  - `ChildPolicy`
+  - `ParentOrAdultPolicy`
+  - `TeenOrAbovePolicy`
+  - `AnyFamilyMemberPolicy`
+- Auth probe endpoints:
+  - `GET /auth/me` (requires `AnyFamilyMemberPolicy`)
+  - `GET /auth/parent-only` (requires `ParentPolicy`)
+
 
 

@@ -1,16 +1,24 @@
+using System.Security.Claims;
 using DragonEnvelopes.Application;
+using DragonEnvelopes.Api.CrossCutting.Auth;
 using DragonEnvelopes.Api.CrossCutting.Errors;
 using DragonEnvelopes.Api.CrossCutting.Logging;
 using DragonEnvelopes.Api.CrossCutting.Validation;
 using DragonEnvelopes.Infrastructure.Persistence;
 using FluentValidation;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using DragonEnvelopes.Infrastructure;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+var authority = builder.Configuration["Authentication:Authority"]
+    ?? throw new InvalidOperationException("Authentication:Authority must be configured.");
+var audience = builder.Configuration["Authentication:Audience"]
+    ?? throw new InvalidOperationException("Authentication:Audience must be configured.");
 
 builder.Host.UseSerilog((context, services, configuration) =>
 {
@@ -25,6 +33,45 @@ builder.Host.UseSerilog((context, services, configuration) =>
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.MapInboundClaims = false;
+        options.Authority = authority;
+        options.Audience = audience;
+        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidAudience = audience,
+            NameClaimType = "preferred_username",
+            RoleClaimType = ClaimTypes.Role
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = context =>
+            {
+                if (context.Principal is not null)
+                {
+                    KeycloakRoleClaimsTransformer.AddRoleClaims(context.Principal, audience);
+                }
+
+                return Task.CompletedTask;
+            }
+        };
+    });
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(ApiAuthorizationPolicies.Parent, policy => policy.RequireRole("Parent"));
+    options.AddPolicy(ApiAuthorizationPolicies.Adult, policy => policy.RequireRole("Adult"));
+    options.AddPolicy(ApiAuthorizationPolicies.Teen, policy => policy.RequireRole("Teen"));
+    options.AddPolicy(ApiAuthorizationPolicies.Child, policy => policy.RequireRole("Child"));
+    options.AddPolicy(ApiAuthorizationPolicies.ParentOrAdult, policy => policy.RequireRole("Parent", "Adult"));
+    options.AddPolicy(ApiAuthorizationPolicies.TeenOrAbove, policy => policy.RequireRole("Parent", "Adult", "Teen"));
+    options.AddPolicy(ApiAuthorizationPolicies.AnyFamilyMember, policy => policy.RequireRole(ApiAuthorizationPolicies.FamilyRoles));
+});
 builder.Services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Scoped);
 builder.Services.AddProblemDetails(options =>
 {
@@ -89,16 +136,20 @@ app.UseSerilogRequestLogging(options =>
 });
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("live")
-});
+})
+.AllowAnonymous();
 
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("ready")
-});
+})
+.AllowAnonymous();
 
 var summaries = new[]
 {
@@ -118,8 +169,33 @@ app.MapGet("/weatherforecast", () =>
     return forecast;
 })
 .AddFluentValidation()
+.AllowAnonymous()
 .WithName("GetWeatherForecast")
 .WithOpenApi();
+
+app.MapGet("/auth/me", (ClaimsPrincipal user) =>
+    {
+        var roles = user.FindAll(ClaimTypes.Role)
+            .Select(static claim => claim.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static role => role)
+            .ToArray();
+
+        return Results.Ok(new
+        {
+            username = user.Identity?.Name,
+            roles
+        });
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("GetCurrentUser")
+    .WithOpenApi();
+
+app.MapGet("/auth/parent-only", () =>
+    Results.Ok(new { message = "Parent access granted." }))
+    .RequireAuthorization(ApiAuthorizationPolicies.Parent)
+    .WithName("ParentOnlyProbe")
+    .WithOpenApi();
 
 app.Run();
 
