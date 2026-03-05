@@ -84,6 +84,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Default: Host=postgres;Port=5432;Database=${APP_DB_NAME:-dragonenvelopes_app};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
       Authentication__Authority: http://keycloak:8080/realms/${KEYCLOAK_REALM:-dragonenvelopes}
+      Authentication__PublicAuthority: http://localhost:${KEYCLOAK_PORT:-18080}/realms/${KEYCLOAK_REALM:-dragonenvelopes}
       Authentication__Audience: ${KEYCLOAK_CLIENT_ID:-dragonenvelopes-api}
       Keycloak__ServerUrl: http://keycloak:8080
       Keycloak__Realm: ${KEYCLOAK_REALM:-dragonenvelopes}

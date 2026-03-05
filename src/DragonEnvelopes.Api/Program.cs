@@ -27,6 +27,12 @@ var authority = builder.Configuration["Authentication:Authority"]
     ?? throw new InvalidOperationException("Authentication:Authority must be configured.");
 var audience = builder.Configuration["Authentication:Audience"]
     ?? throw new InvalidOperationException("Authentication:Audience must be configured.");
+var publicAuthority = builder.Configuration["Authentication:PublicAuthority"];
+var allowedAuthorizedParties = builder.Configuration
+    .GetSection("Authentication:AllowedAuthorizedParties")
+    .Get<string[]>()
+    ?? [audience, "dragonenvelopes-desktop"];
+var validIssuers = BuildValidIssuers(authority, publicAuthority);
 
 builder.Host.UseSerilog((context, services, configuration) =>
 {
@@ -101,8 +107,8 @@ builder.Services
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidAudience = audience,
+            ValidateAudience = false,
+            ValidIssuers = validIssuers,
             NameClaimType = "preferred_username",
             RoleClaimType = ClaimTypes.Role
         };
@@ -110,6 +116,13 @@ builder.Services
         {
             OnTokenValidated = context =>
             {
+                if (context.Principal is null
+                    || !IsTokenIntendedForApi(context.Principal, audience, allowedAuthorizedParties))
+                {
+                    context.Fail("Token audience/authorized party is not allowed for this API.");
+                    return Task.CompletedTask;
+                }
+
                 if (context.Principal is not null)
                 {
                     KeycloakRoleClaimsTransformer.AddRoleClaims(context.Principal, audience);
@@ -290,6 +303,10 @@ v1.MapPost("/families/onboard", async (
             request.PrimaryGuardianName,
             request.Password,
             cancellationToken);
+        await keycloakProvisioningService.AssignRealmRoleAsync(
+            keycloakUserId,
+            "Parent",
+            cancellationToken);
 
         try
         {
@@ -414,6 +431,43 @@ static KeycloakAdminOptions BuildKeycloakAdminOptions(IConfiguration configurati
         AdminUsername = configuration["Keycloak:AdminUsername"] ?? defaults.AdminUsername,
         AdminPassword = configuration["Keycloak:AdminPassword"] ?? defaults.AdminPassword
     };
+}
+
+static bool IsTokenIntendedForApi(
+    ClaimsPrincipal principal,
+    string requiredAudience,
+    IReadOnlyCollection<string> allowedAuthorizedParties)
+{
+    var audiences = principal.FindAll("aud")
+        .Select(static claim => claim.Value)
+        .Where(static value => !string.IsNullOrWhiteSpace(value))
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    if (audiences.Contains(requiredAudience))
+    {
+        return true;
+    }
+
+    var authorizedParty = principal.FindFirst("azp")?.Value;
+    return !string.IsNullOrWhiteSpace(authorizedParty)
+        && allowedAuthorizedParties.Contains(authorizedParty, StringComparer.OrdinalIgnoreCase);
+}
+
+static string[] BuildValidIssuers(string authority, string? publicAuthority)
+{
+    static string NormalizeIssuer(string value) => value.TrimEnd('/');
+
+    var issuers = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        NormalizeIssuer(authority)
+    };
+
+    if (!string.IsNullOrWhiteSpace(publicAuthority))
+    {
+        issuers.Add(NormalizeIssuer(publicAuthority));
+    }
+
+    return issuers.ToArray();
 }
 
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)

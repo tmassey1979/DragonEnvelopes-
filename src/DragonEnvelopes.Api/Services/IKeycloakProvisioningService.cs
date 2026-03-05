@@ -8,5 +8,10 @@ public interface IKeycloakProvisioningService
         string password,
         CancellationToken cancellationToken = default);
 
+    Task AssignRealmRoleAsync(
+        string userId,
+        string roleName,
+        CancellationToken cancellationToken = default);
+
     Task DeleteUserAsync(string userId, CancellationToken cancellationToken = default);
 }

@@ -91,6 +91,7 @@ Default local endpoints:
 - Required API runtime environment variables:
   - `ConnectionStrings__Default`
   - `Authentication__Authority`
+  - `Authentication__PublicAuthority`
   - `Authentication__Audience`
 
 API health endpoints:

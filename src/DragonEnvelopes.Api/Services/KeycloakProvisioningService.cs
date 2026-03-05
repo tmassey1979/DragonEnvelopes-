@@ -102,6 +102,37 @@ public sealed class KeycloakProvisioningService(
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task AssignRealmRoleAsync(
+        string userId,
+        string roleName,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("User id is required.", nameof(userId));
+        }
+
+        if (string.IsNullOrWhiteSpace(roleName))
+        {
+            throw new ArgumentException("Role name is required.", nameof(roleName));
+        }
+
+        var token = await GetAdminTokenAsync(cancellationToken);
+        var role = await GetRealmRoleAsync(token, roleName, cancellationToken);
+
+        using var assignRequest = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{options.ServerUrl.TrimEnd('/')}/admin/realms/{options.Realm}/users/{userId}/role-mappings/realm");
+        assignRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        assignRequest.Content = new StringContent(
+            JsonSerializer.Serialize(new[] { role }),
+            Encoding.UTF8,
+            "application/json");
+
+        using var assignResponse = await httpClient.SendAsync(assignRequest, cancellationToken);
+        assignResponse.EnsureSuccessStatusCode();
+    }
+
     private async Task<string> GetAdminTokenAsync(CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(
@@ -138,6 +169,38 @@ public sealed class KeycloakProvisioningService(
         }
 
         return token;
+    }
+
+    private async Task<object> GetRealmRoleAsync(
+        string token,
+        string roleName,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"{options.ServerUrl.TrimEnd('/')}/admin/realms/{options.Realm}/roles/{Uri.EscapeDataString(roleName)}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            throw new InvalidOperationException($"Keycloak role '{roleName}' was not found.");
+        }
+
+        response.EnsureSuccessStatusCode();
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var doc = JsonDocument.Parse(payload);
+
+        var root = doc.RootElement;
+        var id = root.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+        var name = root.TryGetProperty("name", out var nameElement) ? nameElement.GetString() : null;
+
+        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(name))
+        {
+            throw new InvalidOperationException($"Keycloak role '{roleName}' payload was missing id or name.");
+        }
+
+        return new { id, name };
     }
 
     private static (string firstName, string lastName) SplitName(string displayName)
