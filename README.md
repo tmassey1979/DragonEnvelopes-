@@ -75,6 +75,16 @@ Default local endpoints:
 - pgAdmin: `http://localhost:5050`
 - Postgres: `localhost:5433`
 
+### API Container Runtime Notes
+
+- API image uses a multi-stage Docker build (`restore` -> `publish` -> `runtime`).
+- Runtime container runs as non-root user `dragonenvelopes` (UID/GID `10001` by default).
+- Runtime port inside container: `8080` (`ASPNETCORE_HTTP_PORTS=8080`).
+- Required API runtime environment variables:
+  - `ConnectionStrings__Default`
+  - `Authentication__Authority`
+  - `Authentication__Audience`
+
 API health endpoints:
 
 - Liveness: `http://localhost:18088/health/live`
