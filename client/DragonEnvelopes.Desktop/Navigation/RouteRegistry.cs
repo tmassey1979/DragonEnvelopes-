@@ -26,6 +26,12 @@ public sealed class RouteRegistry : IRouteRegistry
                 TopBarSubtitle: "Envelope planning workspace",
                 Content: new EnvelopesViewModel(new EnvelopesDataService(apiClient, familyContext))),
             new RouteDefinition(
+                Key: "/budgets",
+                Label: "Budgets",
+                Glyph: "\uE9D2",
+                TopBarSubtitle: "Budget allocation and coverage",
+                Content: new BudgetsViewModel(new BudgetsDataService(apiClient, familyContext))),
+            new RouteDefinition(
                 Key: "/transactions",
                 Label: "Transactions",
                 Glyph: "\uE8A7",

@@ -313,6 +313,161 @@
         </Grid>
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type viewModels:BudgetsViewModel}">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="120" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Budgets" Style="{StaticResource DisplayTextStyle}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Text="Allocation visualization by month and envelope coverage."
+                               Style="{StaticResource BodyTextStyle}" />
+                </StackPanel>
+
+                <TextBox Grid.Column="1"
+                         Margin="12,0,8,0"
+                         VerticalAlignment="Center"
+                         ToolTip="Budget month (yyyy-MM)"
+                         Text="{Binding SelectedMonth, UpdateSourceTrigger=PropertyChanged}" />
+                <CheckBox Grid.Column="2"
+                          Margin="0,0,8,0"
+                          VerticalAlignment="Center"
+                          Content="Include Archived"
+                          IsChecked="{Binding IncludeArchived}" />
+                <Button Grid.Column="3"
+                        VerticalAlignment="Center"
+                        Content="Apply"
+                        Command="{Binding ApplyFiltersCommand}" />
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Padding="12"
+                    CornerRadius="10"
+                    Background="#4B311B"
+                    BorderBrush="#A35D2F"
+                    BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource CaptionTextStyle}" Foreground="#FFD2A8" />
+            </Border>
+
+            <controls:CardControl Grid.Row="2"
+                                  Margin="0,12,0,0"
+                                  Header="Budget Allocation"
+                                  Subheader="{Binding MonthDisplay, StringFormat=Month: {0}}"
+                                  EmptyMessage="No budget/allocation data for the selected month."
+                                  IsLoading="{Binding IsLoading}"
+                                  IsEmpty="{Binding IsEmpty}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <WrapPanel Grid.Row="0">
+                        <Border Margin="0,0,12,12"
+                                Padding="12"
+                                Width="200"
+                                CornerRadius="10"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Total Income" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,6,0,0" Text="{Binding TotalIncomeDisplay}" Style="{StaticResource BodyTextStyle}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,0,12,12"
+                                Padding="12"
+                                Width="200"
+                                CornerRadius="10"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Allocated" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,6,0,0" Text="{Binding AllocatedDisplay}" Style="{StaticResource BodyTextStyle}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,0,12,12"
+                                Padding="12"
+                                Width="200"
+                                CornerRadius="10"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Remaining" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,6,0,0" Text="{Binding RemainingDisplay}" Style="{StaticResource BodyTextStyle}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,0,12,12"
+                                Padding="12"
+                                Width="220"
+                                CornerRadius="10"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Allocation Coverage" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,6,0,0" Text="{Binding AllocationPercentDisplay}" Style="{StaticResource BodyTextStyle}" />
+                            </StackPanel>
+                        </Border>
+                    </WrapPanel>
+
+                    <DataGrid Grid.Row="1"
+                              Margin="0,8,0,0"
+                              ItemsSource="{Binding EnvelopeAllocations}"
+                              AutoGenerateColumns="False"
+                              HeadersVisibility="Column"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              IsReadOnly="True"
+                              RowHeight="34"
+                              GridLinesVisibility="Horizontal"
+                              Background="{StaticResource PanelMutedBackgroundBrush}"
+                              BorderBrush="{StaticResource PanelOutlineBrush}"
+                              BorderThickness="1"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Envelope" Binding="{Binding Name}" Width="*" />
+                            <DataGridTextColumn Header="Monthly Budget" Binding="{Binding MonthlyBudget}" Width="140" />
+                            <DataGridTextColumn Header="Current Balance" Binding="{Binding CurrentBalance}" Width="140" />
+                            <DataGridTextColumn Header="% of Income" Binding="{Binding AllocationPercent}" Width="110" />
+                            <DataGridTextColumn Header="% of Envelope Left" Binding="{Binding BalancePercent}" Width="130" />
+                            <DataGridCheckBoxColumn Header="Archived" Binding="{Binding IsArchived}" Width="80" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </controls:CardControl>
+        </Grid>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type viewModels:TransactionsViewModel}">
         <Grid Margin="8">
             <Grid.RowDefinitions>
