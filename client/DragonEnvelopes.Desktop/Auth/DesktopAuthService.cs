@@ -1,5 +1,7 @@
 using IdentityModel.OidcClient;
 using IdentityModel.OidcClient.Browser;
+using System.Net.Http;
+using System.Text.Json;
 
 namespace DragonEnvelopes.Desktop.Auth;
 
@@ -90,6 +92,86 @@ public sealed class DesktopAuthService : IAuthService
                 IdentityToken = result.IdentityToken,
                 ExpiresAtUtc = result.AccessTokenExpiration.ToUniversalTime(),
                 Subject = subject
+            };
+
+            _currentSession = session;
+            await _sessionStore.SaveAsync(session, cancellationToken);
+            return new AuthSignInResult(true, false, "Signed in successfully.", session);
+        }
+        catch (TaskCanceledException)
+        {
+            return new AuthSignInResult(false, true, "Sign-in canceled.");
+        }
+        catch (Exception ex)
+        {
+            return new AuthSignInResult(false, false, $"Sign-in error: {ex.Message}");
+        }
+    }
+
+    public async Task<AuthSignInResult> SignInWithPasswordAsync(
+        string usernameOrEmail,
+        string password,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(usernameOrEmail) || string.IsNullOrWhiteSpace(password))
+        {
+            return new AuthSignInResult(false, false, "Username/email and password are required.");
+        }
+
+        try
+        {
+            using var httpClient = new HttpClient();
+            var tokenEndpoint = $"{_options.Authority.TrimEnd('/')}/protocol/openid-connect/token";
+            using var request = new HttpRequestMessage(HttpMethod.Post, tokenEndpoint)
+            {
+                Content = new FormUrlEncodedContent(
+                [
+                    new KeyValuePair<string, string>("grant_type", "password"),
+                    new KeyValuePair<string, string>("client_id", _options.ClientId),
+                    new KeyValuePair<string, string>("scope", _options.Scope),
+                    new KeyValuePair<string, string>("username", usernameOrEmail),
+                    new KeyValuePair<string, string>("password", password)
+                ])
+            };
+
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new AuthSignInResult(false, false, "Invalid credentials or sign-in is not enabled.");
+            }
+
+            using var json = JsonDocument.Parse(payload);
+            var root = json.RootElement;
+
+            if (!root.TryGetProperty("access_token", out var accessTokenElement))
+            {
+                return new AuthSignInResult(false, false, "Authentication response is missing access token.");
+            }
+
+            var accessToken = accessTokenElement.GetString();
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                return new AuthSignInResult(false, false, "Authentication response returned an empty access token.");
+            }
+
+            var refreshToken = root.TryGetProperty("refresh_token", out var refreshTokenElement)
+                ? refreshTokenElement.GetString()
+                : null;
+            var idToken = root.TryGetProperty("id_token", out var idTokenElement)
+                ? idTokenElement.GetString()
+                : null;
+            var expiresIn = root.TryGetProperty("expires_in", out var expiresInElement)
+                ? expiresInElement.GetInt32()
+                : 300;
+
+            var session = new AuthSession
+            {
+                AccessToken = accessToken,
+                RefreshToken = refreshToken,
+                IdentityToken = idToken,
+                ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(Math.Max(60, expiresIn)),
+                Subject = usernameOrEmail
             };
 
             _currentSession = session;

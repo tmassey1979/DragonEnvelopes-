@@ -129,7 +129,7 @@
                         VerticalAlignment="Center"
                         MinWidth="92"
                         Content="{Binding AuthActionLabel}"
-                        Command="{Binding ToggleAuthenticationCommand}" />
+                        Click="OnAuthButtonClicked" />
 
                 <Button Grid.Column="6"
                         Margin="12,0,0,0"

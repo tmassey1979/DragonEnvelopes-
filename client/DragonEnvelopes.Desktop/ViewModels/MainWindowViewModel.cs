@@ -127,25 +127,37 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         if (IsAuthenticated)
         {
-            await _authService.SignOutAsync();
-            IsAuthenticated = false;
-            AuthStatus = "Signed out";
+            await SignOutAsync();
             return;
         }
 
+        AuthStatus = "Use in-app login.";
+    }
+
+    public async Task SignOutAsync()
+    {
+        await _authService.SignOutAsync();
+        IsAuthenticated = false;
+        AuthStatus = "Signed out";
+    }
+
+    public async Task<AuthSignInResult> SignInWithPasswordAsync(string usernameOrEmail, string password)
+    {
         AuthStatus = "Signing in...";
-        var result = await _authService.SignInAsync();
+        var result = await _authService.SignInWithPasswordAsync(usernameOrEmail, password);
         if (!result.Succeeded)
         {
             IsAuthenticated = false;
             AuthStatus = result.Message;
-            return;
+            return result;
         }
 
         IsAuthenticated = true;
         AuthStatus = string.IsNullOrWhiteSpace(result.Session?.Subject)
             ? "Signed in"
             : $"Signed in as {result.Session.Subject}";
+
+        return result;
     }
 
     private async Task PingApiAsync()
