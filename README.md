@@ -48,6 +48,11 @@ Default local endpoints:
 - pgAdmin: `http://localhost:5050`
 - Postgres: `localhost:5433`
 
+API health endpoints:
+
+- Liveness: `http://localhost:18088/health/live`
+- Readiness: `http://localhost:18088/health/ready`
+
 ## Keycloak Bootstrap
 
 - Compose imports realm config from `infrastructure/keycloak/import/dragonenvelopes-realm.json`.

@@ -1,9 +1,28 @@
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+var defaultConnection = builder.Configuration.GetConnectionString("Default");
+var healthChecks = builder.Services.AddHealthChecks()
+    .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"]);
+
+if (!string.IsNullOrWhiteSpace(defaultConnection))
+{
+    healthChecks.AddNpgSql(defaultConnection, name: "postgres", tags: ["ready"]);
+}
+else
+{
+    healthChecks.AddCheck(
+        "postgres-connection-string",
+        () => HealthCheckResult.Unhealthy("ConnectionStrings:Default is not configured."),
+        tags: ["ready"]);
+}
 
 var app = builder.Build();
 
@@ -15,6 +34,16 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("live")
+});
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
 
 var summaries = new[]
 {
