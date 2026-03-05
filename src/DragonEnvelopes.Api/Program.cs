@@ -192,9 +192,16 @@ using (var scope = app.Services.CreateScope())
     logger.LogInformation("Applying EF Core migrations at startup.");
 
     var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
-    dbContext.Database.Migrate();
-
-    logger.LogInformation("EF Core migrations applied successfully.");
+    if (dbContext.Database.IsRelational())
+    {
+        dbContext.Database.Migrate();
+        logger.LogInformation("EF Core migrations applied successfully.");
+    }
+    else
+    {
+        dbContext.Database.EnsureCreated();
+        logger.LogInformation("Ensured database created for non-relational provider.");
+    }
 }
 
 // Configure the HTTP request pipeline.
@@ -351,9 +358,16 @@ v1.MapPost("/families/onboard", async (
 
 v1.MapGet("/families/{familyId:guid}", async (
         Guid familyId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IFamilyService familyService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var family = await familyService.GetByIdAsync(familyId, cancellationToken);
         return family is null
             ? Results.NotFound()
@@ -387,9 +401,16 @@ v1.MapPost("/families/{familyId:guid}/members", async (
 
 v1.MapPost("/automation/rules", async (
         CreateAutomationRuleRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IAutomationRuleService automationRuleService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, request.FamilyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var rule = await automationRuleService.CreateAsync(
             request.FamilyId,
             request.Name,
@@ -410,9 +431,16 @@ v1.MapGet("/automation/rules", async (
         Guid familyId,
         string? type,
         bool? enabled,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IAutomationRuleService automationRuleService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var rules = await automationRuleService.ListAsync(familyId, type, enabled, cancellationToken);
         return Results.Ok(rules.Select(MapAutomationRuleResponse).ToArray());
     })
@@ -422,9 +450,21 @@ v1.MapGet("/automation/rules", async (
 
 v1.MapGet("/automation/rules/{ruleId:guid}", async (
         Guid ruleId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IAutomationRuleService automationRuleService,
         CancellationToken cancellationToken) =>
     {
+        var familyId = await dbContext.AutomationRules
+            .AsNoTracking()
+            .Where(x => x.Id == ruleId)
+            .Select(x => (Guid?)x.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!familyId.HasValue || !await UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var rule = await automationRuleService.GetByIdAsync(ruleId, cancellationToken);
         return rule is null
             ? Results.NotFound()
@@ -437,9 +477,21 @@ v1.MapGet("/automation/rules/{ruleId:guid}", async (
 v1.MapPut("/automation/rules/{ruleId:guid}", async (
         Guid ruleId,
         UpdateAutomationRuleRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IAutomationRuleService automationRuleService,
         CancellationToken cancellationToken) =>
     {
+        var familyId = await dbContext.AutomationRules
+            .AsNoTracking()
+            .Where(x => x.Id == ruleId)
+            .Select(x => (Guid?)x.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!familyId.HasValue || !await UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var rule = await automationRuleService.UpdateAsync(
             ruleId,
             request.Name,
@@ -456,9 +508,21 @@ v1.MapPut("/automation/rules/{ruleId:guid}", async (
 
 v1.MapPost("/automation/rules/{ruleId:guid}/enable", async (
         Guid ruleId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IAutomationRuleService automationRuleService,
         CancellationToken cancellationToken) =>
     {
+        var familyId = await dbContext.AutomationRules
+            .AsNoTracking()
+            .Where(x => x.Id == ruleId)
+            .Select(x => (Guid?)x.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!familyId.HasValue || !await UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         await automationRuleService.EnableAsync(ruleId, cancellationToken);
         return Results.NoContent();
     })
@@ -468,9 +532,21 @@ v1.MapPost("/automation/rules/{ruleId:guid}/enable", async (
 
 v1.MapPost("/automation/rules/{ruleId:guid}/disable", async (
         Guid ruleId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IAutomationRuleService automationRuleService,
         CancellationToken cancellationToken) =>
     {
+        var familyId = await dbContext.AutomationRules
+            .AsNoTracking()
+            .Where(x => x.Id == ruleId)
+            .Select(x => (Guid?)x.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!familyId.HasValue || !await UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         await automationRuleService.DisableAsync(ruleId, cancellationToken);
         return Results.NoContent();
     })
@@ -480,9 +556,21 @@ v1.MapPost("/automation/rules/{ruleId:guid}/disable", async (
 
 v1.MapDelete("/automation/rules/{ruleId:guid}", async (
         Guid ruleId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IAutomationRuleService automationRuleService,
         CancellationToken cancellationToken) =>
     {
+        var familyId = await dbContext.AutomationRules
+            .AsNoTracking()
+            .Where(x => x.Id == ruleId)
+            .Select(x => (Guid?)x.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!familyId.HasValue || !await UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         await automationRuleService.DeleteAsync(ruleId, cancellationToken);
         return Results.NoContent();
     })
@@ -492,9 +580,16 @@ v1.MapDelete("/automation/rules/{ruleId:guid}", async (
 
 v1.MapGet("/families/{familyId:guid}/members", async (
         Guid familyId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IFamilyService familyService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var members = await familyService.ListMembersAsync(familyId, cancellationToken);
         return members is null
             ? Results.NotFound()
@@ -506,9 +601,16 @@ v1.MapGet("/families/{familyId:guid}/members", async (
 
 v1.MapPost("/accounts", async (
         CreateAccountRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IAccountService accountService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, request.FamilyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var account = await accountService.CreateAsync(
             request.FamilyId,
             request.Name,
@@ -524,9 +626,21 @@ v1.MapPost("/accounts", async (
 
 v1.MapGet("/accounts", async (
         Guid? familyId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IAccountService accountService,
         CancellationToken cancellationToken) =>
     {
+        if (!familyId.HasValue)
+        {
+            return Results.BadRequest("familyId is required.");
+        }
+
+        if (!await UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var accounts = await accountService.ListAsync(familyId, cancellationToken);
         return Results.Ok(accounts.Select(MapAccountResponse).ToArray());
     })
@@ -536,9 +650,21 @@ v1.MapGet("/accounts", async (
 
 v1.MapPost("/transactions", async (
         CreateTransactionRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         ITransactionService transactionService,
         CancellationToken cancellationToken) =>
     {
+        var accountFamilyId = await dbContext.Accounts
+            .AsNoTracking()
+            .Where(x => x.Id == request.AccountId)
+            .Select(x => (Guid?)x.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!accountFamilyId.HasValue || !await UserHasFamilyAccessAsync(user, accountFamilyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var transaction = await transactionService.CreateAsync(
             request.AccountId,
             request.Amount,
@@ -564,9 +690,26 @@ v1.MapPost("/transactions", async (
 
 v1.MapGet("/transactions", async (
         Guid? accountId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         ITransactionService transactionService,
         CancellationToken cancellationToken) =>
     {
+        if (!accountId.HasValue)
+        {
+            return Results.BadRequest("accountId is required.");
+        }
+
+        var accountFamilyId = await dbContext.Accounts
+            .AsNoTracking()
+            .Where(x => x.Id == accountId.Value)
+            .Select(x => (Guid?)x.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!accountFamilyId.HasValue || !await UserHasFamilyAccessAsync(user, accountFamilyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var transactions = await transactionService.ListAsync(accountId, cancellationToken);
         return Results.Ok(transactions.Select(MapTransactionResponse).ToArray());
     })
@@ -576,9 +719,16 @@ v1.MapGet("/transactions", async (
 
 v1.MapPost("/imports/transactions/preview", async (
         ImportPreviewRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IImportService importService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, request.FamilyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var preview = await importService.PreviewTransactionsAsync(
             request.FamilyId,
             request.AccountId,
@@ -594,9 +744,16 @@ v1.MapPost("/imports/transactions/preview", async (
 
 v1.MapPost("/imports/transactions/commit", async (
         ImportCommitRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IImportService importService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, request.FamilyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var result = await importService.CommitTransactionsAsync(
             request.FamilyId,
             request.AccountId,
@@ -613,9 +770,16 @@ v1.MapPost("/imports/transactions/commit", async (
 
 v1.MapPost("/envelopes", async (
         CreateEnvelopeRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IEnvelopeService envelopeService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, request.FamilyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var envelope = await envelopeService.CreateAsync(
             request.FamilyId,
             request.Name,
@@ -629,9 +793,21 @@ v1.MapPost("/envelopes", async (
 
 v1.MapGet("/envelopes/{envelopeId:guid}", async (
         Guid envelopeId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IEnvelopeService envelopeService,
         CancellationToken cancellationToken) =>
     {
+        var familyId = await dbContext.Envelopes
+            .AsNoTracking()
+            .Where(x => x.Id == envelopeId)
+            .Select(x => (Guid?)x.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!familyId.HasValue || !await UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var envelope = await envelopeService.GetByIdAsync(envelopeId, cancellationToken);
         return envelope is null
             ? Results.NotFound()
@@ -643,9 +819,16 @@ v1.MapGet("/envelopes/{envelopeId:guid}", async (
 
 v1.MapGet("/envelopes", async (
         Guid familyId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IEnvelopeService envelopeService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var envelopes = await envelopeService.ListByFamilyAsync(familyId, cancellationToken);
         return Results.Ok(envelopes.Select(MapEnvelopeResponse).ToArray());
     })
@@ -656,9 +839,21 @@ v1.MapGet("/envelopes", async (
 v1.MapPut("/envelopes/{envelopeId:guid}", async (
         Guid envelopeId,
         UpdateEnvelopeRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IEnvelopeService envelopeService,
         CancellationToken cancellationToken) =>
     {
+        var familyId = await dbContext.Envelopes
+            .AsNoTracking()
+            .Where(x => x.Id == envelopeId)
+            .Select(x => (Guid?)x.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!familyId.HasValue || !await UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var envelope = await envelopeService.UpdateAsync(
             envelopeId,
             request.Name,
@@ -673,9 +868,21 @@ v1.MapPut("/envelopes/{envelopeId:guid}", async (
 
 v1.MapPost("/envelopes/{envelopeId:guid}/archive", async (
         Guid envelopeId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IEnvelopeService envelopeService,
         CancellationToken cancellationToken) =>
     {
+        var familyId = await dbContext.Envelopes
+            .AsNoTracking()
+            .Where(x => x.Id == envelopeId)
+            .Select(x => (Guid?)x.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!familyId.HasValue || !await UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var envelope = await envelopeService.ArchiveAsync(envelopeId, cancellationToken);
         return Results.Ok(MapEnvelopeResponse(envelope));
     })
@@ -685,9 +892,16 @@ v1.MapPost("/envelopes/{envelopeId:guid}/archive", async (
 
 v1.MapPost("/budgets", async (
         CreateBudgetRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IBudgetService budgetService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, request.FamilyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var budget = await budgetService.CreateAsync(
             request.FamilyId,
             request.Month,
@@ -702,9 +916,16 @@ v1.MapPost("/budgets", async (
 v1.MapGet("/budgets/{familyId:guid}/{month}", async (
         Guid familyId,
         string month,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IBudgetService budgetService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var budget = await budgetService.GetByMonthAsync(familyId, month, cancellationToken);
         return budget is null
             ? Results.NotFound()
@@ -717,9 +938,21 @@ v1.MapGet("/budgets/{familyId:guid}/{month}", async (
 v1.MapPut("/budgets/{budgetId:guid}", async (
         Guid budgetId,
         UpdateBudgetRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IBudgetService budgetService,
         CancellationToken cancellationToken) =>
     {
+        var familyId = await dbContext.Budgets
+            .AsNoTracking()
+            .Where(x => x.Id == budgetId)
+            .Select(x => (Guid?)x.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!familyId.HasValue || !await UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var budget = await budgetService.UpdateAsync(
             budgetId,
             request.TotalIncome,
@@ -732,9 +965,16 @@ v1.MapPut("/budgets/{budgetId:guid}", async (
 
 v1.MapPost("/recurring-bills", async (
         CreateRecurringBillRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IRecurringBillService recurringBillService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, request.FamilyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var recurringBill = await recurringBillService.CreateAsync(
             request.FamilyId,
             request.Name,
@@ -754,9 +994,16 @@ v1.MapPost("/recurring-bills", async (
 
 v1.MapGet("/recurring-bills", async (
         Guid familyId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IRecurringBillService recurringBillService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var recurringBills = await recurringBillService.ListByFamilyAsync(familyId, cancellationToken);
         return Results.Ok(recurringBills.Select(MapRecurringBillResponse).ToArray());
     })
@@ -767,9 +1014,21 @@ v1.MapGet("/recurring-bills", async (
 v1.MapPut("/recurring-bills/{recurringBillId:guid}", async (
         Guid recurringBillId,
         UpdateRecurringBillRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IRecurringBillService recurringBillService,
         CancellationToken cancellationToken) =>
     {
+        var familyId = await dbContext.RecurringBills
+            .AsNoTracking()
+            .Where(x => x.Id == recurringBillId)
+            .Select(x => (Guid?)x.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!familyId.HasValue || !await UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var recurringBill = await recurringBillService.UpdateAsync(
             recurringBillId,
             request.Name,
@@ -789,9 +1048,21 @@ v1.MapPut("/recurring-bills/{recurringBillId:guid}", async (
 
 v1.MapDelete("/recurring-bills/{recurringBillId:guid}", async (
         Guid recurringBillId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IRecurringBillService recurringBillService,
         CancellationToken cancellationToken) =>
     {
+        var familyId = await dbContext.RecurringBills
+            .AsNoTracking()
+            .Where(x => x.Id == recurringBillId)
+            .Select(x => (Guid?)x.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!familyId.HasValue || !await UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         await recurringBillService.DeleteAsync(recurringBillId, cancellationToken);
         return Results.NoContent();
     })
@@ -803,9 +1074,16 @@ v1.MapGet("/recurring-bills/projection", async (
         Guid familyId,
         DateOnly from,
         DateOnly to,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IRecurringBillService recurringBillService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var projection = await recurringBillService.ProjectAsync(familyId, from, to, cancellationToken);
         return Results.Ok(projection.Select(MapRecurringBillProjectionItemResponse).ToArray());
     })
@@ -815,9 +1093,16 @@ v1.MapGet("/recurring-bills/projection", async (
 
 v1.MapGet("/reports/envelope-balances", async (
         Guid familyId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IReportingService reportingService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var result = await reportingService.GetEnvelopeBalancesAsync(familyId, cancellationToken);
         return Results.Ok(result.Select(MapEnvelopeBalanceReportResponse).ToArray());
     })
@@ -829,9 +1114,16 @@ v1.MapGet("/reports/monthly-spend", async (
         Guid familyId,
         DateTimeOffset from,
         DateTimeOffset to,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IReportingService reportingService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var result = await reportingService.GetMonthlySpendAsync(familyId, from, to, cancellationToken);
         return Results.Ok(result.Select(MapMonthlySpendReportPointResponse).ToArray());
     })
@@ -843,9 +1135,16 @@ v1.MapGet("/reports/category-breakdown", async (
         Guid familyId,
         DateTimeOffset from,
         DateTimeOffset to,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IReportingService reportingService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var result = await reportingService.GetCategoryBreakdownAsync(familyId, from, to, cancellationToken);
         return Results.Ok(result.Select(MapCategoryBreakdownReportItemResponse).ToArray());
     })
@@ -856,9 +1155,16 @@ v1.MapGet("/reports/category-breakdown", async (
 v1.MapGet("/reports/remaining-budget", async (
         Guid familyId,
         string month,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
         IReportingService reportingService,
         CancellationToken cancellationToken) =>
     {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
         var result = await reportingService.GetRemainingBudgetAsync(familyId, month, cancellationToken);
         return result is null
             ? Results.NotFound()
@@ -1052,6 +1358,25 @@ static AutomationRuleResponse MapAutomationRuleResponse(AutomationRuleDetails ru
         rule.UpdatedAt);
 }
 
+static async Task<bool> UserHasFamilyAccessAsync(
+    ClaimsPrincipal user,
+    Guid familyId,
+    DragonEnvelopesDbContext dbContext,
+    CancellationToken cancellationToken)
+{
+    var keycloakUserId = user.FindFirstValue("sub");
+    if (string.IsNullOrWhiteSpace(keycloakUserId))
+    {
+        return false;
+    }
+
+    return await dbContext.FamilyMembers
+        .AsNoTracking()
+        .AnyAsync(
+            member => member.FamilyId == familyId && member.KeycloakUserId == keycloakUserId,
+            cancellationToken);
+}
+
 static KeycloakAdminOptions BuildKeycloakAdminOptions(IConfiguration configuration)
 {
     var defaults = new KeycloakAdminOptions();
@@ -1106,4 +1431,8 @@ static string[] BuildValidIssuers(string authority, string? publicAuthority)
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
     public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+}
+
+public partial class Program
+{
 }
