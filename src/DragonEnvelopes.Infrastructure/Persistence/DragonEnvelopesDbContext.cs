@@ -1,0 +1,21 @@
+using DragonEnvelopes.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+
+namespace DragonEnvelopes.Infrastructure.Persistence;
+
+public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbContext> options) : DbContext(options)
+{
+    public DbSet<Family> Families => Set<Family>();
+    public DbSet<FamilyMember> FamilyMembers => Set<FamilyMember>();
+    public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<Envelope> Envelopes => Set<Envelope>();
+    public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<Budget> Budgets => Set<Budget>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(DragonEnvelopesDbContext).Assembly);
+        base.OnModelCreating(modelBuilder);
+    }
+}
+
