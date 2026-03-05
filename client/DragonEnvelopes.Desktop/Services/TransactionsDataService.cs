@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Net.Http;
+using System.Net.Http.Json;
 using DragonEnvelopes.Contracts.Accounts;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Transactions;
@@ -80,6 +82,65 @@ public sealed class TransactionsDataService : ITransactionsDataService
                     ? envelopeName
                     : "-"))
             .ToArray();
+    }
+
+    public async Task<IReadOnlyList<EnvelopeOptionViewModel>> GetEnvelopesAsync(CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        using var response = await _apiClient.GetAsync($"envelopes?familyId={familyId}", cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Envelopes request failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var envelopes = await JsonSerializer.DeserializeAsync<List<EnvelopeResponse>>(stream, SerializerOptions, cancellationToken)
+            ?? [];
+        return envelopes
+            .Where(static envelope => !envelope.IsArchived)
+            .OrderBy(static envelope => envelope.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(static envelope => new EnvelopeOptionViewModel(envelope.Id, envelope.Name))
+            .ToArray();
+    }
+
+    public async Task CreateTransactionAsync(
+        Guid accountId,
+        decimal amount,
+        string description,
+        string merchant,
+        DateTimeOffset occurredAt,
+        string? category,
+        Guid? envelopeId,
+        IReadOnlyList<TransactionSplitDraftViewModel>? splits,
+        CancellationToken cancellationToken = default)
+    {
+        var payload = new CreateTransactionRequest(
+            accountId,
+            amount,
+            description,
+            merchant,
+            occurredAt,
+            string.IsNullOrWhiteSpace(category) ? null : category.Trim(),
+            envelopeId,
+            splits is null
+                ? null
+                : splits.Select(static split => new TransactionSplitRequest(
+                        split.EnvelopeId!.Value,
+                        split.Amount,
+                        string.IsNullOrWhiteSpace(split.Category) ? null : split.Category.Trim(),
+                        string.IsNullOrWhiteSpace(split.Notes) ? null : split.Notes.Trim()))
+                    .ToArray());
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "transactions")
+        {
+            Content = JsonContent.Create(payload, options: SerializerOptions)
+        };
+
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Create transaction failed with status {(int)response.StatusCode}.");
+        }
     }
 
     private Guid RequireFamilyId()
