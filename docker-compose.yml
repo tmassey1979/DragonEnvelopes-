@@ -85,6 +85,12 @@ services:
       ConnectionStrings__Default: Host=postgres;Port=5432;Database=${APP_DB_NAME:-dragonenvelopes_app};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
       Authentication__Authority: http://keycloak:8080/realms/${KEYCLOAK_REALM:-dragonenvelopes}
       Authentication__Audience: ${KEYCLOAK_CLIENT_ID:-dragonenvelopes-api}
+      Keycloak__ServerUrl: http://keycloak:8080
+      Keycloak__Realm: ${KEYCLOAK_REALM:-dragonenvelopes}
+      Keycloak__AdminRealm: ${KEYCLOAK_ADMIN_REALM:-master}
+      Keycloak__AdminClientId: ${KEYCLOAK_ADMIN_CLIENT_ID:-admin-cli}
+      Keycloak__AdminUsername: ${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      Keycloak__AdminPassword: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:-admin}
       Observability__EnableLokiSink: ${OBSERVABILITY_ENABLE_LOKI_SINK:-false}
       Observability__LokiUrl: ${OBSERVABILITY_LOKI_URL:-http://loki:3100}
     ports:

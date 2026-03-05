@@ -18,8 +18,12 @@ public sealed class FamilyAccountService(IBackendApiClient apiClient) : IFamilyA
         CancellationToken cancellationToken = default)
     {
         using var createFamilyResponse = await PostAsync(
-            "families",
-            new CreateFamilyRequest(request.FamilyName),
+            "families/onboard",
+            new CompleteFamilyOnboardingRequest(
+                request.FamilyName,
+                request.PrimaryGuardianName,
+                request.Email,
+                request.Password),
             cancellationToken);
 
         if (!createFamilyResponse.IsSuccessStatusCode)
@@ -31,22 +35,6 @@ public sealed class FamilyAccountService(IBackendApiClient apiClient) : IFamilyA
         if (createdFamily is null)
         {
             return new FamilyAccountCreateResult(false, "Family was created but response payload was invalid.");
-        }
-
-        using var addMemberResponse = await PostAsync(
-            $"families/{createdFamily.Id}/members",
-            new AddFamilyMemberRequest(
-                request.Email,
-                request.PrimaryGuardianName,
-                request.Email,
-                "Parent"),
-            cancellationToken);
-
-        if (!addMemberResponse.IsSuccessStatusCode)
-        {
-            return new FamilyAccountCreateResult(
-                false,
-                "Family was created, but primary member setup failed. Please contact support.");
         }
 
         return new FamilyAccountCreateResult(

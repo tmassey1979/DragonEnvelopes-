@@ -60,6 +60,8 @@ docker compose ps
 - `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`: Keycloak bootstrap admin password.
 - `KEYCLOAK_REALM`: Realm used by API auth config.
 - `KEYCLOAK_CLIENT_ID`: Client/audience used by API auth config.
+- `KEYCLOAK_ADMIN_REALM`: Realm used for Keycloak admin token flow (typically `master`).
+- `KEYCLOAK_ADMIN_CLIENT_ID`: Admin client id for token acquisition (typically `admin-cli`).
 - `OBSERVABILITY_ENABLE_LOKI_SINK`: Enables direct API -> Loki sink (`true` or `false`).
 - `OBSERVABILITY_LOKI_URL`: Loki base URL used by API sink.
 - `LOKI_PORT`: Host port mapped to Loki container `3100` (observability profile).
@@ -240,11 +242,12 @@ Expected MSI output:
   - `GET /api/v1/weatherforecast`
   - `GET /api/v1/auth/me`
   - `POST /api/v1/families`
+  - `POST /api/v1/families/onboard`
   - `GET /api/v1/families/{familyId}`
   - `POST /api/v1/families/{familyId}/members`
   - `GET /api/v1/families/{familyId}/members`
 - Bootstrap access:
-  - `POST /api/v1/families` and `POST /api/v1/families/{familyId}/members` allow anonymous requests to support first-time desktop onboarding.
+  - `POST /api/v1/families`, `POST /api/v1/families/onboard`, and `POST /api/v1/families/{familyId}/members` allow anonymous requests to support first-time desktop onboarding.
 - OpenAPI/Swagger includes:
   - Bearer auth security scheme (`Authorization: Bearer <token>`)
   - Auth operation annotations for expected `401` and `403` responses

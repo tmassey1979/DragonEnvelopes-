@@ -17,6 +17,30 @@ public sealed class CreateFamilyRequestValidator : AbstractValidator<CreateFamil
     }
 }
 
+public sealed class CompleteFamilyOnboardingRequestValidator : AbstractValidator<CompleteFamilyOnboardingRequest>
+{
+    public CompleteFamilyOnboardingRequestValidator()
+    {
+        RuleFor(static request => request.FamilyName)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(static request => request.PrimaryGuardianName)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(static request => request.Email)
+            .NotEmpty()
+            .EmailAddress()
+            .MaximumLength(320);
+
+        RuleFor(static request => request.Password)
+            .NotEmpty()
+            .MinimumLength(8)
+            .MaximumLength(128);
+    }
+}
+
 public sealed class AddFamilyMemberRequestValidator : AbstractValidator<AddFamilyMemberRequest>
 {
     private static readonly string[] AllowedRoles = ["Parent", "Adult", "Teen", "Child"];

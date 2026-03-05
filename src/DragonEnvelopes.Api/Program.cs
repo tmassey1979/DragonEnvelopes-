@@ -7,6 +7,7 @@ using DragonEnvelopes.Api.CrossCutting.Logging;
 using DragonEnvelopes.Api.CrossCutting.OpenApi;
 using DragonEnvelopes.Api.CrossCutting.Validation;
 using DragonEnvelopes.Infrastructure.Persistence;
+using DragonEnvelopes.Api.Services;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Families;
@@ -140,6 +141,8 @@ builder.Services.AddProblemDetails(options =>
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddSingleton(BuildKeycloakAdminOptions(builder.Configuration));
+builder.Services.AddHttpClient<IKeycloakProvisioningService, KeycloakProvisioningService>();
 
 var defaultConnection = builder.Configuration.GetConnectionString("Default");
 var healthChecks = builder.Services.AddHealthChecks()
@@ -276,6 +279,49 @@ v1.MapPost("/families", async (
     .WithName("CreateFamily")
     .WithOpenApi();
 
+v1.MapPost("/families/onboard", async (
+        CompleteFamilyOnboardingRequest request,
+        IFamilyService familyService,
+        IKeycloakProvisioningService keycloakProvisioningService,
+        CancellationToken cancellationToken) =>
+    {
+        var keycloakUserId = await keycloakProvisioningService.CreateUserAsync(
+            request.Email,
+            request.PrimaryGuardianName,
+            request.Password,
+            cancellationToken);
+
+        try
+        {
+            var family = await familyService.CreateAsync(request.FamilyName, cancellationToken);
+            await familyService.AddMemberAsync(
+                family.Id,
+                keycloakUserId,
+                request.PrimaryGuardianName,
+                request.Email,
+                "Parent",
+                cancellationToken);
+
+            return Results.Created($"/api/v1/families/{family.Id}", MapFamilyResponse(family));
+        }
+        catch
+        {
+            try
+            {
+                await keycloakProvisioningService.DeleteUserAsync(keycloakUserId, cancellationToken);
+            }
+            catch
+            {
+                // Best-effort compensation to avoid orphaned identity users.
+            }
+
+            throw;
+        }
+    })
+    .AllowAnonymous()
+    .WithName("CompleteFamilyOnboarding")
+    .WithOpenApi();
+
 v1.MapGet("/families/{familyId:guid}", async (
         Guid familyId,
         IFamilyService familyService,
@@ -354,6 +400,20 @@ static FamilyMemberResponse MapFamilyMemberResponse(FamilyMemberDetails member)
         member.Name,
         member.Email,
         member.Role);
+}
+
+static KeycloakAdminOptions BuildKeycloakAdminOptions(IConfiguration configuration)
+{
+    var defaults = new KeycloakAdminOptions();
+    return new KeycloakAdminOptions
+    {
+        ServerUrl = configuration["Keycloak:ServerUrl"] ?? defaults.ServerUrl,
+        Realm = configuration["Keycloak:Realm"] ?? defaults.Realm,
+        AdminRealm = configuration["Keycloak:AdminRealm"] ?? defaults.AdminRealm,
+        AdminClientId = configuration["Keycloak:AdminClientId"] ?? defaults.AdminClientId,
+        AdminUsername = configuration["Keycloak:AdminUsername"] ?? defaults.AdminUsername,
+        AdminPassword = configuration["Keycloak:AdminPassword"] ?? defaults.AdminPassword
+    };
 }
 
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
