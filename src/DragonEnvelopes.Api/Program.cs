@@ -12,6 +12,7 @@ using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Accounts;
 using DragonEnvelopes.Contracts.Families;
+using DragonEnvelopes.Contracts.Transactions;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -422,6 +423,39 @@ v1.MapGet("/accounts", async (
     .WithName("ListAccounts")
     .WithOpenApi();
 
+v1.MapPost("/transactions", async (
+        CreateTransactionRequest request,
+        ITransactionService transactionService,
+        CancellationToken cancellationToken) =>
+    {
+        var transaction = await transactionService.CreateAsync(
+            request.AccountId,
+            request.Amount,
+            request.Description,
+            request.Merchant,
+            request.OccurredAt,
+            request.Category,
+            request.EnvelopeId,
+            request.Splits is { Count: > 0 },
+            cancellationToken);
+        return Results.Created($"/api/v1/transactions/{transaction.Id}", MapTransactionResponse(transaction));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("CreateTransaction")
+    .WithOpenApi();
+
+v1.MapGet("/transactions", async (
+        Guid? accountId,
+        ITransactionService transactionService,
+        CancellationToken cancellationToken) =>
+    {
+        var transactions = await transactionService.ListAsync(accountId, cancellationToken);
+        return Results.Ok(transactions.Select(MapTransactionResponse).ToArray());
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("ListTransactions")
+    .WithOpenApi();
+
 app.Run();
 
 static FamilyResponse MapFamilyResponse(FamilyDetails family)
@@ -460,6 +494,20 @@ static AccountResponse MapAccountResponse(AccountDetails account)
         account.Name,
         account.Type,
         account.Balance);
+}
+
+static TransactionResponse MapTransactionResponse(TransactionDetails transaction)
+{
+    return new TransactionResponse(
+        transaction.Id,
+        transaction.AccountId,
+        transaction.Amount,
+        transaction.Description,
+        transaction.Merchant,
+        transaction.OccurredAt,
+        transaction.Category,
+        transaction.EnvelopeId,
+        []);
 }
 
 static KeycloakAdminOptions BuildKeycloakAdminOptions(IConfiguration configuration)
