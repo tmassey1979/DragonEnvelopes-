@@ -397,4 +397,84 @@
             </controls:CardControl>
         </Grid>
     </DataTemplate>
+
+    <DataTemplate DataType="{x:Type viewModels:SettingsViewModel}">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0">
+                <TextBlock Text="Settings" Style="{StaticResource DisplayTextStyle}" />
+                <TextBlock Margin="0,8,0,0"
+                           Text="Session controls, profile placeholders, and runtime metadata."
+                           Style="{StaticResource BodyTextStyle}" />
+            </StackPanel>
+
+            <Grid Grid.Row="1" Margin="0,14,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <controls:CardControl Grid.Row="0"
+                                      Header="Session Controls"
+                                      Subheader="Manage local desktop authentication state"
+                                      EmptyMessage="Session controls unavailable."
+                                      IsLoading="False"
+                                      IsEmpty="False">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   VerticalAlignment="Center"
+                                   Text="{Binding SessionStatus}"
+                                   Style="{StaticResource BodyTextStyle}" />
+                        <Button Grid.Column="1"
+                                Margin="12,0,8,0"
+                                Content="Refresh Session"
+                                Command="{Binding ReloadSessionCommand}" />
+                        <Button Grid.Column="2"
+                                Content="Sign Out"
+                                Command="{Binding SignOutCommand}" />
+                    </Grid>
+                </controls:CardControl>
+
+                <controls:CardControl Grid.Row="1"
+                                      Margin="0,12,0,0"
+                                      Header="Profile Preferences"
+                                      Subheader="Placeholder controls for upcoming profile settings"
+                                      EmptyMessage="{Binding ProfilePlaceholderMessage}"
+                                      IsLoading="False"
+                                      IsEmpty="False">
+                    <StackPanel>
+                        <TextBlock Text="{Binding ProfilePlaceholderMessage}" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBox Margin="0,8,0,0" Text="Display name (coming soon)" IsReadOnly="True" />
+                        <TextBox Margin="0,8,0,0" Text="Default family (coming soon)" IsReadOnly="True" />
+                    </StackPanel>
+                </controls:CardControl>
+
+                <controls:CardControl Grid.Row="2"
+                                      Margin="0,12,0,0"
+                                      Header="Application Metadata"
+                                      Subheader="Current runtime configuration"
+                                      EmptyMessage="Metadata unavailable."
+                                      IsLoading="False"
+                                      IsEmpty="False">
+                    <StackPanel>
+                        <TextBlock Text="{Binding EnvironmentName, StringFormat=Environment: {0}}" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding AppVersion, StringFormat=Desktop Version: {0}}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                    </StackPanel>
+                </controls:CardControl>
+            </Grid>
+        </Grid>
+    </DataTemplate>
 </ResourceDictionary>

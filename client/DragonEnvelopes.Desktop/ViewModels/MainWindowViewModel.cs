@@ -187,7 +187,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         };
 
         var apiClient = new DragonEnvelopesApiClient(httpClient);
-        var navigationService = new NavigationService(new RouteRegistry(apiClient));
+        var navigationService = new NavigationService(new RouteRegistry(apiClient, authService));
         return (navigationService, authService, apiClient);
     }
 

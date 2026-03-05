@@ -1,6 +1,7 @@
 using DragonEnvelopes.Desktop.ViewModels;
 using CommunityToolkit.Mvvm.Input;
 using DragonEnvelopes.Desktop.Api;
+using DragonEnvelopes.Desktop.Auth;
 using DragonEnvelopes.Desktop.Services;
 
 namespace DragonEnvelopes.Desktop.Navigation;
@@ -9,7 +10,7 @@ public sealed class RouteRegistry : IRouteRegistry
 {
     private readonly IReadOnlyDictionary<string, RouteDefinition> _routes;
 
-    public RouteRegistry(IBackendApiClient apiClient)
+    public RouteRegistry(IBackendApiClient apiClient, IAuthService authService)
     {
         var routeList = new[]
         {
@@ -73,13 +74,7 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Settings",
                 Glyph: "\uE713",
                 TopBarSubtitle: "Session and profile settings",
-                Content: new ShellContentViewModel(
-                    "Application Settings",
-                    "Manage profile/session preferences and local desktop configuration options.",
-                    "Settings controls are not loaded yet",
-                    "Future settings stories will add profile and session actions here.",
-                    metrics: BuildPendingMetrics("Setting"),
-                    isEmpty: true))
+                Content: new SettingsViewModel(authService))
         };
 
         _routes = routeList.ToDictionary(static route => route.Key, StringComparer.OrdinalIgnoreCase);
