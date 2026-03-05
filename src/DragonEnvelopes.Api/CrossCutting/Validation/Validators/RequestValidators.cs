@@ -3,6 +3,7 @@ using DragonEnvelopes.Contracts.Automation;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Families;
+using DragonEnvelopes.Contracts.Imports;
 using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Contracts.Transactions;
 using FluentValidation;
@@ -361,5 +362,43 @@ public sealed class UpdateRecurringBillRequestValidator : AbstractValidator<Upda
         RuleFor(static request => request.EndDate)
             .Must((request, endDate) => !endDate.HasValue || endDate.Value >= request.StartDate)
             .WithMessage("EndDate must be on or after StartDate.");
+    }
+}
+
+public sealed class ImportPreviewRequestValidator : AbstractValidator<ImportPreviewRequest>
+{
+    public ImportPreviewRequestValidator()
+    {
+        RuleFor(static request => request.FamilyId)
+            .NotEmpty();
+
+        RuleFor(static request => request.AccountId)
+            .NotEmpty();
+
+        RuleFor(static request => request.CsvContent)
+            .NotEmpty();
+
+        RuleFor(static request => request.Delimiter)
+            .Must(static delimiter => string.IsNullOrEmpty(delimiter) || delimiter.Length == 1)
+            .WithMessage("Delimiter must be exactly one character when provided.");
+    }
+}
+
+public sealed class ImportCommitRequestValidator : AbstractValidator<ImportCommitRequest>
+{
+    public ImportCommitRequestValidator()
+    {
+        RuleFor(static request => request.FamilyId)
+            .NotEmpty();
+
+        RuleFor(static request => request.AccountId)
+            .NotEmpty();
+
+        RuleFor(static request => request.CsvContent)
+            .NotEmpty();
+
+        RuleFor(static request => request.Delimiter)
+            .Must(static delimiter => string.IsNullOrEmpty(delimiter) || delimiter.Length == 1)
+            .WithMessage("Delimiter must be exactly one character when provided.");
     }
 }

@@ -15,6 +15,7 @@ using DragonEnvelopes.Contracts.Automation;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Families;
+using DragonEnvelopes.Contracts.Imports;
 using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Contracts.Reports;
 using DragonEnvelopes.Contracts.Transactions;
@@ -573,6 +574,43 @@ v1.MapGet("/transactions", async (
     .WithName("ListTransactions")
     .WithOpenApi();
 
+v1.MapPost("/imports/transactions/preview", async (
+        ImportPreviewRequest request,
+        IImportService importService,
+        CancellationToken cancellationToken) =>
+    {
+        var preview = await importService.PreviewTransactionsAsync(
+            request.FamilyId,
+            request.AccountId,
+            request.CsvContent,
+            request.Delimiter,
+            request.HeaderMappings,
+            cancellationToken);
+        return Results.Ok(MapImportPreviewResponse(preview));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("PreviewTransactionImport")
+    .WithOpenApi();
+
+v1.MapPost("/imports/transactions/commit", async (
+        ImportCommitRequest request,
+        IImportService importService,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await importService.CommitTransactionsAsync(
+            request.FamilyId,
+            request.AccountId,
+            request.CsvContent,
+            request.Delimiter,
+            request.HeaderMappings,
+            request.AcceptedRowNumbers,
+            cancellationToken);
+        return Results.Ok(MapImportCommitResponse(result));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("CommitTransactionImport")
+    .WithOpenApi();
+
 v1.MapPost("/envelopes", async (
         CreateEnvelopeRequest request,
         IEnvelopeService envelopeService,
@@ -938,6 +976,34 @@ static RecurringBillProjectionItemResponse MapRecurringBillProjectionItemRespons
         item.Merchant,
         item.Amount,
         item.DueDate);
+}
+
+static ImportPreviewResponse MapImportPreviewResponse(ImportPreviewDetails preview)
+{
+    return new ImportPreviewResponse(
+        preview.Parsed,
+        preview.Valid,
+        preview.Deduped,
+        preview.Rows.Select(static row => new ImportPreviewRowResponse(
+                row.RowNumber,
+                row.OccurredOn,
+                row.Amount,
+                row.Merchant,
+                row.Description,
+                row.Category,
+                row.IsDuplicate,
+                row.Errors))
+            .ToArray());
+}
+
+static ImportCommitResponse MapImportCommitResponse(ImportCommitDetails commit)
+{
+    return new ImportCommitResponse(
+        commit.Parsed,
+        commit.Valid,
+        commit.Deduped,
+        commit.Inserted,
+        commit.Failed);
 }
 
 static EnvelopeBalanceReportResponse MapEnvelopeBalanceReportResponse(EnvelopeBalanceReportDetails details)

@@ -37,6 +37,16 @@ public sealed class TransactionRepository(DragonEnvelopesDbContext dbContext) : 
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public Task<bool> AccountBelongsToFamilyAsync(
+        Guid accountId,
+        Guid familyId,
+        CancellationToken cancellationToken = default)
+    {
+        return dbContext.Accounts
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == accountId && x.FamilyId == familyId, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Transaction>> ListTransactionsAsync(
         Guid? accountId,
         CancellationToken cancellationToken = default)
@@ -68,5 +78,18 @@ public sealed class TransactionRepository(DragonEnvelopesDbContext dbContext) : 
             .OrderBy(x => x.TransactionId)
             .ThenBy(x => x.Id)
             .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task AddTransactionsAsync(
+        IReadOnlyList<Transaction> transactions,
+        CancellationToken cancellationToken = default)
+    {
+        if (transactions.Count == 0)
+        {
+            return;
+        }
+
+        dbContext.Transactions.AddRange(transactions);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

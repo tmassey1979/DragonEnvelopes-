@@ -13,11 +13,20 @@ public interface ITransactionRepository
 
     Task<Guid?> GetAccountFamilyIdAsync(Guid accountId, CancellationToken cancellationToken = default);
 
+    Task<bool> AccountBelongsToFamilyAsync(
+        Guid accountId,
+        Guid familyId,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<Transaction>> ListTransactionsAsync(
         Guid? accountId,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<TransactionSplitEntry>> ListTransactionSplitsAsync(
         IReadOnlyCollection<Guid> transactionIds,
+        CancellationToken cancellationToken = default);
+
+    Task AddTransactionsAsync(
+        IReadOnlyList<Transaction> transactions,
         CancellationToken cancellationToken = default);
 }
