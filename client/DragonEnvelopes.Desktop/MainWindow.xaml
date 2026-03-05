@@ -39,14 +39,10 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0">
-                    <TextBlock Text="DragonEnvelopes"
-                               Foreground="{StaticResource PrimaryTextBrush}"
-                               FontSize="26"
-                               FontWeight="Bold" />
+                    <TextBlock Text="DragonEnvelopes" Style="{StaticResource HeadingTextStyle}" FontSize="26" />
                     <TextBlock Margin="0,6,0,0"
                                Text="Family Budget Workspace"
-                               Foreground="{StaticResource SecondaryTextBrush}"
-                               FontSize="12" />
+                               Style="{StaticResource CaptionTextStyle}" />
                 </StackPanel>
 
                 <ItemsControl Grid.Row="1"
@@ -55,44 +51,9 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Button Margin="0,0,0,10"
-                                    Padding="14,12"
-                                    HorizontalContentAlignment="Stretch"
+                                    Style="{StaticResource SidebarNavButtonStyle}"
                                     Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                     CommandParameter="{Binding}">
-                                <Button.Style>
-                                    <Style TargetType="Button">
-                                        <Setter Property="Background" Value="Transparent" />
-                                        <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
-                                        <Setter Property="BorderBrush" Value="Transparent" />
-                                        <Setter Property="BorderThickness" Value="1" />
-                                        <Setter Property="Cursor" Value="Hand" />
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border Background="{TemplateBinding Background}"
-                                                            BorderBrush="{TemplateBinding BorderBrush}"
-                                                            BorderThickness="{TemplateBinding BorderThickness}"
-                                                            CornerRadius="10"
-                                                            Padding="{TemplateBinding Padding}">
-                                                        <ContentPresenter />
-                                                    </Border>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                        <Style.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#202D4A" />
-                                                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
-                                            </Trigger>
-                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                <Setter Property="Background" Value="#2A3A61" />
-                                                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
-                                                <Setter Property="BorderBrush" Value="#4B669E" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="28" />
@@ -106,6 +67,7 @@
                                     <TextBlock Grid.Column="1"
                                                Margin="8,0,0,0"
                                                Text="{Binding Label}"
+                                               Foreground="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}"
                                                FontSize="14"
                                                FontWeight="SemiBold"
                                                VerticalAlignment="Center" />
@@ -118,50 +80,49 @@
                 <Border Grid.Row="2"
                         Padding="12"
                         CornerRadius="10"
-                        Background="#1F2A45"
-                        BorderBrush="#30466E"
+                        Background="{StaticResource PanelMutedBackgroundBrush}"
+                        BorderBrush="{StaticResource PanelOutlineBrush}"
                         BorderThickness="1">
                     <TextBlock Text="Sidebar and topbar stay fixed while main content swaps by binding."
-                               Foreground="{StaticResource SecondaryTextBrush}"
-                               FontSize="11"
-                               TextWrapping="Wrap" />
+                               Style="{StaticResource CaptionTextStyle}" />
                 </Border>
             </Grid>
         </Border>
 
         <Border Grid.Row="0"
                 Grid.Column="1"
-                Background="#101728"
+                Background="{StaticResource ShellBackgroundBrush}"
                 BorderBrush="{StaticResource PanelOutlineBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="24,16">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="250" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="{Binding TopBarTitle}"
-                               Foreground="{StaticResource PrimaryTextBrush}"
-                               FontSize="24"
-                               FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding TopBarTitle}" Style="{StaticResource HeadingTextStyle}" FontSize="24" />
                     <TextBlock Margin="0,4,0,0"
                                Text="{Binding TopBarSubtitle}"
-                               Foreground="{StaticResource SecondaryTextBrush}"
-                               FontSize="12" />
+                               Style="{StaticResource CaptionTextStyle}" />
                 </StackPanel>
 
-                <Border Grid.Column="1"
+                <TextBox Grid.Column="1"
+                         Margin="16,0,12,0"
+                         VerticalAlignment="Center"
+                         Text="Search routes..."
+                         IsReadOnly="True" />
+
+                <Border Grid.Column="2"
                         Padding="12,8"
                         CornerRadius="8"
-                        Background="#1B2947"
-                        BorderBrush="#335281"
+                        Background="{StaticResource AccentMutedBrush}"
+                        BorderBrush="{StaticResource PanelOutlineBrush}"
                         BorderThickness="1"
                         VerticalAlignment="Center">
-                    <TextBlock Text="v1 Shell"
-                               Foreground="{StaticResource PrimaryTextBrush}"
-                               FontWeight="SemiBold" />
+                    <TextBlock Text="Dark Theme" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource PrimaryTextBrush}" FontWeight="SemiBold" />
                 </Border>
             </Grid>
         </Border>
