@@ -16,6 +16,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.OpenApi.Models;
 using DragonEnvelopes.Infrastructure;
 using Serilog;
+using Serilog.Sinks.Grafana.Loki;
 
 var builder = WebApplication.CreateBuilder(args);
 var authority = builder.Configuration["Authentication:Authority"]
@@ -25,11 +26,33 @@ var audience = builder.Configuration["Authentication:Audience"]
 
 builder.Host.UseSerilog((context, services, configuration) =>
 {
+    var enableLokiSink = context.Configuration.GetValue<bool>("Observability:EnableLokiSink");
+    var lokiUrl = context.Configuration["Observability:LokiUrl"];
+
     configuration
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
-        .Enrich.WithProperty("Application", "DragonEnvelopes.Api");
+        .Enrich.WithProperty("Application", "DragonEnvelopes.Api")
+        .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName);
+
+    if (enableLokiSink && !string.IsNullOrWhiteSpace(lokiUrl))
+    {
+        configuration.WriteTo.GrafanaLoki(
+            lokiUrl,
+            labels:
+            [
+                new LokiLabel { Key = "application", Value = "dragonenvelopes-api" },
+                new LokiLabel { Key = "environment", Value = context.HostingEnvironment.EnvironmentName.ToLowerInvariant() }
+            ],
+            propertiesAsLabels:
+            [
+                "CorrelationId",
+                "RequestPath",
+                "StatusCode",
+                "ExceptionType"
+            ]);
+    }
 });
 
 // Add services to the container.
@@ -160,6 +183,8 @@ app.UseSerilogRequestLogging(options =>
     options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
     {
         diagnosticContext.Set("CorrelationId", httpContext.TraceIdentifier);
+        diagnosticContext.Set("RequestPath", httpContext.Request.Path.Value);
+        diagnosticContext.Set("StatusCode", httpContext.Response.StatusCode);
         diagnosticContext.Set("RequestHost", httpContext.Request.Host.Value);
         diagnosticContext.Set("ClientIp", httpContext.Connection.RemoteIpAddress?.ToString());
     };

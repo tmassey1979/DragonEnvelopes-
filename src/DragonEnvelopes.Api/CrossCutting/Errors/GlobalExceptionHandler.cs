@@ -38,11 +38,11 @@ public sealed class GlobalExceptionHandler(
 
         if (problemDetails.Status >= StatusCodes.Status500InternalServerError)
         {
-            logger.LogError(exception, "Unhandled exception while processing request.");
+            logger.LogError(exception, "Unhandled exception while processing request. {ExceptionType}", exception.GetType().Name);
         }
         else
         {
-            logger.LogWarning(exception, "Handled exception while processing request.");
+            logger.LogWarning(exception, "Handled exception while processing request. {ExceptionType}", exception.GetType().Name);
         }
 
         httpContext.Response.StatusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError;

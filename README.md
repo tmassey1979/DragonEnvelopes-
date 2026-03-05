@@ -60,6 +60,12 @@ docker compose ps
 - `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`: Keycloak bootstrap admin password.
 - `KEYCLOAK_REALM`: Realm used by API auth config.
 - `KEYCLOAK_CLIENT_ID`: Client/audience used by API auth config.
+- `OBSERVABILITY_ENABLE_LOKI_SINK`: Enables direct API -> Loki sink (`true` or `false`).
+- `OBSERVABILITY_LOKI_URL`: Loki base URL used by API sink.
+- `LOKI_PORT`: Host port mapped to Loki container `3100` (observability profile).
+- `GRAFANA_PORT`: Host port mapped to Grafana container `3000` (observability profile).
+- `GRAFANA_ADMIN_USER`: Grafana admin username (observability profile).
+- `GRAFANA_ADMIN_PASSWORD`: Grafana admin password (observability profile).
 
 ### Secret Handling Guidance
 
@@ -89,6 +95,59 @@ API health endpoints:
 
 - Liveness: `http://localhost:18088/health/live`
 - Readiness: `http://localhost:18088/health/ready`
+
+### Observability Profile (Grafana + Loki + Promtail)
+
+Start with API log shipping enabled:
+
+```powershell
+$env:OBSERVABILITY_ENABLE_LOKI_SINK='true'
+docker compose --profile observability up -d
+```
+
+Default observability endpoints:
+
+- Loki: `http://localhost:3100`
+- Grafana: `http://localhost:3000`
+- Promtail metrics: `http://localhost:9080/metrics` (inside container network)
+
+Grafana defaults (from `.env`):
+
+- Username: `admin`
+- Password: `admin`
+
+Provisioned Grafana assets:
+
+- Loki datasource: `DragonEnvelopes Loki`
+- Dashboard: `DragonEnvelopes API Logs`
+
+Saved log query patterns:
+
+- API error rate (5xx over 5 minutes):
+  - `sum(count_over_time({application="dragonenvelopes-api"} |= "HTTP" | json | StatusCode=~"5.." [5m]))`
+- API trace + exception details:
+  - `{application="dragonenvelopes-api"} | json | line_format "{{.level}} {{.CorrelationId}} {{.RequestPath}} {{.StatusCode}} {{.ExceptionType}} {{.message}}"`
+
+Verification flow:
+
+1. Start stack with observability profile.
+2. Generate API traffic:
+   - `Invoke-WebRequest http://localhost:18088/health/live`
+   - `Invoke-WebRequest http://localhost:18088/api/v1/weatherforecast`
+3. Open Grafana Explore and run:
+   - `{application="dragonenvelopes-api"}`
+4. Confirm logs include `CorrelationId`, `RequestPath`, and `StatusCode`.
+
+Troubleshooting:
+
+- If no logs appear, verify API sink flag:
+  - `OBSERVABILITY_ENABLE_LOKI_SINK=true`
+- Check Loki ingestion health:
+  - `Invoke-WebRequest http://localhost:3100/ready`
+- Validate promtail targets:
+  - `docker compose logs promtail`
+- Confirm API container can resolve Loki service:
+  - `docker compose exec api printenv Observability__LokiUrl`
 
 ## Keycloak Bootstrap
 

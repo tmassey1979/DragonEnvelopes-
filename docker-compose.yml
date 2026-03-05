@@ -85,6 +85,8 @@ services:
       ConnectionStrings__Default: Host=postgres;Port=5432;Database=${APP_DB_NAME:-dragonenvelopes_app};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
       Authentication__Authority: http://keycloak:8080/realms/${KEYCLOAK_REALM:-dragonenvelopes}
       Authentication__Audience: ${KEYCLOAK_CLIENT_ID:-dragonenvelopes-api}
+      Observability__EnableLokiSink: ${OBSERVABILITY_ENABLE_LOKI_SINK:-false}
+      Observability__LokiUrl: ${OBSERVABILITY_LOKI_URL:-http://loki:3100}
     ports:
       - "${API_PORT:-18088}:8080"
     healthcheck:
@@ -96,9 +98,61 @@ services:
     networks:
       - dragonenvelopes_net
 
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: dragonenvelopes-loki
+    restart: unless-stopped
+    profiles: ["observability"]
+    command: ["-config.file=/etc/loki/config.yaml"]
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    volumes:
+      - ./infrastructure/observability/loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - dragonenvelopes_net
+
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: dragonenvelopes-promtail
+    restart: unless-stopped
+    profiles: ["observability"]
+    command: ["-config.file=/etc/promtail/config.yml"]
+    depends_on:
+      loki:
+        condition: service_started
+    volumes:
+      - ./infrastructure/observability/promtail/config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - dragonenvelopes_net
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: dragonenvelopes-grafana
+    restart: unless-stopped
+    profiles: ["observability"]
+    depends_on:
+      loki:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - dragonenvelopes_net
+
 volumes:
   postgres_data:
   pgadmin_data:
+  loki_data:
+  grafana_data:
 
 networks:
   dragonenvelopes_net:
