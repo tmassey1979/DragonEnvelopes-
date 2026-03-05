@@ -313,6 +313,162 @@
         </Grid>
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type viewModels:EnvelopesViewModel}">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Envelopes" Style="{StaticResource DisplayTextStyle}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Text="Create, edit, and archive spending envelopes."
+                               Style="{StaticResource BodyTextStyle}" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Margin="0,0,8,0"
+                        VerticalAlignment="Center"
+                        Content="Reload"
+                        Command="{Binding LoadCommand}" />
+                <Button Grid.Column="2"
+                        VerticalAlignment="Center"
+                        Content="New Envelope"
+                        Command="{Binding BeginCreateCommand}" />
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Padding="12"
+                    CornerRadius="10"
+                    Background="#4B311B"
+                    BorderBrush="#A35D2F"
+                    BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource CaptionTextStyle}" Foreground="#FFD2A8" />
+            </Border>
+
+            <Grid Grid.Row="2" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.1*" />
+                    <ColumnDefinition Width="14" />
+                    <ColumnDefinition Width="1*" />
+                </Grid.ColumnDefinitions>
+
+                <controls:CardControl Grid.Column="0"
+                                      Header="Envelope List"
+                                      Subheader="Current balances and archived state"
+                                      EmptyMessage="No envelopes exist yet."
+                                      IsLoading="{Binding IsLoading}"
+                                      IsEmpty="{Binding IsEmpty}">
+                    <ListBox ItemsSource="{Binding Envelopes}"
+                             SelectedItem="{Binding SelectedEnvelope, Mode=TwoWay}"
+                             Background="Transparent"
+                             BorderThickness="0">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="Margin" Value="0,0,0,8" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type viewModels:EnvelopeListItemViewModel}">
+                                <Border Padding="12"
+                                        CornerRadius="10"
+                                        BorderThickness="1">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{StaticResource PanelMutedBackgroundBrush}" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource PanelOutlineBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                                                    <Setter Property="Background" Value="#2A3A61" />
+                                                    <Setter Property="BorderBrush" Value="#4B669E" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="120" />
+                                            <ColumnDefinition Width="120" />
+                                            <ColumnDefinition Width="90" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding Name}"
+                                                   Style="{StaticResource BodyTextStyle}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding MonthlyBudgetDisplay}"
+                                                   Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding CurrentBalanceDisplay}"
+                                                   Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBlock Grid.Column="3"
+                                                   Text="{Binding IsArchived, StringFormat=Archived: {0}}"
+                                                   Style="{StaticResource CaptionTextStyle}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </controls:CardControl>
+
+                <controls:CardControl Grid.Column="2"
+                                      Header="{Binding EditorTitle}"
+                                      Subheader="Create and maintain envelope details"
+                                      EmptyMessage="Select an envelope to edit."
+                                      IsLoading="{Binding IsLoading}"
+                                      IsEmpty="False">
+                    <StackPanel>
+                        <TextBlock Text="{Binding EditorMessage}" Style="{StaticResource CaptionTextStyle}" />
+
+                        <TextBlock Margin="0,14,0,6" Text="Name" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBox Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Margin="0,14,0,6" Text="Monthly Budget" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBox Text="{Binding DraftMonthlyBudget, UpdateSourceTrigger=PropertyChanged, StringFormat=F2}" />
+
+                        <CheckBox Margin="0,14,0,0"
+                                  Content="Archived"
+                                  IsChecked="{Binding DraftIsArchived}" />
+
+                        <StackPanel Margin="0,18,0,0" Orientation="Horizontal">
+                            <Button Margin="0,0,8,0"
+                                    Content="Save"
+                                    Command="{Binding SaveCommand}" />
+                            <Button Margin="0,0,8,0"
+                                    Content="Archive"
+                                    Command="{Binding ArchiveCommand}" />
+                            <Button Content="Cancel"
+                                    Command="{Binding CancelEditCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </controls:CardControl>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type viewModels:ReportsViewModel}">
         <Grid Margin="8">
             <Grid.RowDefinitions>

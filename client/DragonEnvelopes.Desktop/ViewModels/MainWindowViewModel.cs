@@ -1,11 +1,13 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Net.Http;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DragonEnvelopes.Desktop.Api;
 using DragonEnvelopes.Desktop.Auth;
 using DragonEnvelopes.Desktop.Navigation;
+using DragonEnvelopes.Desktop.Services;
 
 namespace DragonEnvelopes.Desktop.ViewModels;
 
@@ -14,6 +16,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly INavigationService _navigationService;
     private readonly IAuthService _authService;
     private readonly IBackendApiClient _apiClient;
+    private readonly IFamilyContext _familyContext;
 
     public MainWindowViewModel()
         : this(CreateDefaults())
@@ -23,11 +26,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public MainWindowViewModel(
         INavigationService navigationService,
         IAuthService authService,
-        IBackendApiClient apiClient)
+        IBackendApiClient apiClient,
+        IFamilyContext familyContext)
     {
         _navigationService = navigationService;
         _authService = authService;
         _apiClient = apiClient;
+        _familyContext = familyContext;
 
         NavigationItems = new ObservableCollection<NavigationItemViewModel>(
             navigationService.Routes.Select(static route =>
@@ -114,6 +119,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             IsAuthenticated = false;
             AuthStatus = "Not signed in";
+            _familyContext.SetFamilyId(null);
             return;
         }
 
@@ -121,6 +127,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         AuthStatus = string.IsNullOrWhiteSpace(session.Subject)
             ? "Signed in"
             : $"Signed in as {session.Subject}";
+        await RefreshFamilyContextAsync();
     }
 
     private async Task ToggleAuthenticationAsync()
@@ -139,6 +146,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         await _authService.SignOutAsync();
         IsAuthenticated = false;
         AuthStatus = "Signed out";
+        _familyContext.SetFamilyId(null);
     }
 
     public async Task<AuthSignInResult> SignInWithPasswordAsync(string usernameOrEmail, string password)
@@ -149,6 +157,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             IsAuthenticated = false;
             AuthStatus = result.Message;
+            _familyContext.SetFamilyId(null);
             return result;
         }
 
@@ -156,6 +165,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         AuthStatus = string.IsNullOrWhiteSpace(result.Session?.Subject)
             ? "Signed in"
             : $"Signed in as {result.Session.Subject}";
+        await RefreshFamilyContextAsync();
 
         return result;
     }
@@ -184,7 +194,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(AuthActionLabel));
     }
 
-    private static (INavigationService NavigationService, IAuthService AuthService, IBackendApiClient ApiClient) CreateDefaults()
+    private static (
+        INavigationService NavigationService,
+        IAuthService AuthService,
+        IBackendApiClient ApiClient,
+        IFamilyContext FamilyContext) CreateDefaults()
     {
         var authService = new DesktopAuthService(new ProtectedTokenSessionStore());
         var apiOptions = new ApiClientOptions();
@@ -199,13 +213,48 @@ public sealed partial class MainWindowViewModel : ObservableObject
         };
 
         var apiClient = new DragonEnvelopesApiClient(httpClient);
-        var navigationService = new NavigationService(new RouteRegistry(apiClient, authService));
-        return (navigationService, authService, apiClient);
+        var familyContext = new FamilyContext();
+        var navigationService = new NavigationService(new RouteRegistry(apiClient, authService, familyContext));
+        return (navigationService, authService, apiClient, familyContext);
     }
 
     private MainWindowViewModel(
-        (INavigationService NavigationService, IAuthService AuthService, IBackendApiClient ApiClient) defaults)
-        : this(defaults.NavigationService, defaults.AuthService, defaults.ApiClient)
+        (INavigationService NavigationService, IAuthService AuthService, IBackendApiClient ApiClient, IFamilyContext FamilyContext) defaults)
+        : this(defaults.NavigationService, defaults.AuthService, defaults.ApiClient, defaults.FamilyContext)
     {
+    }
+
+    private async Task RefreshFamilyContextAsync()
+    {
+        try
+        {
+            using var response = await _apiClient.GetAsync("auth/me");
+            if (!response.IsSuccessStatusCode)
+            {
+                _familyContext.SetFamilyId(null);
+                return;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            using var document = await JsonDocument.ParseAsync(stream);
+            if (!document.RootElement.TryGetProperty("familyIds", out var familyIdsElement) ||
+                familyIdsElement.ValueKind != JsonValueKind.Array)
+            {
+                _familyContext.SetFamilyId(null);
+                return;
+            }
+
+            var familyId = familyIdsElement.EnumerateArray()
+                .Select(static element => element.GetString())
+                .Where(static value => !string.IsNullOrWhiteSpace(value))
+                .Select(static value => Guid.TryParse(value, out var parsed) ? parsed : Guid.Empty)
+                .FirstOrDefault(static value => value != Guid.Empty);
+
+            _familyContext.SetFamilyId(familyId == Guid.Empty ? null : familyId);
+        }
+        catch
+        {
+            _familyContext.SetFamilyId(null);
+        }
     }
 }

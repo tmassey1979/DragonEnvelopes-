@@ -271,18 +271,34 @@ v1.MapGet("/weatherforecast", () =>
 .WithName("GetWeatherForecast")
 .WithOpenApi();
 
-v1.MapGet("/auth/me", (ClaimsPrincipal user) =>
+v1.MapGet("/auth/me", async (
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
+        CancellationToken cancellationToken) =>
     {
         var roles = user.FindAll(ClaimTypes.Role)
             .Select(static claim => claim.Value)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(static role => role)
             .ToArray();
+        var userId = user.FindFirstValue("sub");
+        Guid[] familyIds = [];
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            familyIds = await dbContext.FamilyMembers
+                .AsNoTracking()
+                .Where(member => member.KeycloakUserId == userId)
+                .Select(member => member.FamilyId)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToArrayAsync(cancellationToken);
+        }
 
         return Results.Ok(new
         {
             username = user.Identity?.Name,
-            roles
+            roles,
+            familyIds
         });
     })
     .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)

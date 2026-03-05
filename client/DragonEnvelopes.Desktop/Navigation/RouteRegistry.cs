@@ -10,7 +10,7 @@ public sealed class RouteRegistry : IRouteRegistry
 {
     private readonly IReadOnlyDictionary<string, RouteDefinition> _routes;
 
-    public RouteRegistry(IBackendApiClient apiClient, IAuthService authService)
+    public RouteRegistry(IBackendApiClient apiClient, IAuthService authService, IFamilyContext familyContext)
     {
         var routeList = new[]
         {
@@ -25,14 +25,7 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Envelopes",
                 Glyph: "\uE713",
                 TopBarSubtitle: "Envelope planning workspace",
-                Content: new ShellContentViewModel(
-                    "Envelope Planning",
-                    "Organize spending buckets and monthly targets across your household categories.",
-                    "Envelope list is not loaded yet",
-                    "Once envelope APIs are wired, this region will host list and edit views.",
-                    metrics: BuildPendingMetrics("Envelope"),
-                    envelopes: BuildEnvelopeTiles(),
-                    isEmpty: true)),
+                Content: new EnvelopesViewModel(new EnvelopesDataService(apiClient, familyContext))),
             new RouteDefinition(
                 Key: "/transactions",
                 Label: "Transactions",
@@ -50,7 +43,7 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Accounts",
                 Glyph: "\uEB0F",
                 TopBarSubtitle: "Account balances and sources",
-                Content: new AccountsViewModel(new AccountsDataService(apiClient))),
+                Content: new AccountsViewModel(new AccountsDataService(apiClient, familyContext))),
             new RouteDefinition(
                 Key: "/reports",
                 Label: "Reports",
