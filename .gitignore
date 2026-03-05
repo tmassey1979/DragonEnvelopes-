@@ -1,0 +1,17 @@
+bin/
+obj/
+.vs/
+.idea/
+.vscode/
+TestResults/
+artifacts/
+*.user
+*.suo
+*.ncrunch*
+*.coverage
+*.trx
+*.log
+.env
+.env.*
+!.env.example
+

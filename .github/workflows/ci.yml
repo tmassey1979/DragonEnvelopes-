@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore DragonEnvelopes.sln
+
+      - name: Verify architecture dependencies
+        shell: pwsh
+        run: ./eng/verify-architecture.ps1 -RepoRoot .
+
+      - name: Build
+        run: dotnet build DragonEnvelopes.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test DragonEnvelopes.sln --configuration Release --no-build --logger trx --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/*.trx
