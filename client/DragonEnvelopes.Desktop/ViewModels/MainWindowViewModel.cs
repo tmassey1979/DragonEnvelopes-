@@ -174,7 +174,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private static (INavigationService NavigationService, IAuthService AuthService, IBackendApiClient ApiClient) CreateDefaults()
     {
-        var navigationService = new NavigationService(new RouteRegistry());
         var authService = new DesktopAuthService(new ProtectedTokenSessionStore());
         var apiOptions = new ApiClientOptions();
         var handler = new AuthenticatedApiHttpMessageHandler(authService)
@@ -188,6 +187,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         };
 
         var apiClient = new DragonEnvelopesApiClient(httpClient);
+        var navigationService = new NavigationService(new RouteRegistry(apiClient));
         return (navigationService, authService, apiClient);
     }
 

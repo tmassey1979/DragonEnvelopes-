@@ -1,5 +1,7 @@
 using DragonEnvelopes.Desktop.ViewModels;
 using CommunityToolkit.Mvvm.Input;
+using DragonEnvelopes.Desktop.Api;
+using DragonEnvelopes.Desktop.Services;
 
 namespace DragonEnvelopes.Desktop.Navigation;
 
@@ -7,7 +9,7 @@ public sealed class RouteRegistry : IRouteRegistry
 {
     private readonly IReadOnlyDictionary<string, RouteDefinition> _routes;
 
-    public RouteRegistry()
+    public RouteRegistry(IBackendApiClient apiClient)
     {
         var routeList = new[]
         {
@@ -47,13 +49,7 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Accounts",
                 Glyph: "\uEB0F",
                 TopBarSubtitle: "Account balances and sources",
-                Content: new ShellContentViewModel(
-                    "Account Summary",
-                    "Inspect account balances and connect transactions back to their source account.",
-                    "Accounts are not loaded yet",
-                    "Account APIs and bindings will hydrate this section in upcoming stories.",
-                    metrics: BuildPendingMetrics("Account"),
-                    isEmpty: true)),
+                Content: new AccountsViewModel(new AccountsDataService(apiClient))),
             new RouteDefinition(
                 Key: "/reports",
                 Label: "Reports",

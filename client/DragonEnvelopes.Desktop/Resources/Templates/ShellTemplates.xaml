@@ -215,4 +215,101 @@
             </controls:CardControl>
         </Grid>
     </DataTemplate>
+
+    <DataTemplate DataType="{x:Type viewModels:AccountsViewModel}">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Accounts" Style="{StaticResource DisplayTextStyle}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Text="Connected account balances and source-of-truth list."
+                               Style="{StaticResource BodyTextStyle}" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Margin="0,0,8,0"
+                        VerticalAlignment="Center"
+                        Content="Reload"
+                        Command="{Binding LoadCommand}" />
+                <Button Grid.Column="2"
+                        VerticalAlignment="Center"
+                        Content="Add Account"
+                        Command="{Binding AddAccountPlaceholderCommand}" />
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Padding="12"
+                    CornerRadius="10"
+                    Background="#4B311B"
+                    BorderBrush="#A35D2F"
+                    BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource CaptionTextStyle}" Foreground="#FFD2A8" />
+            </Border>
+
+            <controls:CardControl Grid.Row="2"
+                                  Margin="0,12,0,0"
+                                  Header="Account List"
+                                  Subheader="Scaffold with API-bound loading and error handling"
+                                  EmptyMessage="No accounts found for this family yet."
+                                  IsLoading="{Binding IsLoading}"
+                                  IsEmpty="{Binding IsEmpty}">
+                <StackPanel>
+                    <ItemsControl ItemsSource="{Binding Accounts}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type viewModels:AccountListItemViewModel}">
+                                <Border Margin="0,0,0,8"
+                                        Padding="12"
+                                        CornerRadius="10"
+                                        Background="{StaticResource PanelMutedBackgroundBrush}"
+                                        BorderBrush="{StaticResource PanelOutlineBrush}"
+                                        BorderThickness="1">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="140" />
+                                            <ColumnDefinition Width="120" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}" Style="{StaticResource BodyTextStyle}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Type}" Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding Balance}"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   Foreground="{StaticResource PrimaryTextBrush}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Margin="0,8,0,0"
+                               Text="{Binding PlaceholderMessage}"
+                               Style="{StaticResource CaptionTextStyle}" />
+                </StackPanel>
+            </controls:CardControl>
+        </Grid>
+    </DataTemplate>
 </ResourceDictionary>
