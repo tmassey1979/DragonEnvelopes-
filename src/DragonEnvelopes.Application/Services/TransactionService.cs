@@ -9,7 +9,8 @@ namespace DragonEnvelopes.Application.Services;
 public sealed class TransactionService(
     ITransactionRepository transactionRepository,
     IEnvelopeRepository envelopeRepository,
-    ICategorizationRuleEngine categorizationRuleEngine) : ITransactionService
+    ICategorizationRuleEngine categorizationRuleEngine,
+    IIncomeAllocationEngine incomeAllocationEngine) : ITransactionService
 {
     public async Task<TransactionDetails> CreateAsync(
         Guid accountId,
@@ -40,9 +41,28 @@ public sealed class TransactionService(
                 cancellationToken);
         }
 
-        var hasSplitItems = hasSplits && splits is { Count: > 0 };
+        var hasManualSplitItems = hasSplits && splits is { Count: > 0 };
+        var splitInputs = hasManualSplitItems
+            ? splits!.ToArray()
+            : Array.Empty<TransactionSplitCreateDetails>();
+        var usedAutomaticAllocation = false;
+
+        if (!hasManualSplitItems && !envelopeId.HasValue && amount > 0m)
+        {
+            splitInputs = (await incomeAllocationEngine.AllocateAsync(
+                    familyId.Value,
+                    description,
+                    merchant,
+                    amount,
+                    category,
+                    cancellationToken))
+                .ToArray();
+            usedAutomaticAllocation = splitInputs.Length > 0;
+        }
+
+        var hasSplitItems = splitInputs.Length > 0;
         Envelope? envelope = null;
-        if (envelopeId.HasValue && !hasSplitItems)
+        if (envelopeId.HasValue && !hasManualSplitItems)
         {
             envelope = await envelopeRepository.GetByIdForUpdateAsync(envelopeId.Value, cancellationToken);
             if (envelope is null)
@@ -55,23 +75,37 @@ public sealed class TransactionService(
         Transaction transaction;
         if (hasSplitItems)
         {
-            var splitInputs = splits!;
-            var splitValueObjects = splitInputs
-                .Select(static split => new TransactionSplit(
-                    split.EnvelopeId,
-                    Money.FromDecimal(split.Amount),
-                    split.Category))
-                .ToArray();
+            if (usedAutomaticAllocation)
+            {
+                transaction = new Transaction(
+                    Guid.NewGuid(),
+                    accountId,
+                    Money.FromDecimal(amount),
+                    description,
+                    merchant,
+                    occurredAt,
+                    category,
+                    envelopeId: null);
+            }
+            else
+            {
+                var splitValueObjects = splitInputs
+                    .Select(static split => new TransactionSplit(
+                        split.EnvelopeId,
+                        Money.FromDecimal(split.Amount),
+                        split.Category))
+                    .ToArray();
 
-            transaction = Transaction.CreateWithSplits(
-                Guid.NewGuid(),
-                accountId,
-                Money.FromDecimal(amount),
-                description,
-                merchant,
-                occurredAt,
-                splitValueObjects,
-                category);
+                transaction = Transaction.CreateWithSplits(
+                    Guid.NewGuid(),
+                    accountId,
+                    Money.FromDecimal(amount),
+                    description,
+                    merchant,
+                    occurredAt,
+                    splitValueObjects,
+                    category);
+            }
 
             foreach (var split in splitInputs)
             {

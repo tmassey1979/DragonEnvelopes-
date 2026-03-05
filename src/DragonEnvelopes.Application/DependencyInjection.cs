@@ -14,6 +14,7 @@ public static class DependencyInjection
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IAutomationRuleService, AutomationRuleService>();
         services.AddScoped<ICategorizationRuleEngine, CategorizationRuleEngine>();
+        services.AddScoped<IIncomeAllocationEngine, IncomeAllocationEngine>();
         services.AddScoped<IEnvelopeService, EnvelopeService>();
         services.AddScoped<IBudgetService, BudgetService>();
         services.AddScoped<ITransactionService, TransactionService>();
