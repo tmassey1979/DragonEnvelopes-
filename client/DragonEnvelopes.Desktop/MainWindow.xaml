@@ -40,6 +40,10 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0">
+                    <Image Width="190"
+                           Height="78"
+                           Stretch="Uniform"
+                           Source="/Assets/dragonenvelopes-logo-transparent.png" />
                     <TextBlock Text="DragonEnvelopes" Style="{StaticResource HeadingTextStyle}" FontSize="26" />
                     <TextBlock Margin="0,6,0,0"
                                Text="Family Budget Workspace"

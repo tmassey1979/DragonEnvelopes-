@@ -9,6 +9,10 @@
     <ProjectReference Include="..\..\src\DragonEnvelopes.Contracts\DragonEnvelopes.Contracts.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Resource Include="Assets\**\*" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
