@@ -1,8 +1,10 @@
 using System.Security.Claims;
+using Asp.Versioning;
 using DragonEnvelopes.Application;
 using DragonEnvelopes.Api.CrossCutting.Auth;
 using DragonEnvelopes.Api.CrossCutting.Errors;
 using DragonEnvelopes.Api.CrossCutting.Logging;
+using DragonEnvelopes.Api.CrossCutting.OpenApi;
 using DragonEnvelopes.Api.CrossCutting.Validation;
 using DragonEnvelopes.Infrastructure.Persistence;
 using FluentValidation;
@@ -11,6 +13,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.OpenApi.Models;
 using DragonEnvelopes.Infrastructure;
 using Serilog;
 
@@ -32,7 +35,34 @@ builder.Host.UseSerilog((context, services, configuration) =>
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "DragonEnvelopes API",
+        Version = "v1",
+        Description = "Versioning strategy: URL segment `/api/v{version}`. Current stable version: v1."
+    });
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "JWT bearer token. Example: `Bearer eyJhbGciOi...`"
+    });
+
+    options.OperationFilter<BearerSecurityOperationFilter>();
+});
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+    options.ApiVersionReader = new UrlSegmentApiVersionReader();
+});
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -156,7 +186,17 @@ var summaries = new[]
     "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
 };
 
-app.MapGet("/weatherforecast", () =>
+var versionSet = app.NewApiVersionSet()
+    .HasApiVersion(new ApiVersion(1, 0))
+    .ReportApiVersions()
+    .Build();
+
+var v1 = app.MapGroup("/api/v{version:apiVersion}")
+    .WithApiVersionSet(versionSet)
+    .MapToApiVersion(new ApiVersion(1, 0))
+    .AddFluentValidation();
+
+v1.MapGet("/weatherforecast", () =>
 {
     var forecast =  Enumerable.Range(1, 5).Select(index =>
         new WeatherForecast
@@ -168,12 +208,11 @@ app.MapGet("/weatherforecast", () =>
         .ToArray();
     return forecast;
 })
-.AddFluentValidation()
 .AllowAnonymous()
 .WithName("GetWeatherForecast")
 .WithOpenApi();
 
-app.MapGet("/auth/me", (ClaimsPrincipal user) =>
+v1.MapGet("/auth/me", (ClaimsPrincipal user) =>
     {
         var roles = user.FindAll(ClaimTypes.Role)
             .Select(static claim => claim.Value)
@@ -191,7 +230,7 @@ app.MapGet("/auth/me", (ClaimsPrincipal user) =>
     .WithName("GetCurrentUser")
     .WithOpenApi();
 
-app.MapGet("/auth/parent-only", () =>
+v1.MapGet("/auth/parent-only", () =>
     Results.Ok(new { message = "Parent access granted." }))
     .RequireAuthorization(ApiAuthorizationPolicies.Parent)
     .WithName("ParentOnlyProbe")

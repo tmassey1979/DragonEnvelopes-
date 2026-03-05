@@ -113,8 +113,25 @@ API health endpoints:
   - `TeenOrAbovePolicy`
   - `AnyFamilyMemberPolicy`
 - Auth probe endpoints:
-  - `GET /auth/me` (requires `AnyFamilyMemberPolicy`)
-  - `GET /auth/parent-only` (requires `ParentPolicy`)
+  - `GET /api/v1/auth/me` (requires `AnyFamilyMemberPolicy`)
+  - `GET /api/v1/auth/parent-only` (requires `ParentPolicy`)
+
+## API Versioning and Error Contract
+
+- Versioning mode: URL segment.
+  - Route prefix pattern: `/api/v{version}`
+  - Current version: `v1`
+- Example versioned endpoints:
+  - `GET /api/v1/weatherforecast`
+  - `GET /api/v1/auth/me`
+- OpenAPI/Swagger includes:
+  - Bearer auth security scheme (`Authorization: Bearer <token>`)
+  - Auth operation annotations for expected `401` and `403` responses
+- Error contract format:
+  - Problem responses follow RFC7807 (`application/problem+json`)
+  - Standard fields: `type`, `title`, `status`, `detail`, `instance`
+  - API adds `traceId` for correlation
+  - Validation errors return `HttpValidationProblemDetails` with an `errors` dictionary
 
 
 
