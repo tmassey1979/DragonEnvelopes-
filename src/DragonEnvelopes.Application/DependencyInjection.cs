@@ -1,0 +1,17 @@
+using DragonEnvelopes.Application.Interfaces;
+using DragonEnvelopes.Application.Mapping;
+using DragonEnvelopes.Application.Services;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace DragonEnvelopes.Application;
+
+public static class DependencyInjection
+{
+    public static IServiceCollection AddApplication(this IServiceCollection services)
+    {
+        services.AddScoped<IHealthPingService, HealthPingService>();
+        services.AddSingleton<IApplicationMapper, IdentityMapper>();
+
+        return services;
+    }
+}
