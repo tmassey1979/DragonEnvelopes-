@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace DragonEnvelopes.Desktop.Controls;
 
@@ -22,9 +23,23 @@ public partial class LoginControl : UserControl
 
     public void SetError(string? message)
     {
-        var hasError = !string.IsNullOrWhiteSpace(message);
-        ErrorTextBlock.Text = message ?? string.Empty;
-        ErrorTextBlock.Visibility = hasError ? Visibility.Visible : Visibility.Collapsed;
+        SetStatus(message, isError: true);
+    }
+
+    public void SetStatus(string? message, bool isError = false)
+    {
+        var hasMessage = !string.IsNullOrWhiteSpace(message);
+        StatusTextBlock.Text = message ?? string.Empty;
+        StatusTextBlock.Visibility = hasMessage ? Visibility.Visible : Visibility.Collapsed;
+        StatusTextBlock.Foreground = isError
+            ? (Brush)FindResource("AccentBrush")
+            : (Brush)FindResource("SecondaryTextBrush");
+    }
+
+    public void SetUsername(string usernameOrEmail)
+    {
+        UsernameBox.Text = usernameOrEmail ?? string.Empty;
+        UsernameBox.CaretIndex = UsernameBox.Text.Length;
     }
 
     public void SetBusy(bool busy)

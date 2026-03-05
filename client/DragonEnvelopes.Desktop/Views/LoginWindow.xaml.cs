@@ -57,7 +57,18 @@ public partial class LoginWindow : Window
             Owner = this
         };
 
-        createFamilyWindow.ShowDialog();
+        var created = createFamilyWindow.ShowDialog() == true;
+        if (!created)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(createFamilyWindow.CreatedEmail))
+        {
+            LoginControl.SetUsername(createFamilyWindow.CreatedEmail);
+        }
+
+        LoginControl.SetStatus("Family account created. Sign in with your new credentials.");
     }
 
     private void OnCancelRequested(object? sender, EventArgs e)

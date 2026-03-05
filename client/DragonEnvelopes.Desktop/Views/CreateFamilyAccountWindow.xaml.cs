@@ -7,6 +7,7 @@ namespace DragonEnvelopes.Desktop.Views;
 public partial class CreateFamilyAccountWindow : Window
 {
     private readonly IFamilyAccountService _familyAccountService;
+    public string? CreatedEmail { get; private set; }
 
     public CreateFamilyAccountWindow(IFamilyAccountService familyAccountService)
     {
@@ -54,6 +55,7 @@ public partial class CreateFamilyAccountWindow : Window
             MessageBoxButton.OK,
             MessageBoxImage.Information);
 
+        CreatedEmail = EmailBox.Text.Trim();
         DialogResult = true;
         Close();
     }

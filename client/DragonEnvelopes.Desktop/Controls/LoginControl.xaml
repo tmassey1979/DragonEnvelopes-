@@ -24,9 +24,9 @@
             <TextBlock Text="Password" />
             <PasswordBox x:Name="PasswordBox" Margin="0,8,0,4" />
 
-            <TextBlock x:Name="ErrorTextBlock"
+            <TextBlock x:Name="StatusTextBlock"
                        Margin="0,6,0,0"
-                       Foreground="{StaticResource AccentBrush}"
+                       Foreground="{StaticResource SecondaryTextBrush}"
                        Visibility="Collapsed"
                        TextWrapping="Wrap" />
 
