@@ -31,4 +31,22 @@ dotnet build DragonEnvelopes.sln
 dotnet test DragonEnvelopes.sln
 ```
 
+## Docker Services
+
+Create a local `.env` from `.env.example` and start the infrastructure stack:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up -d --build
+docker compose ps
+```
+
+Default local endpoints:
+
+- API: `http://localhost:18088`
+- Keycloak: `http://localhost:18080`
+- pgAdmin: `http://localhost:5050`
+- Postgres: `localhost:5433`
+
+
 
