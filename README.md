@@ -143,6 +143,17 @@ API health endpoints:
   - Token session is encrypted at rest using Windows DPAPI (`DataProtectionScope.CurrentUser`).
   - Session file location: `%LOCALAPPDATA%\\DragonEnvelopes\\session.dat`.
 
+## Desktop Authenticated API Client
+
+- WPF desktop client uses a centralized authenticated HTTP pipeline.
+- Bearer tokens are attached in a delegating handler (`AuthenticatedApiHttpMessageHandler`).
+- Handler behavior:
+  - Pre-refreshes/renews token when nearing expiry (using refresh token when available).
+  - Retries idempotent requests once on `401` after forced refresh.
+  - Leaves non-idempotent requests as non-retried for safety.
+- Optional API base URL override:
+  - `DRAGONENVELOPES_API_BASE_URL` (default `http://localhost:18088/api/v1/`)
+
 ## API Versioning and Error Contract
 
 - Versioning mode: URL segment.

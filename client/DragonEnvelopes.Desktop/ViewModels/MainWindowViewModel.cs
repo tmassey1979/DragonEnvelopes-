@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DragonEnvelopes.Desktop.Api;
 using DragonEnvelopes.Desktop.Auth;
 using DragonEnvelopes.Desktop.Navigation;
 
@@ -11,20 +13,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
 {
     private readonly INavigationService _navigationService;
     private readonly IAuthService _authService;
+    private readonly IBackendApiClient _apiClient;
 
     public MainWindowViewModel()
-        : this(
-            new NavigationService(new RouteRegistry()),
-            new DesktopAuthService(new ProtectedTokenSessionStore()))
+        : this(CreateDefaults())
     {
     }
 
     public MainWindowViewModel(
         INavigationService navigationService,
-        IAuthService authService)
+        IAuthService authService,
+        IBackendApiClient apiClient)
     {
         _navigationService = navigationService;
         _authService = authService;
+        _apiClient = apiClient;
 
         NavigationItems = new ObservableCollection<NavigationItemViewModel>(
             navigationService.Routes.Select(static route =>
@@ -32,6 +35,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         NavigateCommand = new RelayCommand<NavigationItemViewModel?>(Navigate);
         ToggleAuthenticationCommand = new AsyncRelayCommand(ToggleAuthenticationAsync);
+        PingApiCommand = new AsyncRelayCommand(PingApiAsync);
 
         _navigationService.PropertyChanged += OnNavigationServiceChanged;
         _navigationService.Navigate("/dashboard");
@@ -44,6 +48,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IRelayCommand<NavigationItemViewModel?> NavigateCommand { get; }
 
     public IAsyncRelayCommand ToggleAuthenticationCommand { get; }
+
+    public IAsyncRelayCommand PingApiCommand { get; }
 
     [ObservableProperty]
     private string topBarTitle = "DragonEnvelopes";
@@ -59,6 +65,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     private string authStatus = "Not signed in";
+
+    [ObservableProperty]
+    private string apiStatus = "API idle";
 
     public string AuthActionLabel => IsAuthenticated ? "Sign Out" : "Sign In";
 
@@ -139,8 +148,52 @@ public sealed partial class MainWindowViewModel : ObservableObject
             : $"Signed in as {result.Session.Subject}";
     }
 
+    private async Task PingApiAsync()
+    {
+        try
+        {
+            using var response = await _apiClient.GetAsync("auth/me");
+            ApiStatus = $"API {(int)response.StatusCode}";
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                IsAuthenticated = false;
+                AuthStatus = "Session invalid. Sign in again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ApiStatus = $"API error: {ex.Message}";
+        }
+    }
+
     partial void OnIsAuthenticatedChanged(bool value)
     {
         OnPropertyChanged(nameof(AuthActionLabel));
+    }
+
+    private static (INavigationService NavigationService, IAuthService AuthService, IBackendApiClient ApiClient) CreateDefaults()
+    {
+        var navigationService = new NavigationService(new RouteRegistry());
+        var authService = new DesktopAuthService(new ProtectedTokenSessionStore());
+        var apiOptions = new ApiClientOptions();
+        var handler = new AuthenticatedApiHttpMessageHandler(authService)
+        {
+            InnerHandler = new HttpClientHandler()
+        };
+
+        var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri(apiOptions.BaseUrl, UriKind.Absolute)
+        };
+
+        var apiClient = new DragonEnvelopesApiClient(httpClient);
+        return (navigationService, authService, apiClient);
+    }
+
+    private MainWindowViewModel(
+        (INavigationService NavigationService, IAuthService AuthService, IBackendApiClient ApiClient) defaults)
+        : this(defaults.NavigationService, defaults.AuthService, defaults.ApiClient)
+    {
     }
 }

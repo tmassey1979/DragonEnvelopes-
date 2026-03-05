@@ -7,4 +7,6 @@ public interface IAuthService
     Task<AuthSignInResult> SignInAsync(CancellationToken cancellationToken = default);
 
     Task SignOutAsync(CancellationToken cancellationToken = default);
+
+    Task<string?> GetAccessTokenAsync(bool forceRefresh = false, CancellationToken cancellationToken = default);
 }

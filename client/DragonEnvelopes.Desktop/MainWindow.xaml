@@ -85,6 +85,8 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
@@ -106,7 +108,13 @@
                            Text="{Binding AuthStatus}"
                            Style="{StaticResource CaptionTextStyle}" />
 
-                <Border Grid.Column="3"
+                <TextBlock Grid.Column="3"
+                           Margin="0,0,14,0"
+                           VerticalAlignment="Center"
+                           Text="{Binding ApiStatus}"
+                           Style="{StaticResource CaptionTextStyle}" />
+
+                <Border Grid.Column="4"
                         Padding="12,8"
                         CornerRadius="8"
                         Background="{StaticResource AccentMutedBrush}"
@@ -116,12 +124,19 @@
                     <TextBlock Text="Dark Theme" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource PrimaryTextBrush}" FontWeight="SemiBold" />
                 </Border>
 
-                <Button Grid.Column="4"
+                <Button Grid.Column="5"
                         Margin="12,0,0,0"
                         VerticalAlignment="Center"
                         MinWidth="92"
                         Content="{Binding AuthActionLabel}"
                         Command="{Binding ToggleAuthenticationCommand}" />
+
+                <Button Grid.Column="6"
+                        Margin="12,0,0,0"
+                        VerticalAlignment="Center"
+                        MinWidth="84"
+                        Content="Ping API"
+                        Command="{Binding PingApiCommand}" />
             </Grid>
         </Border>
 
