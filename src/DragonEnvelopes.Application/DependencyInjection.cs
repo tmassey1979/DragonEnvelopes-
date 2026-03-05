@@ -11,6 +11,7 @@ public static class DependencyInjection
     {
         services.AddScoped<IHealthPingService, HealthPingService>();
         services.AddScoped<IFamilyService, FamilyService>();
+        services.AddScoped<IAccountService, AccountService>();
         services.AddSingleton<IApplicationMapper, IdentityMapper>();
 
         return services;

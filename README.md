@@ -247,6 +247,8 @@ Expected MSI output:
   - `GET /api/v1/families/{familyId}`
   - `POST /api/v1/families/{familyId}/members`
   - `GET /api/v1/families/{familyId}/members`
+  - `POST /api/v1/accounts`
+  - `GET /api/v1/accounts?familyId={familyId}`
 - Bootstrap access:
   - `POST /api/v1/families`, `POST /api/v1/families/onboard`, and `POST /api/v1/families/{familyId}/members` allow anonymous requests to support first-time desktop onboarding.
 - OpenAPI/Swagger includes:

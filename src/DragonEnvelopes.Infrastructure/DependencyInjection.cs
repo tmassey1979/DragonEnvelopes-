@@ -24,6 +24,7 @@ public static class DependencyInjection
         services.AddSingleton<IClock, SystemClock>();
         services.AddScoped<IRepositoryMarker, RepositoryMarker>();
         services.AddScoped<IFamilyRepository, FamilyRepository>();
+        services.AddScoped<IAccountRepository, AccountRepository>();
 
         return services;
     }

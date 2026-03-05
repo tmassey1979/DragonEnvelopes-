@@ -10,6 +10,7 @@ using DragonEnvelopes.Infrastructure.Persistence;
 using DragonEnvelopes.Api.Services;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Services;
+using DragonEnvelopes.Contracts.Accounts;
 using DragonEnvelopes.Contracts.Families;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -391,6 +392,36 @@ v1.MapGet("/families/{familyId:guid}/members", async (
     .WithName("ListFamilyMembers")
     .WithOpenApi();
 
+v1.MapPost("/accounts", async (
+        CreateAccountRequest request,
+        IAccountService accountService,
+        CancellationToken cancellationToken) =>
+    {
+        var account = await accountService.CreateAsync(
+            request.FamilyId,
+            request.Name,
+            request.Type,
+            request.OpeningBalance,
+            cancellationToken);
+
+        return Results.Created($"/api/v1/accounts/{account.Id}", MapAccountResponse(account));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("CreateAccount")
+    .WithOpenApi();
+
+v1.MapGet("/accounts", async (
+        Guid? familyId,
+        IAccountService accountService,
+        CancellationToken cancellationToken) =>
+    {
+        var accounts = await accountService.ListAsync(familyId, cancellationToken);
+        return Results.Ok(accounts.Select(MapAccountResponse).ToArray());
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("ListAccounts")
+    .WithOpenApi();
+
 app.Run();
 
 static FamilyResponse MapFamilyResponse(FamilyDetails family)
@@ -419,6 +450,16 @@ static FamilyMemberResponse MapFamilyMemberResponse(FamilyMemberDetails member)
         member.Name,
         member.Email,
         member.Role);
+}
+
+static AccountResponse MapAccountResponse(AccountDetails account)
+{
+    return new AccountResponse(
+        account.Id,
+        account.FamilyId,
+        account.Name,
+        account.Type,
+        account.Balance);
 }
 
 static KeycloakAdminOptions BuildKeycloakAdminOptions(IConfiguration configuration)
