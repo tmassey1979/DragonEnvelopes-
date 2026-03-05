@@ -46,10 +46,11 @@ public partial class LoginWindow : Window
 
     private void OnCreateFamilyRequested(object? sender, EventArgs e)
     {
-        MessageBox.Show(
-            "Create Family Account window is coming next.",
-            "DragonEnvelopes",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        var createFamilyWindow = new CreateFamilyAccountWindow
+        {
+            Owner = this
+        };
+
+        createFamilyWindow.ShowDialog();
     }
 }
