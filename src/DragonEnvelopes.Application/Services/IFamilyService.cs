@@ -7,4 +7,14 @@ public interface IFamilyService
     Task<FamilyDetails> CreateAsync(string name, CancellationToken cancellationToken = default);
 
     Task<FamilyDetails?> GetByIdAsync(Guid familyId, CancellationToken cancellationToken = default);
+
+    Task<FamilyMemberDetails> AddMemberAsync(
+        Guid familyId,
+        string keycloakUserId,
+        string name,
+        string email,
+        string role,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<FamilyMemberDetails>?> ListMembersAsync(Guid familyId, CancellationToken cancellationToken = default);
 }

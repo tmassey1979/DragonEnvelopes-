@@ -290,6 +290,42 @@ v1.MapGet("/families/{familyId:guid}", async (
     .WithName("GetFamilyById")
     .WithOpenApi();
 
+v1.MapPost("/families/{familyId:guid}/members", async (
+        Guid familyId,
+        AddFamilyMemberRequest request,
+        IFamilyService familyService,
+        CancellationToken cancellationToken) =>
+    {
+        var member = await familyService.AddMemberAsync(
+            familyId,
+            request.KeycloakUserId,
+            request.Name,
+            request.Email,
+            request.Role,
+            cancellationToken);
+
+        return Results.Created(
+            $"/api/v1/families/{familyId}/members/{member.Id}",
+            MapFamilyMemberResponse(member));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.ParentOrAdult)
+    .WithName("AddFamilyMember")
+    .WithOpenApi();
+
+v1.MapGet("/families/{familyId:guid}/members", async (
+        Guid familyId,
+        IFamilyService familyService,
+        CancellationToken cancellationToken) =>
+    {
+        var members = await familyService.ListMembersAsync(familyId, cancellationToken);
+        return members is null
+            ? Results.NotFound()
+            : Results.Ok(members.Select(MapFamilyMemberResponse).ToArray());
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("ListFamilyMembers")
+    .WithOpenApi();
+
 app.Run();
 
 static FamilyResponse MapFamilyResponse(FamilyDetails family)
@@ -307,6 +343,17 @@ static FamilyResponse MapFamilyResponse(FamilyDetails family)
                 member.Email,
                 member.Role))
             .ToArray());
+}
+
+static FamilyMemberResponse MapFamilyMemberResponse(FamilyMemberDetails member)
+{
+    return new FamilyMemberResponse(
+        member.Id,
+        member.FamilyId,
+        member.KeycloakUserId,
+        member.Name,
+        member.Email,
+        member.Role);
 }
 
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)

@@ -241,6 +241,8 @@ Expected MSI output:
   - `GET /api/v1/auth/me`
   - `POST /api/v1/families`
   - `GET /api/v1/families/{familyId}`
+  - `POST /api/v1/families/{familyId}/members`
+  - `GET /api/v1/families/{familyId}/members`
 - OpenAPI/Swagger includes:
   - Bearer auth security scheme (`Authorization: Bearer <token>`)
   - Auth operation annotations for expected `401` and `403` responses

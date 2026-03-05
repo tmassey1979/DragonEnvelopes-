@@ -49,4 +49,58 @@ public class FamilyServiceTests
 
         await Assert.ThrowsAsync<DomainValidationException>(() => service.CreateAsync("Existing"));
     }
+
+    [Fact]
+    public async Task AddMemberAsync_ReturnsCreatedMember()
+    {
+        var fixture = new ApplicationTestFixture();
+        var clock = fixture.CreateClockMock();
+        var repository = new Mock<IFamilyRepository>();
+        var familyId = Guid.NewGuid();
+        var family = new Family(familyId, "Household", fixture.FrozenUtcNow);
+
+        repository.Setup(x => x.GetFamilyByIdAsync(familyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(family);
+        repository.Setup(x => x.MemberKeycloakUserIdExistsAsync(familyId, "kc-123", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        repository.Setup(x => x.AddMemberAsync(It.IsAny<FamilyMember>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = new FamilyService(repository.Object, clock.Object);
+
+        var member = await service.AddMemberAsync(
+            familyId,
+            "kc-123",
+            "Terry",
+            "terry@example.com",
+            "Parent");
+
+        Assert.Equal(familyId, member.FamilyId);
+        Assert.Equal("kc-123", member.KeycloakUserId);
+        Assert.Equal("Parent", member.Role);
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_ThrowsWhenRoleInvalid()
+    {
+        var fixture = new ApplicationTestFixture();
+        var clock = fixture.CreateClockMock();
+        var repository = new Mock<IFamilyRepository>();
+        var familyId = Guid.NewGuid();
+        var family = new Family(familyId, "Household", fixture.FrozenUtcNow);
+
+        repository.Setup(x => x.GetFamilyByIdAsync(familyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(family);
+        repository.Setup(x => x.MemberKeycloakUserIdExistsAsync(familyId, "kc-123", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var service = new FamilyService(repository.Object, clock.Object);
+
+        await Assert.ThrowsAsync<DomainValidationException>(() => service.AddMemberAsync(
+            familyId,
+            "kc-123",
+            "Terry",
+            "terry@example.com",
+            "UnknownRole"));
+    }
 }
