@@ -1,0 +1,33 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package
+    Name="DragonEnvelopes Desktop"
+    Manufacturer="DragonEnvelopes"
+    Version="$(var.ProductVersion)"
+    UpgradeCode="A91D570D-9B15-48EA-A6C8-15427B6AB45A"
+    Language="1033"
+    Scope="perMachine">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of DragonEnvelopes Desktop is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="DragonEnvelopes" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="PublishedDesktopPayload" Directory="INSTALLFOLDER">
+      <Component Id="DesktopPayload" Guid="0E8C2695-18B2-435A-B611-78CC6811D8A2">
+        <File Id="DesktopExe" Source="$(var.PublishDir)\DragonEnvelopes.Desktop.exe" KeyPath="yes" />
+        <File Id="DesktopD3DCompiler" Source="$(var.PublishDir)\D3DCompiler_47_cor3.dll" />
+        <File Id="DesktopPenImc" Source="$(var.PublishDir)\PenImc_cor3.dll" />
+        <File Id="DesktopPresentationNative" Source="$(var.PublishDir)\PresentationNative_cor3.dll" />
+        <File Id="DesktopVCRuntime" Source="$(var.PublishDir)\vcruntime140_cor3.dll" />
+        <File Id="DesktopWpfGfx" Source="$(var.PublishDir)\wpfgfx_cor3.dll" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="MainFeature" Title="DragonEnvelopes Desktop" Level="1">
+      <ComponentGroupRef Id="PublishedDesktopPayload" />
+    </Feature>
+
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+  </Package>
+</Wix>

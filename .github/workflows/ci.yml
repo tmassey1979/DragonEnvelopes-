@@ -34,9 +34,27 @@ jobs:
       - name: Test
         run: dotnet test DragonEnvelopes.sln --configuration Release --no-build --logger trx --results-directory TestResults
 
+      - name: Publish desktop app (win-x64)
+        run: dotnet publish client/DragonEnvelopes.Desktop/DragonEnvelopes.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:SatelliteResourceLanguages=en --output artifacts/desktop/publish
+
+      - name: Build desktop MSI installer
+        run: dotnet build installer/DragonEnvelopes.Desktop.Installer/DragonEnvelopes.Desktop.Installer.wixproj --configuration Release -p:ProductVersion=1.0.${{ github.run_number }} -p:PublishDir="${{ github.workspace }}\\artifacts\\desktop\\publish"
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: TestResults/*.trx
+
+      - name: Upload desktop publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dragonenvelopes-desktop-publish
+          path: artifacts/desktop/publish/**
+
+      - name: Upload desktop MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dragonenvelopes-desktop-msi
+          path: installer/**/bin/**/DragonEnvelopes.Desktop.Setup.msi

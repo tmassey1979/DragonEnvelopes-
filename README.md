@@ -154,6 +154,24 @@ API health endpoints:
 - Optional API base URL override:
   - `DRAGONENVELOPES_API_BASE_URL` (default `http://localhost:18088/api/v1/`)
 
+## Desktop Installer (MSI)
+
+- Installer source is in `installer/DragonEnvelopes.Desktop.Installer` (WiX Toolset v4 SDK project).
+- Build flow:
+  1. Publish desktop app payload.
+  2. Build WiX MSI using publish output as installer content.
+
+Local build commands:
+
+```powershell
+dotnet publish client/DragonEnvelopes.Desktop/DragonEnvelopes.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:SatelliteResourceLanguages=en --output artifacts/desktop/publish
+dotnet build installer/DragonEnvelopes.Desktop.Installer/DragonEnvelopes.Desktop.Installer.wixproj --configuration Release -p:ProductVersion=1.0.0 -p:PublishDir="$PWD\artifacts\desktop\publish"
+```
+
+Expected MSI output:
+
+- `installer/DragonEnvelopes.Desktop.Installer/bin/x64/Release/DragonEnvelopes.Desktop.Setup.msi`
+
 ## API Versioning and Error Contract
 
 - Versioning mode: URL segment.
