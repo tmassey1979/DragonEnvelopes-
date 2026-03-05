@@ -54,13 +54,7 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Automation",
                 Glyph: "\uE7B8",
                 TopBarSubtitle: "Rules and allocation automations",
-                Content: new ShellContentViewModel(
-                    "Automation Rules",
-                    "Define and tune categorization and allocation rules for incoming transactions.",
-                    "Automation rules are not loaded yet",
-                    "Rule management UI and APIs will fill this area in later tasks.",
-                    metrics: BuildPendingMetrics("Rule"),
-                    isEmpty: true)),
+                Content: new AutomationRulesViewModel(new AutomationRulesDataService(apiClient, familyContext))),
             new RouteDefinition(
                 Key: "/settings",
                 Label: "Settings",
