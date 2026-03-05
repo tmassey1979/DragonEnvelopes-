@@ -1,46 +1,33 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DragonEnvelopes.Desktop.Navigation;
 
 namespace DragonEnvelopes.Desktop.ViewModels;
 
 public sealed partial class MainWindowViewModel : ObservableObject
 {
+    private readonly INavigationService _navigationService;
+
     public MainWindowViewModel()
+        : this(new NavigationService(new RouteRegistry()))
     {
-        NavigationItems =
-        [
-            new NavigationItemViewModel(
-                key: "dashboard",
-                label: "Dashboard",
-                glyph: "\uE80F",
-                content: new ShellContentViewModel(
-                    "Budget Health Overview",
-                    "Track allocation health, available cash, and month-to-date progress for your family.",
-                    "Dashboard widgets will appear here",
-                    "Connect real account and envelope data to populate KPI cards.")),
-            new NavigationItemViewModel(
-                key: "envelopes",
-                label: "Envelopes",
-                glyph: "\uE713",
-                content: new ShellContentViewModel(
-                    "Envelope Planning",
-                    "Organize spending buckets and monthly targets across your household categories.",
-                    "Envelope list is not loaded yet",
-                    "Once envelope APIs are wired, this region will host list and edit views.")),
-            new NavigationItemViewModel(
-                key: "transactions",
-                label: "Transactions",
-                glyph: "\uE8A7",
-                content: new ShellContentViewModel(
-                    "Transaction Activity",
-                    "Review posted spending, categorize activity, and route expenses into envelopes.",
-                    "Transaction feed is not connected",
-                    "Upcoming tasks will bind this region to API-backed transaction pages."))
-        ];
+    }
+
+    public MainWindowViewModel(INavigationService navigationService)
+    {
+        _navigationService = navigationService;
+
+        NavigationItems = new ObservableCollection<NavigationItemViewModel>(
+            navigationService.Routes.Select(static route =>
+                new NavigationItemViewModel(route.Key, route.Label, route.Glyph, route.Content)));
 
         NavigateCommand = new RelayCommand<NavigationItemViewModel?>(Navigate);
-        Navigate(NavigationItems[0]);
+
+        _navigationService.PropertyChanged += OnNavigationServiceChanged;
+        _navigationService.Navigate("/dashboard");
+        SyncFromNavigationService();
     }
 
     public ObservableCollection<NavigationItemViewModel> NavigationItems { get; }
@@ -48,10 +35,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IRelayCommand<NavigationItemViewModel?> NavigateCommand { get; }
 
     [ObservableProperty]
-    private string topBarTitle = "Dashboard";
+    private string topBarTitle = "DragonEnvelopes";
 
     [ObservableProperty]
-    private string topBarSubtitle = "Family budget shell";
+    private string topBarSubtitle = "Route not selected";
 
     [ObservableProperty]
     private ShellContentViewModel? currentContent;
@@ -63,13 +50,32 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return;
         }
 
+        _navigationService.Navigate(selectedItem.Key);
+    }
+
+    private void OnNavigationServiceChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(INavigationService.CurrentRouteKey)
+            or nameof(INavigationService.CurrentTitle)
+            or nameof(INavigationService.CurrentSubtitle)
+            or nameof(INavigationService.CurrentContent))
+        {
+            SyncFromNavigationService();
+        }
+    }
+
+    private void SyncFromNavigationService()
+    {
+        TopBarTitle = _navigationService.CurrentTitle;
+        TopBarSubtitle = _navigationService.CurrentSubtitle;
+        CurrentContent = _navigationService.CurrentContent;
+
         foreach (var item in NavigationItems)
         {
-            item.IsSelected = ReferenceEquals(item, selectedItem);
+            item.IsSelected = string.Equals(
+                item.Key,
+                _navigationService.CurrentRouteKey,
+                StringComparison.OrdinalIgnoreCase);
         }
-
-        TopBarTitle = selectedItem.Label;
-        TopBarSubtitle = "Shell region ready for page binding";
-        CurrentContent = selectedItem.Content;
     }
 }
