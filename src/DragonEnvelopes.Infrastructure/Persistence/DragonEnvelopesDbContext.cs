@@ -13,6 +13,7 @@ public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbC
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<TransactionSplitEntry> TransactionSplits => Set<TransactionSplitEntry>();
     public DbSet<Budget> Budgets => Set<Budget>();
+    public DbSet<RecurringBill> RecurringBills => Set<RecurringBill>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

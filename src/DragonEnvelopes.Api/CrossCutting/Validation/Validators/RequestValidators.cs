@@ -3,6 +3,7 @@ using DragonEnvelopes.Contracts.Automation;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Families;
+using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Contracts.Transactions;
 using FluentValidation;
 using System.Text.Json;
@@ -295,5 +296,70 @@ public sealed class UpdateAutomationRuleRequestValidator : AbstractValidator<Upd
         {
             return false;
         }
+    }
+}
+
+public sealed class CreateRecurringBillRequestValidator : AbstractValidator<CreateRecurringBillRequest>
+{
+    private static readonly string[] AllowedFrequencies = ["Monthly", "Weekly", "BiWeekly"];
+
+    public CreateRecurringBillRequestValidator()
+    {
+        RuleFor(static request => request.FamilyId)
+            .NotEmpty();
+
+        RuleFor(static request => request.Name)
+            .NotEmpty()
+            .MaximumLength(200);
+
+        RuleFor(static request => request.Merchant)
+            .NotEmpty()
+            .MaximumLength(200);
+
+        RuleFor(static request => request.Amount)
+            .GreaterThan(0m);
+
+        RuleFor(static request => request.Frequency)
+            .NotEmpty()
+            .Must(static value => AllowedFrequencies.Contains(value, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"Frequency must be one of: {string.Join(", ", AllowedFrequencies)}.");
+
+        RuleFor(static request => request.DayOfMonth)
+            .InclusiveBetween(1, 31);
+
+        RuleFor(static request => request.EndDate)
+            .Must((request, endDate) => !endDate.HasValue || endDate.Value >= request.StartDate)
+            .WithMessage("EndDate must be on or after StartDate.");
+    }
+}
+
+public sealed class UpdateRecurringBillRequestValidator : AbstractValidator<UpdateRecurringBillRequest>
+{
+    private static readonly string[] AllowedFrequencies = ["Monthly", "Weekly", "BiWeekly"];
+
+    public UpdateRecurringBillRequestValidator()
+    {
+        RuleFor(static request => request.Name)
+            .NotEmpty()
+            .MaximumLength(200);
+
+        RuleFor(static request => request.Merchant)
+            .NotEmpty()
+            .MaximumLength(200);
+
+        RuleFor(static request => request.Amount)
+            .GreaterThan(0m);
+
+        RuleFor(static request => request.Frequency)
+            .NotEmpty()
+            .Must(static value => AllowedFrequencies.Contains(value, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"Frequency must be one of: {string.Join(", ", AllowedFrequencies)}.");
+
+        RuleFor(static request => request.DayOfMonth)
+            .InclusiveBetween(1, 31);
+
+        RuleFor(static request => request.EndDate)
+            .Must((request, endDate) => !endDate.HasValue || endDate.Value >= request.StartDate)
+            .WithMessage("EndDate must be on or after StartDate.");
     }
 }

@@ -18,6 +18,7 @@ public static class DependencyInjection
         services.AddScoped<IEnvelopeService, EnvelopeService>();
         services.AddScoped<IBudgetService, BudgetService>();
         services.AddScoped<ITransactionService, TransactionService>();
+        services.AddScoped<IRecurringBillService, RecurringBillService>();
         services.AddScoped<IReportingService, ReportingService>();
         services.AddSingleton<IRemainingBudgetCalculator, RemainingBudgetCalculator>();
         services.AddSingleton<IApplicationMapper, IdentityMapper>();

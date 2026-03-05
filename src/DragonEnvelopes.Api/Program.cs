@@ -15,6 +15,7 @@ using DragonEnvelopes.Contracts.Automation;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Families;
+using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Contracts.Reports;
 using DragonEnvelopes.Contracts.Transactions;
 using FluentValidation;
@@ -691,6 +692,89 @@ v1.MapPut("/budgets/{budgetId:guid}", async (
     .WithName("UpdateBudget")
     .WithOpenApi();
 
+v1.MapPost("/recurring-bills", async (
+        CreateRecurringBillRequest request,
+        IRecurringBillService recurringBillService,
+        CancellationToken cancellationToken) =>
+    {
+        var recurringBill = await recurringBillService.CreateAsync(
+            request.FamilyId,
+            request.Name,
+            request.Merchant,
+            request.Amount,
+            request.Frequency,
+            request.DayOfMonth,
+            request.StartDate,
+            request.EndDate,
+            request.IsActive,
+            cancellationToken);
+        return Results.Created($"/api/v1/recurring-bills/{recurringBill.Id}", MapRecurringBillResponse(recurringBill));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("CreateRecurringBill")
+    .WithOpenApi();
+
+v1.MapGet("/recurring-bills", async (
+        Guid familyId,
+        IRecurringBillService recurringBillService,
+        CancellationToken cancellationToken) =>
+    {
+        var recurringBills = await recurringBillService.ListByFamilyAsync(familyId, cancellationToken);
+        return Results.Ok(recurringBills.Select(MapRecurringBillResponse).ToArray());
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("ListRecurringBills")
+    .WithOpenApi();
+
+v1.MapPut("/recurring-bills/{recurringBillId:guid}", async (
+        Guid recurringBillId,
+        UpdateRecurringBillRequest request,
+        IRecurringBillService recurringBillService,
+        CancellationToken cancellationToken) =>
+    {
+        var recurringBill = await recurringBillService.UpdateAsync(
+            recurringBillId,
+            request.Name,
+            request.Merchant,
+            request.Amount,
+            request.Frequency,
+            request.DayOfMonth,
+            request.StartDate,
+            request.EndDate,
+            request.IsActive,
+            cancellationToken);
+        return Results.Ok(MapRecurringBillResponse(recurringBill));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("UpdateRecurringBill")
+    .WithOpenApi();
+
+v1.MapDelete("/recurring-bills/{recurringBillId:guid}", async (
+        Guid recurringBillId,
+        IRecurringBillService recurringBillService,
+        CancellationToken cancellationToken) =>
+    {
+        await recurringBillService.DeleteAsync(recurringBillId, cancellationToken);
+        return Results.NoContent();
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("DeleteRecurringBill")
+    .WithOpenApi();
+
+v1.MapGet("/recurring-bills/projection", async (
+        Guid familyId,
+        DateOnly from,
+        DateOnly to,
+        IRecurringBillService recurringBillService,
+        CancellationToken cancellationToken) =>
+    {
+        var projection = await recurringBillService.ProjectAsync(familyId, from, to, cancellationToken);
+        return Results.Ok(projection.Select(MapRecurringBillProjectionItemResponse).ToArray());
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("ProjectRecurringBills")
+    .WithOpenApi();
+
 v1.MapGet("/reports/envelope-balances", async (
         Guid familyId,
         IReportingService reportingService,
@@ -828,6 +912,32 @@ static BudgetResponse MapBudgetResponse(BudgetDetails budget)
         budget.TotalIncome,
         budget.AllocatedAmount,
         budget.RemainingAmount);
+}
+
+static RecurringBillResponse MapRecurringBillResponse(RecurringBillDetails recurringBill)
+{
+    return new RecurringBillResponse(
+        recurringBill.Id,
+        recurringBill.FamilyId,
+        recurringBill.Name,
+        recurringBill.Merchant,
+        recurringBill.Amount,
+        recurringBill.Frequency,
+        recurringBill.DayOfMonth,
+        recurringBill.StartDate,
+        recurringBill.EndDate,
+        recurringBill.IsActive);
+}
+
+static RecurringBillProjectionItemResponse MapRecurringBillProjectionItemResponse(
+    RecurringBillProjectionItemDetails item)
+{
+    return new RecurringBillProjectionItemResponse(
+        item.RecurringBillId,
+        item.Name,
+        item.Merchant,
+        item.Amount,
+        item.DueDate);
 }
 
 static EnvelopeBalanceReportResponse MapEnvelopeBalanceReportResponse(EnvelopeBalanceReportDetails details)

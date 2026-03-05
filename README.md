@@ -254,6 +254,11 @@ Expected MSI output:
   - `POST /api/v1/automation/rules/{ruleId}/enable`
   - `POST /api/v1/automation/rules/{ruleId}/disable`
   - `DELETE /api/v1/automation/rules/{ruleId}`
+  - `POST /api/v1/recurring-bills`
+  - `GET /api/v1/recurring-bills?familyId={familyId}`
+  - `PUT /api/v1/recurring-bills/{recurringBillId}`
+  - `DELETE /api/v1/recurring-bills/{recurringBillId}`
+  - `GET /api/v1/recurring-bills/projection?familyId={familyId}&from={date}&to={date}`
   - `POST /api/v1/accounts`
   - `GET /api/v1/accounts?familyId={familyId}`
   - `POST /api/v1/transactions`
