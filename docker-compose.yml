@@ -47,13 +47,13 @@ services:
     image: quay.io/keycloak/keycloak:latest
     container_name: dragonenvelopes-keycloak
     restart: unless-stopped
-    command: ["start-dev", "--http-port=8080"]
+    command: ["start-dev", "--http-port=8080", "--import-realm"]
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:-admin}
       KC_DB: postgres
       KC_DB_URL_HOST: postgres
       KC_DB_URL_PORT: 5432
@@ -64,6 +64,8 @@ services:
       KC_METRICS_ENABLED: "true"
     ports:
       - "${KEYCLOAK_PORT:-18080}:8080"
+    volumes:
+      - ./infrastructure/keycloak/import:/opt/keycloak/data/import:ro
     networks:
       - dragonenvelopes_net
 

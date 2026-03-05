@@ -1,0 +1,72 @@
+{
+  "realm": "dragonenvelopes",
+  "enabled": true,
+  "displayName": "DragonEnvelopes Local",
+  "registrationAllowed": false,
+  "rememberMe": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "Parent",
+        "description": "Full family administration permissions."
+      },
+      {
+        "name": "Adult",
+        "description": "Standard household contributor permissions."
+      },
+      {
+        "name": "Teen",
+        "description": "Limited write permissions."
+      },
+      {
+        "name": "Child",
+        "description": "Read-only permissions."
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "dragonenvelopes-api",
+      "name": "DragonEnvelopes API",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "*"
+      ],
+      "webOrigins": [
+        "*"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "dragonenvelopes-desktop",
+      "name": "DragonEnvelopes Desktop",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1/*",
+        "http://localhost/*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ]
+}
+

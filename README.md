@@ -48,5 +48,22 @@ Default local endpoints:
 - pgAdmin: `http://localhost:5050`
 - Postgres: `localhost:5433`
 
+## Keycloak Bootstrap
+
+- Compose imports realm config from `infrastructure/keycloak/import/dragonenvelopes-realm.json`.
+- Open Keycloak admin at `http://localhost:18080`.
+- Admin credentials come from `.env`:
+  - `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME`
+  - `KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD`
+- Imported realm: `dragonenvelopes`
+- Imported roles:
+  - `Parent`
+  - `Adult`
+  - `Teen`
+  - `Child`
+- Imported clients:
+  - `dragonenvelopes-api`
+  - `dragonenvelopes-desktop`
+
 
 
