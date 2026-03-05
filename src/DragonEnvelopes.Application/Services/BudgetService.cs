@@ -6,7 +6,10 @@ using DragonEnvelopes.Domain.ValueObjects;
 
 namespace DragonEnvelopes.Application.Services;
 
-public sealed class BudgetService(IBudgetRepository budgetRepository) : IBudgetService
+public sealed class BudgetService(
+    IBudgetRepository budgetRepository,
+    IEnvelopeRepository envelopeRepository,
+    IRemainingBudgetCalculator remainingBudgetCalculator) : IBudgetService
 {
     public async Task<BudgetDetails> CreateAsync(
         Guid familyId,
@@ -32,7 +35,7 @@ public sealed class BudgetService(IBudgetRepository budgetRepository) : IBudgetS
             Money.FromDecimal(totalIncome).EnsureNonNegative("TotalIncome"));
 
         await budgetRepository.AddAsync(budget, cancellationToken);
-        return Map(budget);
+        return await MapAsync(budget, cancellationToken);
     }
 
     public async Task<BudgetDetails?> GetByMonthAsync(
@@ -42,7 +45,7 @@ public sealed class BudgetService(IBudgetRepository budgetRepository) : IBudgetS
     {
         var parsedMonth = BudgetMonth.Parse(month);
         var budget = await budgetRepository.GetByFamilyAndMonthAsync(familyId, parsedMonth, cancellationToken);
-        return budget is null ? null : Map(budget);
+        return budget is null ? null : await MapAsync(budget, cancellationToken);
     }
 
     public async Task<BudgetDetails> UpdateAsync(
@@ -58,17 +61,24 @@ public sealed class BudgetService(IBudgetRepository budgetRepository) : IBudgetS
 
         budget.SetTotalIncome(Money.FromDecimal(totalIncome).EnsureNonNegative("TotalIncome"));
         await budgetRepository.SaveChangesAsync(cancellationToken);
-        return Map(budget);
+        return await MapAsync(budget, cancellationToken);
     }
 
-    private static BudgetDetails Map(Budget budget)
+    private async Task<BudgetDetails> MapAsync(Budget budget, CancellationToken cancellationToken)
     {
+        var activeEnvelopes = await envelopeRepository.ListByFamilyAsync(budget.FamilyId, cancellationToken);
+        var allocationInputs = activeEnvelopes
+            .Where(static envelope => !envelope.IsArchived)
+            .Select(static envelope => envelope.MonthlyBudget.Amount)
+            .ToArray();
+        var remaining = remainingBudgetCalculator.Calculate(budget.TotalIncome.Amount, allocationInputs);
+
         return new BudgetDetails(
             budget.Id,
             budget.FamilyId,
             budget.Month.ToString(),
-            budget.TotalIncome.Amount,
-            budget.AllocatedAmount.Amount,
-            budget.RemainingAmount.Amount);
+            remaining.TotalIncome,
+            remaining.AllocatedAmount,
+            remaining.RemainingAmount);
     }
 }
