@@ -6,12 +6,13 @@
         mc:Ignorable="d"
         Title="Create Family Account"
         Width="520"
-        Height="560"
-        MinWidth="500"
-        MinHeight="540"
+        Height="600"
+        MinWidth="460"
+        MinHeight="520"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
+        ResizeMode="CanResizeWithGrip"
         Background="{StaticResource ShellBackgroundBrush}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
     <Grid Margin="22">
         <Border Background="{StaticResource PanelBackgroundBrush}"
                 CornerRadius="14"
@@ -74,4 +75,5 @@
             </Grid>
         </Border>
     </Grid>
+    </ScrollViewer>
 </Window>

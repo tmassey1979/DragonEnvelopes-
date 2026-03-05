@@ -8,11 +8,12 @@
         Title="DragonEnvelopes Sign In"
         Width="560"
         Height="620"
-        MinWidth="520"
-        MinHeight="580"
-        WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
+        MinWidth="480"
+        MinHeight="520"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResizeWithGrip"
         Background="{StaticResource ShellBackgroundBrush}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
     <Grid Margin="22">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -36,4 +37,5 @@
                    Style="{StaticResource CaptionTextStyle}"
                    Text="Native login mode enabled: no browser redirect." />
     </Grid>
+    </ScrollViewer>
 </Window>

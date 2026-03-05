@@ -9,6 +9,8 @@ public partial class LoginControl : UserControl
 
     public event EventHandler? CreateFamilyRequested;
 
+    public event EventHandler? CancelRequested;
+
     public LoginControl()
     {
         InitializeComponent();
@@ -30,6 +32,7 @@ public partial class LoginControl : UserControl
         UsernameBox.IsEnabled = !busy;
         PasswordBox.IsEnabled = !busy;
         SignInButton.IsEnabled = !busy;
+        CancelButton.IsEnabled = !busy;
         CreateFamilyButton.IsEnabled = !busy;
         SignInButton.Content = busy ? "Signing In..." : "Sign In";
     }
@@ -42,5 +45,10 @@ public partial class LoginControl : UserControl
     private void OnCreateFamilyClicked(object sender, RoutedEventArgs e)
     {
         CreateFamilyRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnCancelClicked(object sender, RoutedEventArgs e)
+    {
+        CancelRequested?.Invoke(this, EventArgs.Empty);
     }
 }

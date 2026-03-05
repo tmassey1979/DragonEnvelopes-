@@ -272,7 +272,7 @@ v1.MapPost("/families", async (
         var family = await familyService.CreateAsync(request.Name, cancellationToken);
         return Results.Created($"/api/v1/families/{family.Id}", MapFamilyResponse(family));
     })
-    .RequireAuthorization(ApiAuthorizationPolicies.ParentOrAdult)
+    .AllowAnonymous()
     .WithName("CreateFamily")
     .WithOpenApi();
 
@@ -308,7 +308,7 @@ v1.MapPost("/families/{familyId:guid}/members", async (
             $"/api/v1/families/{familyId}/members/{member.Id}",
             MapFamilyMemberResponse(member));
     })
-    .RequireAuthorization(ApiAuthorizationPolicies.ParentOrAdult)
+    .AllowAnonymous()
     .WithName("AddFamilyMember")
     .WithOpenApi();
 

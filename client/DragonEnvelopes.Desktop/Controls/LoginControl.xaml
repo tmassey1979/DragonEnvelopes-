@@ -33,6 +33,11 @@
             <StackPanel Margin="0,20,0,0"
                         Orientation="Horizontal"
                         HorizontalAlignment="Right">
+                <Button x:Name="CancelButton"
+                        MinWidth="92"
+                        Margin="0,0,10,0"
+                        Content="Cancel"
+                        Click="OnCancelClicked" />
                 <Button x:Name="CreateFamilyButton"
                         MinWidth="170"
                         Margin="0,0,10,0"

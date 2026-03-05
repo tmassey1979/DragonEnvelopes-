@@ -6,10 +6,11 @@ namespace DragonEnvelopes.Desktop.Views;
 
 public partial class CreateFamilyAccountWindow : Window
 {
-    private readonly IFamilyAccountService _familyAccountService = new FamilyAccountService();
+    private readonly IFamilyAccountService _familyAccountService;
 
-    public CreateFamilyAccountWindow()
+    public CreateFamilyAccountWindow(IFamilyAccountService familyAccountService)
     {
+        _familyAccountService = familyAccountService;
         InitializeComponent();
     }
 

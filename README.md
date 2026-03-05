@@ -243,6 +243,8 @@ Expected MSI output:
   - `GET /api/v1/families/{familyId}`
   - `POST /api/v1/families/{familyId}/members`
   - `GET /api/v1/families/{familyId}/members`
+- Bootstrap access:
+  - `POST /api/v1/families` and `POST /api/v1/families/{familyId}/members` allow anonymous requests to support first-time desktop onboarding.
 - OpenAPI/Swagger includes:
   - Bearer auth security scheme (`Authorization: Bearer <token>`)
   - Auth operation annotations for expected `401` and `403` responses

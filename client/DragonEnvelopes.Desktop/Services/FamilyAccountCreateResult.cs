@@ -1,3 +1,6 @@
 namespace DragonEnvelopes.Desktop.Services;
 
-public sealed record FamilyAccountCreateResult(bool Succeeded, string Message);
+public sealed record FamilyAccountCreateResult(
+    bool Succeeded,
+    string Message,
+    Guid? FamilyId = null);

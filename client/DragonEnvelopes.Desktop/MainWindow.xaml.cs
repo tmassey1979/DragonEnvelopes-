@@ -1,4 +1,5 @@
 using System.Windows;
+using DragonEnvelopes.Desktop.Services;
 using DragonEnvelopes.Desktop.ViewModels;
 using DragonEnvelopes.Desktop.Views;
 
@@ -24,7 +25,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        var loginWindow = new LoginWindow(viewModel)
+        var loginWindow = new LoginWindow(
+            viewModel,
+            FamilyAccountServiceFactory.CreateDefault())
         {
             Owner = this
         };
