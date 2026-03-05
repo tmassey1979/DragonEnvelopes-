@@ -9,6 +9,7 @@ public sealed class ShellContentViewModel
         string emptyStateBody,
         IReadOnlyList<MetricTileViewModel>? metrics = null,
         IReadOnlyList<EnvelopeTileViewModel>? envelopes = null,
+        IReadOnlyList<TransactionRowViewModel>? transactions = null,
         bool isLoading = false,
         bool isEmpty = false)
     {
@@ -18,6 +19,7 @@ public sealed class ShellContentViewModel
         EmptyStateBody = emptyStateBody;
         Metrics = metrics ?? [];
         Envelopes = envelopes ?? [];
+        Transactions = transactions ?? [];
         IsLoading = isLoading;
         IsEmpty = isEmpty;
     }
@@ -33,6 +35,8 @@ public sealed class ShellContentViewModel
     public IReadOnlyList<MetricTileViewModel> Metrics { get; }
 
     public IReadOnlyList<EnvelopeTileViewModel> Envelopes { get; }
+
+    public IReadOnlyList<TransactionRowViewModel> Transactions { get; }
 
     public bool IsLoading { get; }
 

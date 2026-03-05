@@ -61,21 +61,55 @@
                                    Style="{StaticResource BodyTextStyle}" />
                     </Border>
 
-                    <ItemsControl Grid.Row="1" ItemsSource="{Binding Envelopes}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel ItemWidth="220" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type viewModels:EnvelopeTileViewModel}">
-                                <controls:EnvelopeTileControl EnvelopeName="{Binding Name}"
-                                                              MonthlyBudget="{Binding MonthlyBudget}"
-                                                              CurrentBalance="{Binding CurrentBalance}"
-                                                              IsSelected="{Binding IsSelected}" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <StackPanel Grid.Row="1">
+                        <ItemsControl ItemsSource="{Binding Envelopes}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel ItemWidth="220" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type viewModels:EnvelopeTileViewModel}">
+                                    <controls:EnvelopeTileControl EnvelopeName="{Binding Name}"
+                                                                  MonthlyBudget="{Binding MonthlyBudget}"
+                                                                  CurrentBalance="{Binding CurrentBalance}"
+                                                                  IsSelected="{Binding IsSelected}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <ListBox Margin="0,4,0,0"
+                                 ItemsSource="{Binding Transactions}"
+                                 BorderThickness="0"
+                                 Background="Transparent"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.VirtualizationMode="Recycling">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="Margin" Value="0" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Focusable" Value="False" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type viewModels:TransactionRowViewModel}">
+                                    <controls:TransactionRowControl Date="{Binding Date}"
+                                                                    Merchant="{Binding Merchant}"
+                                                                    Amount="{Binding Amount}"
+                                                                    Envelope="{Binding Envelope}"
+                                                                    Category="{Binding Category}"
+                                                                    IsSelected="{Binding IsSelected}"
+                                                                    IsEdited="{Binding IsEdited}"
+                                                                    IsFlagged="{Binding IsFlagged}"
+                                                                    EditCommand="{Binding EditCommand}"
+                                                                    SplitCommand="{Binding SplitCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
                 </Grid>
             </controls:CardControl>
         </Grid>
