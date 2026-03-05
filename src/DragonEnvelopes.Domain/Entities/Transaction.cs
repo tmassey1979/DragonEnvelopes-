@@ -24,8 +24,7 @@ public sealed class Transaction
         string merchant,
         DateTimeOffset occurredAt,
         string? category = null,
-        Guid? envelopeId = null,
-        IEnumerable<TransactionSplit>? splits = null)
+        Guid? envelopeId = null)
     {
         if (id == Guid.Empty)
         {
@@ -51,10 +50,30 @@ public sealed class Transaction
         Category = NormalizeOptional(category);
         EnvelopeId = envelopeId;
 
-        if (splits is not null)
-        {
-            SetSplits(splits);
-        }
+    }
+
+    public static Transaction CreateWithSplits(
+        Guid id,
+        Guid accountId,
+        Money amount,
+        string description,
+        string merchant,
+        DateTimeOffset occurredAt,
+        IEnumerable<TransactionSplit> splits,
+        string? category = null)
+    {
+        var transaction = new Transaction(
+            id,
+            accountId,
+            amount,
+            description,
+            merchant,
+            occurredAt,
+            category,
+            envelopeId: null);
+
+        transaction.SetSplits(splits);
+        return transaction;
     }
 
     public void SetCategory(string? category)
@@ -107,4 +126,3 @@ public sealed class Transaction
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }
-

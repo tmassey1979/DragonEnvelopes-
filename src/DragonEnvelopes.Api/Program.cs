@@ -1,5 +1,7 @@
 using DragonEnvelopes.Application;
+using DragonEnvelopes.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using DragonEnvelopes.Infrastructure;
 
@@ -29,6 +31,20 @@ else
 }
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var logger = scope.ServiceProvider
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("StartupMigrations");
+
+    logger.LogInformation("Applying EF Core migrations at startup.");
+
+    var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+    dbContext.Database.Migrate();
+
+    logger.LogInformation("EF Core migrations applied successfully.");
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

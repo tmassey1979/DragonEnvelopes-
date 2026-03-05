@@ -15,7 +15,7 @@ public sealed class Account
         Guid familyId,
         string name,
         AccountType type,
-        Money openingBalance)
+        Money balance)
     {
         if (id == Guid.Empty)
         {
@@ -31,7 +31,7 @@ public sealed class Account
         FamilyId = familyId;
         Name = ValidateText(name, "Account name");
         Type = type;
-        Balance = openingBalance;
+        Balance = balance;
     }
 
     public void Rename(string name)
@@ -79,4 +79,3 @@ public sealed class Account
         return value.Trim();
     }
 }
-
