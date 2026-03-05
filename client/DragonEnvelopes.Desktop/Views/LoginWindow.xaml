@@ -18,7 +18,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,6,0,20">
@@ -30,12 +29,6 @@
 
         <controls:LoginControl x:Name="LoginControl"
                                Grid.Row="1" />
-
-        <TextBlock Grid.Row="2"
-                   Margin="0,14,0,0"
-                   HorizontalAlignment="Center"
-                   Style="{StaticResource CaptionTextStyle}"
-                   Text="Native login mode enabled: no browser redirect." />
     </Grid>
     </ScrollViewer>
 </Window>
