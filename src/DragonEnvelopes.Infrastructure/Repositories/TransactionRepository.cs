@@ -7,9 +7,17 @@ namespace DragonEnvelopes.Infrastructure.Repositories;
 
 public sealed class TransactionRepository(DragonEnvelopesDbContext dbContext) : ITransactionRepository
 {
-    public async Task AddTransactionAsync(Transaction transaction, CancellationToken cancellationToken = default)
+    public async Task AddTransactionAsync(
+        Transaction transaction,
+        IReadOnlyList<TransactionSplitEntry> splitEntries,
+        CancellationToken cancellationToken = default)
     {
         dbContext.Transactions.Add(transaction);
+        if (splitEntries.Count > 0)
+        {
+            dbContext.TransactionSplits.AddRange(splitEntries);
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -18,13 +26,6 @@ public sealed class TransactionRepository(DragonEnvelopesDbContext dbContext) : 
         return dbContext.Accounts
             .AsNoTracking()
             .AnyAsync(x => x.Id == accountId, cancellationToken);
-    }
-
-    public Task<bool> EnvelopeExistsAsync(Guid envelopeId, CancellationToken cancellationToken = default)
-    {
-        return dbContext.Envelopes
-            .AsNoTracking()
-            .AnyAsync(x => x.Id == envelopeId, cancellationToken);
     }
 
     public async Task<IReadOnlyList<Transaction>> ListTransactionsAsync(
@@ -40,6 +41,23 @@ public sealed class TransactionRepository(DragonEnvelopesDbContext dbContext) : 
         return await query
             .OrderByDescending(x => x.OccurredAt)
             .ThenByDescending(x => x.Id)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TransactionSplitEntry>> ListTransactionSplitsAsync(
+        IReadOnlyCollection<Guid> transactionIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (transactionIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await dbContext.TransactionSplits
+            .AsNoTracking()
+            .Where(x => transactionIds.Contains(x.TransactionId))
+            .OrderBy(x => x.TransactionId)
+            .ThenBy(x => x.Id)
             .ToArrayAsync(cancellationToken);
     }
 }

@@ -12,6 +12,15 @@ public sealed record TransactionDetails(
     IReadOnlyList<TransactionSplitDetails> Splits);
 
 public sealed record TransactionSplitDetails(
+    Guid Id,
+    Guid TransactionId,
     Guid EnvelopeId,
     decimal Amount,
-    string? Category);
+    string? Category,
+    string? Notes);
+
+public sealed record TransactionSplitCreateDetails(
+    Guid EnvelopeId,
+    decimal Amount,
+    string? Category,
+    string? Notes);

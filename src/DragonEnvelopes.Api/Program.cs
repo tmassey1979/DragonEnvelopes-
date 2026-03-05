@@ -439,6 +439,13 @@ v1.MapPost("/transactions", async (
             request.Category,
             request.EnvelopeId,
             request.Splits is { Count: > 0 },
+            request.Splits?
+                .Select(static split => new TransactionSplitCreateDetails(
+                    split.EnvelopeId,
+                    split.Amount,
+                    split.Category,
+                    split.Notes))
+                .ToArray(),
             cancellationToken);
         return Results.Created($"/api/v1/transactions/{transaction.Id}", MapTransactionResponse(transaction));
     })
@@ -628,7 +635,14 @@ static TransactionResponse MapTransactionResponse(TransactionDetails transaction
         transaction.OccurredAt,
         transaction.Category,
         transaction.EnvelopeId,
-        []);
+        transaction.Splits.Select(static split => new TransactionSplitResponse(
+                split.Id,
+                split.TransactionId,
+                split.EnvelopeId,
+                split.Amount,
+                split.Category,
+                split.Notes))
+            .ToArray());
 }
 
 static EnvelopeResponse MapEnvelopeResponse(EnvelopeDetails envelope)

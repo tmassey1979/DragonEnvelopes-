@@ -13,6 +13,7 @@ public interface ITransactionService
         string? category,
         Guid? envelopeId,
         bool hasSplits,
+        IReadOnlyList<TransactionSplitCreateDetails>? splits,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<TransactionDetails>> ListAsync(

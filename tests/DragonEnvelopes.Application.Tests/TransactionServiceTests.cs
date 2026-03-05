@@ -1,5 +1,6 @@
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Application.Services;
+using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Domain;
 using DragonEnvelopes.Domain.Entities;
 using DragonEnvelopes.Domain.ValueObjects;
@@ -17,7 +18,10 @@ public class TransactionServiceTests
         var accountId = Guid.NewGuid();
         repository.Setup(x => x.AccountExistsAsync(accountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        repository.Setup(x => x.AddTransactionAsync(It.IsAny<Transaction>(), It.IsAny<CancellationToken>()))
+        repository.Setup(x => x.AddTransactionAsync(
+                It.IsAny<Transaction>(),
+                It.IsAny<IReadOnlyList<TransactionSplitEntry>>(),
+                It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var service = new TransactionService(repository.Object, envelopeRepository.Object);
@@ -29,7 +33,8 @@ public class TransactionServiceTests
             DateTimeOffset.UtcNow,
             "Food",
             null,
-            false);
+            false,
+            null);
 
         Assert.Equal(accountId, transaction.AccountId);
         Assert.Equal(-15.25m, transaction.Amount);
@@ -56,29 +61,48 @@ public class TransactionServiceTests
                 DateTimeOffset.UtcNow,
                 "Income",
                 null,
-                false));
+                false,
+                null));
     }
 
     [Fact]
-    public async Task CreateAsync_ThrowsWhenSplitsProvided()
+    public async Task CreateAsync_WithSplits_PersistsSplitEntries()
     {
         var repository = new Mock<ITransactionRepository>();
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var accountId = Guid.NewGuid();
+        var splitEnvelopeId = Guid.NewGuid();
+        var splitEnvelope = new Envelope(
+            splitEnvelopeId,
+            Guid.NewGuid(),
+            "Split",
+            Money.FromDecimal(200m),
+            Money.FromDecimal(100m));
+
         repository.Setup(x => x.AccountExistsAsync(accountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
+        repository.Setup(x => x.AddTransactionAsync(
+                It.IsAny<Transaction>(),
+                It.IsAny<IReadOnlyList<TransactionSplitEntry>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(splitEnvelopeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(splitEnvelope);
 
         var service = new TransactionService(repository.Object, envelopeRepository.Object);
-        await Assert.ThrowsAsync<DomainValidationException>(
-            () => service.CreateAsync(
-                accountId,
-                20m,
-                "Split test",
-                "Store",
-                DateTimeOffset.UtcNow,
-                "Misc",
-                null,
-                true));
+        var result = await service.CreateAsync(
+            accountId,
+            -20m,
+            "Split test",
+            "Store",
+            DateTimeOffset.UtcNow,
+            "Misc",
+            null,
+            true,
+            [new TransactionSplitCreateDetails(splitEnvelopeId, -20m, "Misc", "note")]);
+
+        Assert.Single(result.Splits);
+        Assert.Equal("note", result.Splits[0].Notes);
     }
 
     [Fact]
@@ -100,6 +124,8 @@ public class TransactionServiceTests
                     "Food",
                     null)
             ]);
+        repository.Setup(x => x.ListTransactionSplitsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
 
         var service = new TransactionService(repository.Object, envelopeRepository.Object);
         var transactions = await service.ListAsync(accountId);
@@ -124,7 +150,10 @@ public class TransactionServiceTests
 
         transactionRepository.Setup(x => x.AccountExistsAsync(accountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        transactionRepository.Setup(x => x.AddTransactionAsync(It.IsAny<Transaction>(), It.IsAny<CancellationToken>()))
+        transactionRepository.Setup(x => x.AddTransactionAsync(
+                It.IsAny<Transaction>(),
+                It.IsAny<IReadOnlyList<TransactionSplitEntry>>(),
+                It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(envelopeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(envelope);
@@ -138,7 +167,8 @@ public class TransactionServiceTests
             DateTimeOffset.UtcNow,
             "Food",
             envelopeId,
-            false);
+            false,
+            null);
 
         Assert.Equal(175m, envelope.CurrentBalance.Amount);
     }
@@ -159,7 +189,10 @@ public class TransactionServiceTests
 
         transactionRepository.Setup(x => x.AccountExistsAsync(accountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        transactionRepository.Setup(x => x.AddTransactionAsync(It.IsAny<Transaction>(), It.IsAny<CancellationToken>()))
+        transactionRepository.Setup(x => x.AddTransactionAsync(
+                It.IsAny<Transaction>(),
+                It.IsAny<IReadOnlyList<TransactionSplitEntry>>(),
+                It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(envelopeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(envelope);
@@ -173,7 +206,8 @@ public class TransactionServiceTests
             DateTimeOffset.UtcNow,
             "Food",
             envelopeId,
-            false);
+            false,
+            null);
 
         Assert.Equal(240m, envelope.CurrentBalance.Amount);
     }

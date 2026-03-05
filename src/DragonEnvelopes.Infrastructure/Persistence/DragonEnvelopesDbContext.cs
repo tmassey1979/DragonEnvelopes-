@@ -10,6 +10,7 @@ public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbC
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Envelope> Envelopes => Set<Envelope>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<TransactionSplitEntry> TransactionSplits => Set<TransactionSplitEntry>();
     public DbSet<Budget> Budgets => Set<Budget>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -18,4 +19,3 @@ public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbC
         base.OnModelCreating(modelBuilder);
     }
 }
-

@@ -183,6 +183,9 @@ public sealed class TransactionSplitRequestValidator : AbstractValidator<Transac
 
         RuleFor(static request => request.Category)
             .MaximumLength(100);
+
+        RuleFor(static request => request.Notes)
+            .MaximumLength(500);
     }
 }
 
