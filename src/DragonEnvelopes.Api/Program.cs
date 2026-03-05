@@ -1,5 +1,8 @@
 using DragonEnvelopes.Application;
+using DragonEnvelopes.Api.CrossCutting.Errors;
+using DragonEnvelopes.Api.CrossCutting.Validation;
 using DragonEnvelopes.Infrastructure.Persistence;
+using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -11,6 +14,16 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Scoped);
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = context =>
+    {
+        context.ProblemDetails.Instance = context.HttpContext.Request.Path;
+        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+    };
+});
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
@@ -53,6 +66,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseExceptionHandler();
 app.UseHttpsRedirection();
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
@@ -82,6 +96,7 @@ app.MapGet("/weatherforecast", () =>
         .ToArray();
     return forecast;
 })
+.AddFluentValidation()
 .WithName("GetWeatherForecast")
 .WithOpenApi();
 
