@@ -11,6 +11,7 @@ using DragonEnvelopes.Api.Services;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Accounts;
+using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Contracts.Transactions;
@@ -529,6 +530,53 @@ v1.MapPost("/envelopes/{envelopeId:guid}/archive", async (
     .WithName("ArchiveEnvelope")
     .WithOpenApi();
 
+v1.MapPost("/budgets", async (
+        CreateBudgetRequest request,
+        IBudgetService budgetService,
+        CancellationToken cancellationToken) =>
+    {
+        var budget = await budgetService.CreateAsync(
+            request.FamilyId,
+            request.Month,
+            request.TotalIncome,
+            cancellationToken);
+        return Results.Created($"/api/v1/budgets/{budget.Id}", MapBudgetResponse(budget));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("CreateBudget")
+    .WithOpenApi();
+
+v1.MapGet("/budgets/{familyId:guid}/{month}", async (
+        Guid familyId,
+        string month,
+        IBudgetService budgetService,
+        CancellationToken cancellationToken) =>
+    {
+        var budget = await budgetService.GetByMonthAsync(familyId, month, cancellationToken);
+        return budget is null
+            ? Results.NotFound()
+            : Results.Ok(MapBudgetResponse(budget));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("GetBudgetByMonth")
+    .WithOpenApi();
+
+v1.MapPut("/budgets/{budgetId:guid}", async (
+        Guid budgetId,
+        UpdateBudgetRequest request,
+        IBudgetService budgetService,
+        CancellationToken cancellationToken) =>
+    {
+        var budget = await budgetService.UpdateAsync(
+            budgetId,
+            request.TotalIncome,
+            cancellationToken);
+        return Results.Ok(MapBudgetResponse(budget));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("UpdateBudget")
+    .WithOpenApi();
+
 app.Run();
 
 static FamilyResponse MapFamilyResponse(FamilyDetails family)
@@ -593,6 +641,17 @@ static EnvelopeResponse MapEnvelopeResponse(EnvelopeDetails envelope)
         envelope.CurrentBalance,
         envelope.LastActivityAt,
         envelope.IsArchived);
+}
+
+static BudgetResponse MapBudgetResponse(BudgetDetails budget)
+{
+    return new BudgetResponse(
+        budget.Id,
+        budget.FamilyId,
+        budget.Month,
+        budget.TotalIncome,
+        budget.AllocatedAmount,
+        budget.RemainingAmount);
 }
 
 static KeycloakAdminOptions BuildKeycloakAdminOptions(IConfiguration configuration)
