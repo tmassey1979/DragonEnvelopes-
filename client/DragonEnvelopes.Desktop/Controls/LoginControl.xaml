@@ -9,7 +9,7 @@
             Padding="24"
             BorderBrush="{StaticResource PanelOutlineBrush}"
             BorderThickness="1">
-        <StackPanel>
+        <StackPanel KeyboardNavigation.TabNavigation="Cycle">
             <TextBlock Text="Sign In"
                        FontSize="30"
                        FontWeight="Bold"
@@ -18,17 +18,24 @@
                        Text="Sign in directly from the desktop app."
                        Style="{StaticResource CaptionTextStyle}" />
 
-            <TextBlock Text="Email or Username" />
-            <TextBox x:Name="UsernameBox" Margin="0,8,0,14" />
+            <Label Content="_Email or Username"
+                   Target="{Binding ElementName=UsernameBox}" />
+            <TextBox x:Name="UsernameBox"
+                     Margin="0,8,0,14"
+                     AutomationProperties.Name="Email or Username" />
 
-            <TextBlock Text="Password" />
-            <PasswordBox x:Name="PasswordBox" Margin="0,8,0,4" />
+            <Label Content="_Password"
+                   Target="{Binding ElementName=PasswordBox}" />
+            <PasswordBox x:Name="PasswordBox"
+                         Margin="0,8,0,4"
+                         AutomationProperties.Name="Password" />
 
             <TextBlock x:Name="StatusTextBlock"
                        Margin="0,6,0,0"
                        Foreground="{StaticResource SecondaryTextBrush}"
                        Visibility="Collapsed"
-                       TextWrapping="Wrap" />
+                       TextWrapping="Wrap"
+                       AutomationProperties.LiveSetting="Polite" />
 
             <StackPanel Margin="0,20,0,0"
                         Orientation="Horizontal"
@@ -37,15 +44,20 @@
                         MinWidth="92"
                         Margin="0,0,10,0"
                         Content="Cancel"
+                        IsCancel="True"
+                        AutomationProperties.Name="Cancel sign in"
                         Click="OnCancelClicked" />
                 <Button x:Name="CreateFamilyButton"
                         MinWidth="170"
                         Margin="0,0,10,0"
                         Content="Create Family Account"
+                        AutomationProperties.Name="Open create family account"
                         Click="OnCreateFamilyClicked" />
                 <Button x:Name="SignInButton"
                         MinWidth="110"
                         Content="Sign In"
+                        IsDefault="True"
+                        AutomationProperties.Name="Sign in"
                         Click="OnSignInClicked" />
             </StackPanel>
         </StackPanel>

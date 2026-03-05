@@ -35,6 +35,7 @@
                     <TextBlock Margin="0,12,0,0"
                                Text="Loading data..."
                                Style="{StaticResource BodyTextStyle}"
+                               AutomationProperties.LiveSetting="Polite"
                                HorizontalAlignment="Center" />
                 </StackPanel>
             </Border>
@@ -59,6 +60,7 @@
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="380">
                     <TextBlock Text="{Binding EmptyMessage, ElementName=Root}"
                                Style="{StaticResource BodyTextStyle}"
+                               AutomationProperties.LiveSetting="Polite"
                                TextAlignment="Center" />
                 </StackPanel>
             </Border>

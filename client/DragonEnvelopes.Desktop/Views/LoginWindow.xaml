@@ -11,6 +11,7 @@
         MinWidth="480"
         MinHeight="520"
         WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="False"
         ResizeMode="CanResizeWithGrip"
         Background="{StaticResource ShellBackgroundBrush}">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -24,6 +25,7 @@
             <Image Width="260"
                    Height="120"
                    Stretch="Uniform"
+                   AutomationProperties.Name="DragonEnvelopes logo"
                    Source="/Assets/dragonenvelopes-logo-transparent.png" />
         </StackPanel>
 

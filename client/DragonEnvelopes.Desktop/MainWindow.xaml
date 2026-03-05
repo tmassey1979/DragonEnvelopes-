@@ -104,6 +104,7 @@
                          Margin="16,0,12,0"
                          VerticalAlignment="Center"
                          Text="Search routes..."
+                         AutomationProperties.Name="Search routes placeholder"
                          IsReadOnly="True" />
 
                 <TextBlock Grid.Column="2"
@@ -133,6 +134,7 @@
                         VerticalAlignment="Center"
                         MinWidth="92"
                         Content="{Binding AuthActionLabel}"
+                        AutomationProperties.Name="Authentication action"
                         Click="OnAuthButtonClicked" />
 
                 <Button Grid.Column="6"
@@ -140,6 +142,7 @@
                         VerticalAlignment="Center"
                         MinWidth="84"
                         Content="Ping API"
+                        AutomationProperties.Name="Ping backend API"
                         Command="{Binding PingApiCommand}" />
             </Grid>
         </Border>
