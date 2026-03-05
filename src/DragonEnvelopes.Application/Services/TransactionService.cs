@@ -6,7 +6,9 @@ using DragonEnvelopes.Domain.ValueObjects;
 
 namespace DragonEnvelopes.Application.Services;
 
-public sealed class TransactionService(ITransactionRepository transactionRepository) : ITransactionService
+public sealed class TransactionService(
+    ITransactionRepository transactionRepository,
+    IEnvelopeRepository envelopeRepository) : ITransactionService
 {
     public async Task<TransactionDetails> CreateAsync(
         Guid accountId,
@@ -24,10 +26,14 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
             throw new DomainValidationException("Account was not found.");
         }
 
-        if (envelopeId.HasValue
-            && !await transactionRepository.EnvelopeExistsAsync(envelopeId.Value, cancellationToken))
+        Envelope? envelope = null;
+        if (envelopeId.HasValue)
         {
-            throw new DomainValidationException("Envelope was not found.");
+            envelope = await envelopeRepository.GetByIdForUpdateAsync(envelopeId.Value, cancellationToken);
+            if (envelope is null)
+            {
+                throw new DomainValidationException("Envelope was not found.");
+            }
         }
 
         if (hasSplits)
@@ -44,6 +50,19 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
             occurredAt,
             category,
             envelopeId);
+
+        if (envelope is not null)
+        {
+            var transactionAmount = Money.FromDecimal(Math.Abs(amount));
+            if (amount < 0m)
+            {
+                envelope.Spend(transactionAmount, occurredAt);
+            }
+            else
+            {
+                envelope.Allocate(transactionAmount, occurredAt);
+            }
+        }
 
         await transactionRepository.AddTransactionAsync(transaction, cancellationToken);
         return Map(transaction);
