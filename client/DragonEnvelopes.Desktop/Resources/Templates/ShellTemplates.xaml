@@ -313,6 +313,132 @@
         </Grid>
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type viewModels:TransactionsViewModel}">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="190" />
+                    <ColumnDefinition Width="160" />
+                    <ColumnDefinition Width="160" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Transactions" Style="{StaticResource DisplayTextStyle}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Text="Transaction feed with account scope, filtering, and sorting."
+                               Style="{StaticResource BodyTextStyle}" />
+                </StackPanel>
+
+                <ComboBox Grid.Column="1"
+                          Margin="12,0,8,0"
+                          VerticalAlignment="Center"
+                          ItemsSource="{Binding Accounts}"
+                          SelectedItem="{Binding SelectedAccount, Mode=TwoWay}"
+                          DisplayMemberPath="Name" />
+                <TextBox Grid.Column="2"
+                         Margin="0,0,8,0"
+                         VerticalAlignment="Center"
+                         Text="{Binding MerchantFilter, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox Grid.Column="3"
+                         Margin="0,0,8,0"
+                         VerticalAlignment="Center"
+                         Text="{Binding CategoryFilter, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Grid.Column="4"
+                        VerticalAlignment="Center"
+                        Content="Reload"
+                        Command="{Binding ReloadTransactionsCommand}" />
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Padding="12"
+                    CornerRadius="10"
+                    Background="#4B311B"
+                    BorderBrush="#A35D2F"
+                    BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource CaptionTextStyle}" Foreground="#FFD2A8" />
+            </Border>
+
+            <controls:CardControl Grid.Row="2"
+                                  Margin="0,12,0,0"
+                                  Header="Transaction Grid"
+                                  Subheader="{Binding SortIndicator}"
+                                  EmptyMessage="No transactions match current filters."
+                                  IsLoading="{Binding IsLoading}"
+                                  IsEmpty="{Binding IsEmpty}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal">
+                        <Button Margin="0,0,8,0"
+                                Content="Sort Date"
+                                Command="{Binding SortByCommand}"
+                                CommandParameter="Date" />
+                        <Button Margin="0,0,8,0"
+                                Content="Sort Merchant"
+                                Command="{Binding SortByCommand}"
+                                CommandParameter="Merchant" />
+                        <Button Margin="0,0,8,0"
+                                Content="Sort Amount"
+                                Command="{Binding SortByCommand}"
+                                CommandParameter="Amount" />
+                        <Button Margin="0,0,8,0"
+                                Content="Sort Category"
+                                Command="{Binding SortByCommand}"
+                                CommandParameter="Category" />
+                        <CheckBox VerticalAlignment="Center"
+                                  Content="Include Uncategorized"
+                                  IsChecked="{Binding IncludeUncategorized}" />
+                    </StackPanel>
+
+                    <DataGrid Grid.Row="1"
+                              Margin="0,12,0,0"
+                              ItemsSource="{Binding Transactions}"
+                              AutoGenerateColumns="False"
+                              HeadersVisibility="Column"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              IsReadOnly="True"
+                              RowHeight="34"
+                              GridLinesVisibility="Horizontal"
+                              Background="{StaticResource PanelMutedBackgroundBrush}"
+                              BorderBrush="{StaticResource PanelOutlineBrush}"
+                              BorderThickness="1">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Date" Binding="{Binding OccurredDateDisplay}" Width="110" />
+                            <DataGridTextColumn Header="Merchant" Binding="{Binding Merchant}" Width="180" />
+                            <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*" />
+                            <DataGridTextColumn Header="Envelope" Binding="{Binding Envelope}" Width="140" />
+                            <DataGridTextColumn Header="Category" Binding="{Binding CategoryDisplay}" Width="140" />
+                            <DataGridTextColumn Header="Amount" Binding="{Binding AmountDisplay}" Width="110" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </controls:CardControl>
+        </Grid>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type viewModels:EnvelopesViewModel}">
         <Grid Margin="8">
             <Grid.RowDefinitions>
