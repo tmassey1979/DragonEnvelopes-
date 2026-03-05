@@ -1,9 +1,11 @@
 using DragonEnvelopes.Contracts.Accounts;
+using DragonEnvelopes.Contracts.Automation;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Contracts.Transactions;
 using FluentValidation;
+using System.Text.Json;
 
 namespace DragonEnvelopes.Api.CrossCutting.Validation.Validators;
 
@@ -211,5 +213,87 @@ public sealed class UpdateBudgetRequestValidator : AbstractValidator<UpdateBudge
     {
         RuleFor(static request => request.TotalIncome)
             .GreaterThanOrEqualTo(0m);
+    }
+}
+
+public sealed class CreateAutomationRuleRequestValidator : AbstractValidator<CreateAutomationRuleRequest>
+{
+    private static readonly string[] AllowedTypes = ["Categorization", "Allocation"];
+
+    public CreateAutomationRuleRequestValidator()
+    {
+        RuleFor(static request => request.FamilyId)
+            .NotEmpty();
+
+        RuleFor(static request => request.Name)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(static request => request.RuleType)
+            .NotEmpty()
+            .Must(static type => AllowedTypes.Contains(type, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"RuleType must be one of: {string.Join(", ", AllowedTypes)}.");
+
+        RuleFor(static request => request.Priority)
+            .GreaterThanOrEqualTo(1);
+
+        RuleFor(static request => request.ConditionsJson)
+            .NotEmpty()
+            .Must(static json => IsJsonObject(json))
+            .WithMessage("ConditionsJson must be a valid JSON object.");
+
+        RuleFor(static request => request.ActionJson)
+            .NotEmpty()
+            .Must(static json => IsJsonObject(json))
+            .WithMessage("ActionJson must be a valid JSON object.");
+    }
+
+    private static bool IsJsonObject(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.ValueKind == JsonValueKind.Object;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+}
+
+public sealed class UpdateAutomationRuleRequestValidator : AbstractValidator<UpdateAutomationRuleRequest>
+{
+    public UpdateAutomationRuleRequestValidator()
+    {
+        RuleFor(static request => request.Name)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(static request => request.Priority)
+            .GreaterThanOrEqualTo(1);
+
+        RuleFor(static request => request.ConditionsJson)
+            .NotEmpty()
+            .Must(static json => CreateAutomationRuleRequestValidator_IsJsonObject(json))
+            .WithMessage("ConditionsJson must be a valid JSON object.");
+
+        RuleFor(static request => request.ActionJson)
+            .NotEmpty()
+            .Must(static json => CreateAutomationRuleRequestValidator_IsJsonObject(json))
+            .WithMessage("ActionJson must be a valid JSON object.");
+    }
+
+    private static bool CreateAutomationRuleRequestValidator_IsJsonObject(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.ValueKind == JsonValueKind.Object;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 }

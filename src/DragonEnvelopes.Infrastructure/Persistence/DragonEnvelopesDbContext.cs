@@ -7,6 +7,7 @@ public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbC
 {
     public DbSet<Family> Families => Set<Family>();
     public DbSet<FamilyMember> FamilyMembers => Set<FamilyMember>();
+    public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Envelope> Envelopes => Set<Envelope>();
     public DbSet<Transaction> Transactions => Set<Transaction>();

@@ -247,6 +247,13 @@ Expected MSI output:
   - `GET /api/v1/families/{familyId}`
   - `POST /api/v1/families/{familyId}/members`
   - `GET /api/v1/families/{familyId}/members`
+  - `POST /api/v1/automation/rules`
+  - `GET /api/v1/automation/rules?familyId={familyId}&type={type?}&enabled={bool?}`
+  - `GET /api/v1/automation/rules/{ruleId}`
+  - `PUT /api/v1/automation/rules/{ruleId}`
+  - `POST /api/v1/automation/rules/{ruleId}/enable`
+  - `POST /api/v1/automation/rules/{ruleId}/disable`
+  - `DELETE /api/v1/automation/rules/{ruleId}`
   - `POST /api/v1/accounts`
   - `GET /api/v1/accounts?familyId={familyId}`
   - `POST /api/v1/transactions`

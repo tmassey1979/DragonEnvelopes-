@@ -11,6 +11,7 @@ using DragonEnvelopes.Api.Services;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Accounts;
+using DragonEnvelopes.Contracts.Automation;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Families;
@@ -380,6 +381,111 @@ v1.MapPost("/families/{familyId:guid}/members", async (
     })
     .AllowAnonymous()
     .WithName("AddFamilyMember")
+    .WithOpenApi();
+
+v1.MapPost("/automation/rules", async (
+        CreateAutomationRuleRequest request,
+        IAutomationRuleService automationRuleService,
+        CancellationToken cancellationToken) =>
+    {
+        var rule = await automationRuleService.CreateAsync(
+            request.FamilyId,
+            request.Name,
+            request.RuleType,
+            request.Priority,
+            request.IsEnabled,
+            request.ConditionsJson,
+            request.ActionJson,
+            cancellationToken);
+
+        return Results.Created($"/api/v1/automation/rules/{rule.Id}", MapAutomationRuleResponse(rule));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("CreateAutomationRule")
+    .WithOpenApi();
+
+v1.MapGet("/automation/rules", async (
+        Guid familyId,
+        string? type,
+        bool? enabled,
+        IAutomationRuleService automationRuleService,
+        CancellationToken cancellationToken) =>
+    {
+        var rules = await automationRuleService.ListAsync(familyId, type, enabled, cancellationToken);
+        return Results.Ok(rules.Select(MapAutomationRuleResponse).ToArray());
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("ListAutomationRules")
+    .WithOpenApi();
+
+v1.MapGet("/automation/rules/{ruleId:guid}", async (
+        Guid ruleId,
+        IAutomationRuleService automationRuleService,
+        CancellationToken cancellationToken) =>
+    {
+        var rule = await automationRuleService.GetByIdAsync(ruleId, cancellationToken);
+        return rule is null
+            ? Results.NotFound()
+            : Results.Ok(MapAutomationRuleResponse(rule));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("GetAutomationRuleById")
+    .WithOpenApi();
+
+v1.MapPut("/automation/rules/{ruleId:guid}", async (
+        Guid ruleId,
+        UpdateAutomationRuleRequest request,
+        IAutomationRuleService automationRuleService,
+        CancellationToken cancellationToken) =>
+    {
+        var rule = await automationRuleService.UpdateAsync(
+            ruleId,
+            request.Name,
+            request.Priority,
+            request.IsEnabled,
+            request.ConditionsJson,
+            request.ActionJson,
+            cancellationToken);
+        return Results.Ok(MapAutomationRuleResponse(rule));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("UpdateAutomationRule")
+    .WithOpenApi();
+
+v1.MapPost("/automation/rules/{ruleId:guid}/enable", async (
+        Guid ruleId,
+        IAutomationRuleService automationRuleService,
+        CancellationToken cancellationToken) =>
+    {
+        await automationRuleService.EnableAsync(ruleId, cancellationToken);
+        return Results.NoContent();
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("EnableAutomationRule")
+    .WithOpenApi();
+
+v1.MapPost("/automation/rules/{ruleId:guid}/disable", async (
+        Guid ruleId,
+        IAutomationRuleService automationRuleService,
+        CancellationToken cancellationToken) =>
+    {
+        await automationRuleService.DisableAsync(ruleId, cancellationToken);
+        return Results.NoContent();
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("DisableAutomationRule")
+    .WithOpenApi();
+
+v1.MapDelete("/automation/rules/{ruleId:guid}", async (
+        Guid ruleId,
+        IAutomationRuleService automationRuleService,
+        CancellationToken cancellationToken) =>
+    {
+        await automationRuleService.DeleteAsync(ruleId, cancellationToken);
+        return Results.NoContent();
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("DeleteAutomationRule")
     .WithOpenApi();
 
 v1.MapGet("/families/{familyId:guid}/members", async (
@@ -753,6 +859,21 @@ static RemainingBudgetReportResponse MapRemainingBudgetReportResponse(BudgetDeta
         budget.TotalIncome,
         budget.AllocatedAmount,
         budget.RemainingAmount);
+}
+
+static AutomationRuleResponse MapAutomationRuleResponse(AutomationRuleDetails rule)
+{
+    return new AutomationRuleResponse(
+        rule.Id,
+        rule.FamilyId,
+        rule.Name,
+        rule.RuleType,
+        rule.Priority,
+        rule.IsEnabled,
+        rule.ConditionsJson,
+        rule.ActionJson,
+        rule.CreatedAt,
+        rule.UpdatedAt);
 }
 
 static KeycloakAdminOptions BuildKeycloakAdminOptions(IConfiguration configuration)

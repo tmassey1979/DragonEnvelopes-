@@ -12,6 +12,7 @@ public static class DependencyInjection
         services.AddScoped<IHealthPingService, HealthPingService>();
         services.AddScoped<IFamilyService, FamilyService>();
         services.AddScoped<IAccountService, AccountService>();
+        services.AddScoped<IAutomationRuleService, AutomationRuleService>();
         services.AddScoped<IEnvelopeService, EnvelopeService>();
         services.AddScoped<IBudgetService, BudgetService>();
         services.AddScoped<ITransactionService, TransactionService>();
