@@ -207,31 +207,32 @@ public sealed class DesktopAuthService : IAuthService
         CancellationToken cancellationToken)
     {
         _currentSession ??= await _sessionStore.LoadAsync(cancellationToken);
-        if (_currentSession is null)
+        var session = _currentSession;
+        if (session is null)
         {
             return null;
         }
 
         var nowUtc = DateTimeOffset.UtcNow;
-        var shouldRefresh = forceRefresh || _currentSession.ExpiresAtUtc <= nowUtc.Add(RefreshSkew);
+        var shouldRefresh = forceRefresh || session.ExpiresAtUtc <= nowUtc.Add(RefreshSkew);
         if (!shouldRefresh)
         {
-            return _currentSession;
+            return session;
         }
 
-        if (string.IsNullOrWhiteSpace(_currentSession.RefreshToken))
+        if (string.IsNullOrWhiteSpace(session.RefreshToken))
         {
-            if (_currentSession.IsExpired(nowUtc))
+            if (session.IsExpired(nowUtc))
             {
                 await SignOutAsync(cancellationToken);
                 return null;
             }
 
-            return _currentSession;
+            return session;
         }
 
-        var refreshResult = await _oidcClient.RefreshTokenAsync(_currentSession.RefreshToken);
-        if (refreshResult.IsError)
+        var refreshResult = await _oidcClient.RefreshTokenAsync(session.RefreshToken);
+        if (refreshResult is null || refreshResult.IsError || string.IsNullOrWhiteSpace(refreshResult.AccessToken))
         {
             await SignOutAsync(cancellationToken);
             return null;
@@ -241,11 +242,11 @@ public sealed class DesktopAuthService : IAuthService
         {
             AccessToken = refreshResult.AccessToken,
             RefreshToken = string.IsNullOrWhiteSpace(refreshResult.RefreshToken)
-                ? _currentSession.RefreshToken
+                ? session.RefreshToken
                 : refreshResult.RefreshToken,
             IdentityToken = refreshResult.IdentityToken,
             ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(refreshResult.ExpiresIn),
-            Subject = _currentSession.Subject
+            Subject = session.Subject
         };
 
         _currentSession = refreshed;
