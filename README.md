@@ -259,6 +259,10 @@ Expected MSI output:
   - `POST /api/v1/budgets`
   - `GET /api/v1/budgets/{familyId}/{month}`
   - `PUT /api/v1/budgets/{budgetId}`
+  - `GET /api/v1/reports/envelope-balances?familyId={familyId}`
+  - `GET /api/v1/reports/monthly-spend?familyId={familyId}&from={isoDate}&to={isoDate}`
+  - `GET /api/v1/reports/category-breakdown?familyId={familyId}&from={isoDate}&to={isoDate}`
+  - `GET /api/v1/reports/remaining-budget?familyId={familyId}&month={yyyy-MM}`
 - Bootstrap access:
   - `POST /api/v1/families`, `POST /api/v1/families/onboard`, and `POST /api/v1/families/{familyId}/members` allow anonymous requests to support first-time desktop onboarding.
 - OpenAPI/Swagger includes:

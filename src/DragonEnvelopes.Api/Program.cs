@@ -14,6 +14,7 @@ using DragonEnvelopes.Contracts.Accounts;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Families;
+using DragonEnvelopes.Contracts.Reports;
 using DragonEnvelopes.Contracts.Transactions;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -584,6 +585,61 @@ v1.MapPut("/budgets/{budgetId:guid}", async (
     .WithName("UpdateBudget")
     .WithOpenApi();
 
+v1.MapGet("/reports/envelope-balances", async (
+        Guid familyId,
+        IReportingService reportingService,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await reportingService.GetEnvelopeBalancesAsync(familyId, cancellationToken);
+        return Results.Ok(result.Select(MapEnvelopeBalanceReportResponse).ToArray());
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("GetEnvelopeBalancesReport")
+    .WithOpenApi();
+
+v1.MapGet("/reports/monthly-spend", async (
+        Guid familyId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        IReportingService reportingService,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await reportingService.GetMonthlySpendAsync(familyId, from, to, cancellationToken);
+        return Results.Ok(result.Select(MapMonthlySpendReportPointResponse).ToArray());
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("GetMonthlySpendReport")
+    .WithOpenApi();
+
+v1.MapGet("/reports/category-breakdown", async (
+        Guid familyId,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        IReportingService reportingService,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await reportingService.GetCategoryBreakdownAsync(familyId, from, to, cancellationToken);
+        return Results.Ok(result.Select(MapCategoryBreakdownReportItemResponse).ToArray());
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("GetCategoryBreakdownReport")
+    .WithOpenApi();
+
+v1.MapGet("/reports/remaining-budget", async (
+        Guid familyId,
+        string month,
+        IReportingService reportingService,
+        CancellationToken cancellationToken) =>
+    {
+        var result = await reportingService.GetRemainingBudgetAsync(familyId, month, cancellationToken);
+        return result is null
+            ? Results.NotFound()
+            : Results.Ok(MapRemainingBudgetReportResponse(result));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("GetRemainingBudgetReport")
+    .WithOpenApi();
+
 app.Run();
 
 static FamilyResponse MapFamilyResponse(FamilyDetails family)
@@ -660,6 +716,37 @@ static EnvelopeResponse MapEnvelopeResponse(EnvelopeDetails envelope)
 static BudgetResponse MapBudgetResponse(BudgetDetails budget)
 {
     return new BudgetResponse(
+        budget.Id,
+        budget.FamilyId,
+        budget.Month,
+        budget.TotalIncome,
+        budget.AllocatedAmount,
+        budget.RemainingAmount);
+}
+
+static EnvelopeBalanceReportResponse MapEnvelopeBalanceReportResponse(EnvelopeBalanceReportDetails details)
+{
+    return new EnvelopeBalanceReportResponse(
+        details.EnvelopeId,
+        details.EnvelopeName,
+        details.MonthlyBudget,
+        details.CurrentBalance,
+        details.IsArchived);
+}
+
+static MonthlySpendReportPointResponse MapMonthlySpendReportPointResponse(MonthlySpendReportPointDetails details)
+{
+    return new MonthlySpendReportPointResponse(details.Month, details.TotalSpend);
+}
+
+static CategoryBreakdownReportItemResponse MapCategoryBreakdownReportItemResponse(CategoryBreakdownReportItemDetails details)
+{
+    return new CategoryBreakdownReportItemResponse(details.Category, details.TotalSpend);
+}
+
+static RemainingBudgetReportResponse MapRemainingBudgetReportResponse(BudgetDetails budget)
+{
+    return new RemainingBudgetReportResponse(
         budget.Id,
         budget.FamilyId,
         budget.Month,
