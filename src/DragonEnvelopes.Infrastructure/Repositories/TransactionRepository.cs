@@ -28,6 +28,15 @@ public sealed class TransactionRepository(DragonEnvelopesDbContext dbContext) : 
             .AnyAsync(x => x.Id == accountId, cancellationToken);
     }
 
+    public Task<Guid?> GetAccountFamilyIdAsync(Guid accountId, CancellationToken cancellationToken = default)
+    {
+        return dbContext.Accounts
+            .AsNoTracking()
+            .Where(x => x.Id == accountId)
+            .Select(x => (Guid?)x.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Transaction>> ListTransactionsAsync(
         Guid? accountId,
         CancellationToken cancellationToken = default)

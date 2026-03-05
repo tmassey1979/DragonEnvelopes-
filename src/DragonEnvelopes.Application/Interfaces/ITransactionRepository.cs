@@ -11,6 +11,8 @@ public interface ITransactionRepository
 
     Task<bool> AccountExistsAsync(Guid accountId, CancellationToken cancellationToken = default);
 
+    Task<Guid?> GetAccountFamilyIdAsync(Guid accountId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<Transaction>> ListTransactionsAsync(
         Guid? accountId,
         CancellationToken cancellationToken = default);

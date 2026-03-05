@@ -8,7 +8,8 @@ namespace DragonEnvelopes.Application.Services;
 
 public sealed class TransactionService(
     ITransactionRepository transactionRepository,
-    IEnvelopeRepository envelopeRepository) : ITransactionService
+    IEnvelopeRepository envelopeRepository,
+    ICategorizationRuleEngine categorizationRuleEngine) : ITransactionService
 {
     public async Task<TransactionDetails> CreateAsync(
         Guid accountId,
@@ -22,9 +23,21 @@ public sealed class TransactionService(
         IReadOnlyList<TransactionSplitCreateDetails>? splits,
         CancellationToken cancellationToken = default)
     {
-        if (!await transactionRepository.AccountExistsAsync(accountId, cancellationToken))
+        var familyId = await transactionRepository.GetAccountFamilyIdAsync(accountId, cancellationToken);
+        if (!familyId.HasValue)
         {
             throw new DomainValidationException("Account was not found.");
+        }
+
+        if (string.IsNullOrWhiteSpace(category))
+        {
+            category = await categorizationRuleEngine.EvaluateAsync(
+                familyId.Value,
+                description,
+                merchant,
+                amount,
+                category,
+                cancellationToken);
         }
 
         var hasSplitItems = hasSplits && splits is { Count: > 0 };

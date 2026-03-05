@@ -15,16 +15,17 @@ public class TransactionServiceTests
     {
         var repository = new Mock<ITransactionRepository>();
         var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var accountId = Guid.NewGuid();
-        repository.Setup(x => x.AccountExistsAsync(accountId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+        repository.Setup(x => x.GetAccountFamilyIdAsync(accountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Guid.NewGuid());
         repository.Setup(x => x.AddTransactionAsync(
                 It.IsAny<Transaction>(),
                 It.IsAny<IReadOnlyList<TransactionSplitEntry>>(),
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var service = new TransactionService(repository.Object, envelopeRepository.Object);
+        var service = new TransactionService(repository.Object, envelopeRepository.Object, categorizationEngine.Object);
         var transaction = await service.CreateAsync(
             accountId,
             -15.25m,
@@ -47,11 +48,12 @@ public class TransactionServiceTests
     {
         var repository = new Mock<ITransactionRepository>();
         var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var accountId = Guid.NewGuid();
-        repository.Setup(x => x.AccountExistsAsync(accountId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false);
+        repository.Setup(x => x.GetAccountFamilyIdAsync(accountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid?)null);
 
-        var service = new TransactionService(repository.Object, envelopeRepository.Object);
+        var service = new TransactionService(repository.Object, envelopeRepository.Object, categorizationEngine.Object);
         await Assert.ThrowsAsync<DomainValidationException>(
             () => service.CreateAsync(
                 accountId,
@@ -70,6 +72,7 @@ public class TransactionServiceTests
     {
         var repository = new Mock<ITransactionRepository>();
         var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var accountId = Guid.NewGuid();
         var splitEnvelopeId = Guid.NewGuid();
         var splitEnvelope = new Envelope(
@@ -79,8 +82,8 @@ public class TransactionServiceTests
             Money.FromDecimal(200m),
             Money.FromDecimal(100m));
 
-        repository.Setup(x => x.AccountExistsAsync(accountId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+        repository.Setup(x => x.GetAccountFamilyIdAsync(accountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Guid.NewGuid());
         repository.Setup(x => x.AddTransactionAsync(
                 It.IsAny<Transaction>(),
                 It.IsAny<IReadOnlyList<TransactionSplitEntry>>(),
@@ -89,7 +92,7 @@ public class TransactionServiceTests
         envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(splitEnvelopeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(splitEnvelope);
 
-        var service = new TransactionService(repository.Object, envelopeRepository.Object);
+        var service = new TransactionService(repository.Object, envelopeRepository.Object, categorizationEngine.Object);
         var result = await service.CreateAsync(
             accountId,
             -20m,
@@ -110,6 +113,7 @@ public class TransactionServiceTests
     {
         var repository = new Mock<ITransactionRepository>();
         var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var accountId = Guid.NewGuid();
         repository.Setup(x => x.ListTransactionsAsync(accountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(
@@ -127,7 +131,7 @@ public class TransactionServiceTests
         repository.Setup(x => x.ListTransactionSplitsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
-        var service = new TransactionService(repository.Object, envelopeRepository.Object);
+        var service = new TransactionService(repository.Object, envelopeRepository.Object, categorizationEngine.Object);
         var transactions = await service.ListAsync(accountId);
 
         Assert.Single(transactions);
@@ -139,6 +143,7 @@ public class TransactionServiceTests
     {
         var transactionRepository = new Mock<ITransactionRepository>();
         var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var accountId = Guid.NewGuid();
         var envelopeId = Guid.NewGuid();
         var envelope = new Envelope(
@@ -148,8 +153,8 @@ public class TransactionServiceTests
             Money.FromDecimal(300m),
             Money.FromDecimal(200m));
 
-        transactionRepository.Setup(x => x.AccountExistsAsync(accountId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+        transactionRepository.Setup(x => x.GetAccountFamilyIdAsync(accountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Guid.NewGuid());
         transactionRepository.Setup(x => x.AddTransactionAsync(
                 It.IsAny<Transaction>(),
                 It.IsAny<IReadOnlyList<TransactionSplitEntry>>(),
@@ -158,7 +163,7 @@ public class TransactionServiceTests
         envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(envelopeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(envelope);
 
-        var service = new TransactionService(transactionRepository.Object, envelopeRepository.Object);
+        var service = new TransactionService(transactionRepository.Object, envelopeRepository.Object, categorizationEngine.Object);
         await service.CreateAsync(
             accountId,
             -25m,
@@ -178,6 +183,7 @@ public class TransactionServiceTests
     {
         var transactionRepository = new Mock<ITransactionRepository>();
         var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var accountId = Guid.NewGuid();
         var envelopeId = Guid.NewGuid();
         var envelope = new Envelope(
@@ -187,8 +193,8 @@ public class TransactionServiceTests
             Money.FromDecimal(300m),
             Money.FromDecimal(200m));
 
-        transactionRepository.Setup(x => x.AccountExistsAsync(accountId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+        transactionRepository.Setup(x => x.GetAccountFamilyIdAsync(accountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Guid.NewGuid());
         transactionRepository.Setup(x => x.AddTransactionAsync(
                 It.IsAny<Transaction>(),
                 It.IsAny<IReadOnlyList<TransactionSplitEntry>>(),
@@ -197,7 +203,7 @@ public class TransactionServiceTests
         envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(envelopeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(envelope);
 
-        var service = new TransactionService(transactionRepository.Object, envelopeRepository.Object);
+        var service = new TransactionService(transactionRepository.Object, envelopeRepository.Object, categorizationEngine.Object);
         await service.CreateAsync(
             accountId,
             40m,
@@ -210,5 +216,84 @@ public class TransactionServiceTests
             null);
 
         Assert.Equal(240m, envelope.CurrentBalance.Amount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenCategoryMissing_AppliesCategorizationRule()
+    {
+        var transactionRepository = new Mock<ITransactionRepository>();
+        var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
+        var accountId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+
+        transactionRepository.Setup(x => x.GetAccountFamilyIdAsync(accountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(familyId);
+        categorizationEngine.Setup(x => x.EvaluateAsync(
+                familyId,
+                "AMZN Mktp US*123",
+                "Amazon",
+                -45.22m,
+                null,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Shopping");
+        transactionRepository.Setup(x => x.AddTransactionAsync(
+                It.IsAny<Transaction>(),
+                It.IsAny<IReadOnlyList<TransactionSplitEntry>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = new TransactionService(transactionRepository.Object, envelopeRepository.Object, categorizationEngine.Object);
+        var result = await service.CreateAsync(
+            accountId,
+            -45.22m,
+            "AMZN Mktp US*123",
+            "Amazon",
+            DateTimeOffset.UtcNow,
+            null,
+            null,
+            false,
+            null);
+
+        Assert.Equal("Shopping", result.Category);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenCategoryProvided_SkipsCategorizationRule()
+    {
+        var transactionRepository = new Mock<ITransactionRepository>();
+        var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
+        var accountId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+
+        transactionRepository.Setup(x => x.GetAccountFamilyIdAsync(accountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(familyId);
+        transactionRepository.Setup(x => x.AddTransactionAsync(
+                It.IsAny<Transaction>(),
+                It.IsAny<IReadOnlyList<TransactionSplitEntry>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = new TransactionService(transactionRepository.Object, envelopeRepository.Object, categorizationEngine.Object);
+        var result = await service.CreateAsync(
+            accountId,
+            -12.30m,
+            "Lunch",
+            "Cafe",
+            DateTimeOffset.UtcNow,
+            "Dining",
+            null,
+            false,
+            null);
+
+        categorizationEngine.Verify(x => x.EvaluateAsync(
+            It.IsAny<Guid>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<decimal>(),
+            It.IsAny<string?>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Equal("Dining", result.Category);
     }
 }

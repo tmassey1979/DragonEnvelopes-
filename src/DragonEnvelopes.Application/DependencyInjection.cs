@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.AddScoped<IFamilyService, FamilyService>();
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IAutomationRuleService, AutomationRuleService>();
+        services.AddScoped<ICategorizationRuleEngine, CategorizationRuleEngine>();
         services.AddScoped<IEnvelopeService, EnvelopeService>();
         services.AddScoped<IBudgetService, BudgetService>();
         services.AddScoped<ITransactionService, TransactionService>();
