@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddDbContext<DragonEnvelopesDbContext>(options => options.UseNpgsql(connectionString));
         services.AddSingleton<IClock, SystemClock>();
         services.AddScoped<IRepositoryMarker, RepositoryMarker>();
+        services.AddScoped<IFamilyRepository, FamilyRepository>();
 
         return services;
     }

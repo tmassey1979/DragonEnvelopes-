@@ -10,6 +10,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddScoped<IHealthPingService, HealthPingService>();
+        services.AddScoped<IFamilyService, FamilyService>();
         services.AddSingleton<IApplicationMapper, IdentityMapper>();
 
         return services;

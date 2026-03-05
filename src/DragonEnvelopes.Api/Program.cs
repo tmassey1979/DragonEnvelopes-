@@ -7,6 +7,9 @@ using DragonEnvelopes.Api.CrossCutting.Logging;
 using DragonEnvelopes.Api.CrossCutting.OpenApi;
 using DragonEnvelopes.Api.CrossCutting.Validation;
 using DragonEnvelopes.Infrastructure.Persistence;
+using DragonEnvelopes.Application.DTOs;
+using DragonEnvelopes.Application.Services;
+using DragonEnvelopes.Contracts.Families;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -261,7 +264,50 @@ v1.MapGet("/auth/parent-only", () =>
     .WithName("ParentOnlyProbe")
     .WithOpenApi();
 
+v1.MapPost("/families", async (
+        CreateFamilyRequest request,
+        IFamilyService familyService,
+        CancellationToken cancellationToken) =>
+    {
+        var family = await familyService.CreateAsync(request.Name, cancellationToken);
+        return Results.Created($"/api/v1/families/{family.Id}", MapFamilyResponse(family));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.ParentOrAdult)
+    .WithName("CreateFamily")
+    .WithOpenApi();
+
+v1.MapGet("/families/{familyId:guid}", async (
+        Guid familyId,
+        IFamilyService familyService,
+        CancellationToken cancellationToken) =>
+    {
+        var family = await familyService.GetByIdAsync(familyId, cancellationToken);
+        return family is null
+            ? Results.NotFound()
+            : Results.Ok(MapFamilyResponse(family));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("GetFamilyById")
+    .WithOpenApi();
+
 app.Run();
+
+static FamilyResponse MapFamilyResponse(FamilyDetails family)
+{
+    return new FamilyResponse(
+        family.Id,
+        family.Name,
+        family.CreatedAt,
+        family.Members
+            .Select(static member => new FamilyMemberResponse(
+                member.Id,
+                member.FamilyId,
+                member.KeycloakUserId,
+                member.Name,
+                member.Email,
+                member.Role))
+            .ToArray());
+}
 
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
