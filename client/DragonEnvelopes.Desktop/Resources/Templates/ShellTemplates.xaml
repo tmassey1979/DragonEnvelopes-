@@ -312,4 +312,89 @@
             </controls:CardControl>
         </Grid>
     </DataTemplate>
+
+    <DataTemplate DataType="{x:Type viewModels:ReportsViewModel}">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="120" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Reports" Style="{StaticResource DisplayTextStyle}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Text="Reporting summaries with filter-ready endpoint bindings."
+                               Style="{StaticResource BodyTextStyle}" />
+                </StackPanel>
+
+                <TextBox Grid.Column="1"
+                         Margin="12,0,8,0"
+                         VerticalAlignment="Center"
+                         Text="{Binding SelectedMonth, UpdateSourceTrigger=PropertyChanged}" />
+                <CheckBox Grid.Column="2"
+                          Margin="0,0,8,0"
+                          VerticalAlignment="Center"
+                          Content="Include Archived"
+                          IsChecked="{Binding IncludeArchived}" />
+                <Button Grid.Column="3"
+                        VerticalAlignment="Center"
+                        Content="Apply"
+                        Command="{Binding ApplyFiltersCommand}" />
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Padding="12"
+                    CornerRadius="10"
+                    Background="#4B311B"
+                    BorderBrush="#A35D2F"
+                    BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource CaptionTextStyle}" Foreground="#FFD2A8" />
+            </Border>
+
+            <controls:CardControl Grid.Row="2"
+                                  Margin="0,12,0,0"
+                                  Header="Report Summary"
+                                  Subheader="API-driven reporting scaffold"
+                                  EmptyMessage="{Binding NoDataMessage}"
+                                  IsLoading="{Binding IsLoading}"
+                                  IsEmpty="{Binding IsEmpty}">
+                <ItemsControl ItemsSource="{Binding SummaryTiles}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel ItemWidth="220" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type viewModels:MetricTileViewModel}">
+                            <controls:MetricTileControl Margin="0,0,14,14"
+                                                        Label="{Binding Label}"
+                                                        Value="{Binding Value}"
+                                                        Trend="{Binding Trend}"
+                                                        TrendDirection="{Binding TrendDirection}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </controls:CardControl>
+        </Grid>
+    </DataTemplate>
 </ResourceDictionary>

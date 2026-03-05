@@ -55,13 +55,7 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Reports",
                 Glyph: "\uE9D2",
                 TopBarSubtitle: "Spend and budget reporting",
-                Content: new ShellContentViewModel(
-                    "Reporting Center",
-                    "Analyze spending breakdowns, remaining budget, and monthly trend signals.",
-                    "Report queries are not connected",
-                    "When reporting handlers are available, visual summaries will render here.",
-                    metrics: BuildPendingMetrics("Report"),
-                    isLoading: true)),
+                Content: new ReportsViewModel(new ReportsDataService(apiClient))),
             new RouteDefinition(
                 Key: "/automation",
                 Label: "Automation",
