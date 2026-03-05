@@ -4,7 +4,8 @@ public interface IKeycloakProvisioningService
 {
     Task<string> CreateUserAsync(
         string email,
-        string displayName,
+        string firstName,
+        string lastName,
         string password,
         CancellationToken cancellationToken = default);
 

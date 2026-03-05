@@ -17,12 +17,12 @@ public sealed class KeycloakProvisioningService(
 
     public async Task<string> CreateUserAsync(
         string email,
-        string displayName,
+        string firstName,
+        string lastName,
         string password,
         CancellationToken cancellationToken = default)
     {
         var token = await GetAdminTokenAsync(cancellationToken);
-        var (firstName, lastName) = SplitName(displayName);
 
         var payload = new
         {
@@ -203,22 +203,4 @@ public sealed class KeycloakProvisioningService(
         return new { id, name };
     }
 
-    private static (string firstName, string lastName) SplitName(string displayName)
-    {
-        var parts = (displayName ?? string.Empty)
-            .Trim()
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-        if (parts.Length == 0)
-        {
-            return (string.Empty, string.Empty);
-        }
-
-        if (parts.Length == 1)
-        {
-            return (parts[0], string.Empty);
-        }
-
-        return (parts[0], string.Join(' ', parts.Skip(1)));
-    }
 }

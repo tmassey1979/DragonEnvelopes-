@@ -41,7 +41,19 @@
                     <TextBox x:Name="FamilyNameBox" Margin="0,8,0,12" />
 
                     <TextBlock Text="Primary Guardian Name" />
-                    <TextBox x:Name="GuardianNameBox" Margin="0,8,0,12" />
+                    <Grid Margin="0,8,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="GuardianFirstNameBox"
+                                 Grid.Column="0"
+                                 ToolTip="First Name" />
+                        <TextBox x:Name="GuardianLastNameBox"
+                                 Grid.Column="2"
+                                 ToolTip="Last Name" />
+                    </Grid>
 
                     <TextBlock Text="Email" />
                     <TextBox x:Name="EmailBox" Margin="0,8,0,12" />

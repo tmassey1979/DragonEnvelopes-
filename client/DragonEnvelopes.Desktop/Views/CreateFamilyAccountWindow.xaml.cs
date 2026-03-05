@@ -36,7 +36,8 @@ public partial class CreateFamilyAccountWindow : Window
 
         var result = await _familyAccountService.CreateAsync(new CreateFamilyAccountRequest(
             FamilyNameBox.Text.Trim(),
-            GuardianNameBox.Text.Trim(),
+            GuardianFirstNameBox.Text.Trim(),
+            GuardianLastNameBox.Text.Trim(),
             EmailBox.Text.Trim(),
             PasswordBox.Password));
 
@@ -67,9 +68,14 @@ public partial class CreateFamilyAccountWindow : Window
             return "Family name is required.";
         }
 
-        if (string.IsNullOrWhiteSpace(GuardianNameBox.Text))
+        if (string.IsNullOrWhiteSpace(GuardianFirstNameBox.Text))
         {
-            return "Primary guardian name is required.";
+            return "Primary guardian first name is required.";
+        }
+
+        if (string.IsNullOrWhiteSpace(GuardianLastNameBox.Text))
+        {
+            return "Primary guardian last name is required.";
         }
 
         if (string.IsNullOrWhiteSpace(EmailBox.Text))

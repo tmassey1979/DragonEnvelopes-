@@ -300,7 +300,8 @@ v1.MapPost("/families/onboard", async (
     {
         var keycloakUserId = await keycloakProvisioningService.CreateUserAsync(
             request.Email,
-            request.PrimaryGuardianName,
+            request.PrimaryGuardianFirstName,
+            request.PrimaryGuardianLastName,
             request.Password,
             cancellationToken);
         await keycloakProvisioningService.AssignRealmRoleAsync(
@@ -311,10 +312,11 @@ v1.MapPost("/families/onboard", async (
         try
         {
             var family = await familyService.CreateAsync(request.FamilyName, cancellationToken);
+            var guardianDisplayName = $"{request.PrimaryGuardianFirstName} {request.PrimaryGuardianLastName}".Trim();
             await familyService.AddMemberAsync(
                 family.Id,
                 keycloakUserId,
-                request.PrimaryGuardianName,
+                guardianDisplayName,
                 request.Email,
                 "Parent",
                 cancellationToken);

@@ -21,7 +21,8 @@ public sealed class FamilyAccountService(IBackendApiClient apiClient) : IFamilyA
             "families/onboard",
             new CompleteFamilyOnboardingRequest(
                 request.FamilyName,
-                request.PrimaryGuardianName,
+                request.PrimaryGuardianFirstName,
+                request.PrimaryGuardianLastName,
                 request.Email,
                 request.Password),
             cancellationToken);

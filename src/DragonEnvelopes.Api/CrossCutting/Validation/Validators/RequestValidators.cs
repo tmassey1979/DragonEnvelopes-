@@ -25,7 +25,11 @@ public sealed class CompleteFamilyOnboardingRequestValidator : AbstractValidator
             .NotEmpty()
             .MaximumLength(100);
 
-        RuleFor(static request => request.PrimaryGuardianName)
+        RuleFor(static request => request.PrimaryGuardianFirstName)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(static request => request.PrimaryGuardianLastName)
             .NotEmpty()
             .MaximumLength(100);
 
