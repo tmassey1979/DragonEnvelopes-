@@ -45,32 +45,37 @@
                                   IsLoading="{Binding IsLoading}"
                                   IsEmpty="{Binding IsEmpty}">
                 <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                    <Border Grid.Column="0"
-                            Margin="0,0,12,0"
+                    <Border Grid.Row="0"
+                            Margin="0,0,0,14"
                             Padding="14"
                             CornerRadius="10"
                             Background="{StaticResource PanelMutedBackgroundBrush}"
                             BorderBrush="{StaticResource PanelOutlineBrush}"
                             BorderThickness="1">
-                        <TextBlock Text="This reusable Card wraps the main workspace panel and centralizes loading/empty visuals."
+                        <TextBlock Text="This reusable Card wraps workspace content and centralizes loading/empty visuals. Envelope tiles below are reusable controls with hover/focus/selected states."
                                    Style="{StaticResource BodyTextStyle}" />
                     </Border>
 
-                    <Border Grid.Column="1"
-                            Margin="12,0,0,0"
-                            Padding="14"
-                            CornerRadius="10"
-                            Background="{StaticResource PanelMutedBackgroundBrush}"
-                            BorderBrush="{StaticResource PanelOutlineBrush}"
-                            BorderThickness="1">
-                        <TextBlock Text="MetricTile controls above share a consistent dependency-property contract for label, value, trend, and state flags."
-                                   Style="{StaticResource BodyTextStyle}" />
-                    </Border>
+                    <ItemsControl Grid.Row="1" ItemsSource="{Binding Envelopes}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel ItemWidth="220" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type viewModels:EnvelopeTileViewModel}">
+                                <controls:EnvelopeTileControl EnvelopeName="{Binding Name}"
+                                                              MonthlyBudget="{Binding MonthlyBudget}"
+                                                              CurrentBalance="{Binding CurrentBalance}"
+                                                              IsSelected="{Binding IsSelected}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </Grid>
             </controls:CardControl>
         </Grid>

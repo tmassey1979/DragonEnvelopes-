@@ -20,7 +20,8 @@ public sealed class RouteRegistry : IRouteRegistry
                     "Track allocation health, available cash, and month-to-date progress for your family.",
                     "Dashboard widgets will appear here",
                     "Connect real account and envelope data to populate KPI cards.",
-                    metrics: BuildDashboardMetrics())),
+                    metrics: BuildDashboardMetrics(),
+                    envelopes: BuildEnvelopeTiles())),
             new RouteDefinition(
                 Key: "/envelopes",
                 Label: "Envelopes",
@@ -32,6 +33,7 @@ public sealed class RouteRegistry : IRouteRegistry
                     "Envelope list is not loaded yet",
                     "Once envelope APIs are wired, this region will host list and edit views.",
                     metrics: BuildPendingMetrics("Envelope"),
+                    envelopes: BuildEnvelopeTiles(),
                     isEmpty: true)),
             new RouteDefinition(
                 Key: "/transactions",
@@ -135,6 +137,17 @@ public sealed class RouteRegistry : IRouteRegistry
             new MetricTileViewModel($"{subject} Count", "--", "Awaiting API binding", MetricTrendDirection.Neutral, isLoading: true),
             new MetricTileViewModel($"{subject} Velocity", "--", "No activity yet", MetricTrendDirection.Neutral, isEmpty: true),
             new MetricTileViewModel($"{subject} Health", "--", "Pending integration", MetricTrendDirection.Neutral, isEmpty: true)
+        ];
+    }
+
+    private static IReadOnlyList<EnvelopeTileViewModel> BuildEnvelopeTiles()
+    {
+        return
+        [
+            new EnvelopeTileViewModel("Groceries", "$520", "$188", isSelected: true),
+            new EnvelopeTileViewModel("Utilities", "$310", "$122"),
+            new EnvelopeTileViewModel("School", "$240", "$196"),
+            new EnvelopeTileViewModel("Fuel", "$180", "$64")
         ];
     }
 }

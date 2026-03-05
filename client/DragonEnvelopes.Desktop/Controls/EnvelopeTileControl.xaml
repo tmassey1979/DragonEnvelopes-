@@ -1,0 +1,43 @@
+<UserControl x:Class="DragonEnvelopes.Desktop.Controls.EnvelopeTileControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root">
+    <Border Margin="0,0,12,12"
+            Width="220"
+            MinHeight="98"
+            Padding="12"
+            CornerRadius="12"
+            Background="{StaticResource PanelMutedBackgroundBrush}"
+            BorderBrush="{StaticResource PanelOutlineBrush}"
+            BorderThickness="1"
+            Focusable="True">
+        <Border.Style>
+            <Style TargetType="Border">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsSelected, ElementName=Root}" Value="True">
+                        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                        <Setter Property="BorderThickness" Value="2" />
+                    </DataTrigger>
+                    <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                        <Setter Property="BorderThickness" Value="2" />
+                    </Trigger>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="#243758" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+
+        <StackPanel>
+            <TextBlock Text="{Binding EnvelopeName, ElementName=Root}" Style="{StaticResource HeadingTextStyle}" FontSize="18" />
+            <TextBlock Margin="0,6,0,0"
+                       Text="{Binding MonthlyBudget, ElementName=Root, StringFormat=Budget: {0}}"
+                       Style="{StaticResource CaptionTextStyle}" />
+            <TextBlock Margin="0,2,0,0"
+                       Text="{Binding CurrentBalance, ElementName=Root, StringFormat=Balance: {0}}"
+                       Style="{StaticResource CaptionTextStyle}"
+                       Foreground="{StaticResource PrimaryTextBrush}" />
+        </StackPanel>
+    </Border>
+</UserControl>
