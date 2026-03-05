@@ -11,6 +11,7 @@ using DragonEnvelopes.Api.Services;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Accounts;
+using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Contracts.Transactions;
 using FluentValidation;
@@ -456,6 +457,78 @@ v1.MapGet("/transactions", async (
     .WithName("ListTransactions")
     .WithOpenApi();
 
+v1.MapPost("/envelopes", async (
+        CreateEnvelopeRequest request,
+        IEnvelopeService envelopeService,
+        CancellationToken cancellationToken) =>
+    {
+        var envelope = await envelopeService.CreateAsync(
+            request.FamilyId,
+            request.Name,
+            request.MonthlyBudget,
+            cancellationToken);
+        return Results.Created($"/api/v1/envelopes/{envelope.Id}", MapEnvelopeResponse(envelope));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("CreateEnvelope")
+    .WithOpenApi();
+
+v1.MapGet("/envelopes/{envelopeId:guid}", async (
+        Guid envelopeId,
+        IEnvelopeService envelopeService,
+        CancellationToken cancellationToken) =>
+    {
+        var envelope = await envelopeService.GetByIdAsync(envelopeId, cancellationToken);
+        return envelope is null
+            ? Results.NotFound()
+            : Results.Ok(MapEnvelopeResponse(envelope));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("GetEnvelopeById")
+    .WithOpenApi();
+
+v1.MapGet("/envelopes", async (
+        Guid familyId,
+        IEnvelopeService envelopeService,
+        CancellationToken cancellationToken) =>
+    {
+        var envelopes = await envelopeService.ListByFamilyAsync(familyId, cancellationToken);
+        return Results.Ok(envelopes.Select(MapEnvelopeResponse).ToArray());
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("ListEnvelopes")
+    .WithOpenApi();
+
+v1.MapPut("/envelopes/{envelopeId:guid}", async (
+        Guid envelopeId,
+        UpdateEnvelopeRequest request,
+        IEnvelopeService envelopeService,
+        CancellationToken cancellationToken) =>
+    {
+        var envelope = await envelopeService.UpdateAsync(
+            envelopeId,
+            request.Name,
+            request.MonthlyBudget,
+            request.IsArchived,
+            cancellationToken);
+        return Results.Ok(MapEnvelopeResponse(envelope));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("UpdateEnvelope")
+    .WithOpenApi();
+
+v1.MapPost("/envelopes/{envelopeId:guid}/archive", async (
+        Guid envelopeId,
+        IEnvelopeService envelopeService,
+        CancellationToken cancellationToken) =>
+    {
+        var envelope = await envelopeService.ArchiveAsync(envelopeId, cancellationToken);
+        return Results.Ok(MapEnvelopeResponse(envelope));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("ArchiveEnvelope")
+    .WithOpenApi();
+
 app.Run();
 
 static FamilyResponse MapFamilyResponse(FamilyDetails family)
@@ -508,6 +581,18 @@ static TransactionResponse MapTransactionResponse(TransactionDetails transaction
         transaction.Category,
         transaction.EnvelopeId,
         []);
+}
+
+static EnvelopeResponse MapEnvelopeResponse(EnvelopeDetails envelope)
+{
+    return new EnvelopeResponse(
+        envelope.Id,
+        envelope.FamilyId,
+        envelope.Name,
+        envelope.MonthlyBudget,
+        envelope.CurrentBalance,
+        envelope.LastActivityAt,
+        envelope.IsArchived);
 }
 
 static KeycloakAdminOptions BuildKeycloakAdminOptions(IConfiguration configuration)

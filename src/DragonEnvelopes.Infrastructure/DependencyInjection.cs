@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<IRepositoryMarker, RepositoryMarker>();
         services.AddScoped<IFamilyRepository, FamilyRepository>();
         services.AddScoped<IAccountRepository, AccountRepository>();
+        services.AddScoped<IEnvelopeRepository, EnvelopeRepository>();
         services.AddScoped<ITransactionRepository, TransactionRepository>();
 
         return services;
