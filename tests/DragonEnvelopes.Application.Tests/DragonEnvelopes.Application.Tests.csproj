@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DragonEnvelopes.Application\DragonEnvelopes.Application.csproj" />
+    <ProjectReference Include="..\..\src\DragonEnvelopes.Contracts\DragonEnvelopes.Contracts.csproj" />
     <ProjectReference Include="..\..\src\DragonEnvelopes.Domain\DragonEnvelopes.Domain.csproj" />
   </ItemGroup>
 
