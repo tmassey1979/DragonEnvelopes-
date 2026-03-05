@@ -4,7 +4,7 @@ namespace DragonEnvelopes.Desktop.ViewModels;
 
 public sealed partial class NavigationItemViewModel : ObservableObject
 {
-    public NavigationItemViewModel(string key, string label, string glyph, ShellContentViewModel content)
+    public NavigationItemViewModel(string key, string label, string glyph, object content)
     {
         Key = key;
         Label = label;
@@ -18,7 +18,7 @@ public sealed partial class NavigationItemViewModel : ObservableObject
 
     public string Glyph { get; }
 
-    public ShellContentViewModel Content { get; }
+    public object Content { get; }
 
     [ObservableProperty]
     private bool isSelected;

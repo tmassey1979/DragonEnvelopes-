@@ -16,13 +16,7 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Dashboard",
                 Glyph: "\uE80F",
                 TopBarSubtitle: "Budget health and status",
-                Content: new ShellContentViewModel(
-                    "Budget Health Overview",
-                    "Track allocation health, available cash, and month-to-date progress for your family.",
-                    "Dashboard widgets will appear here",
-                    "Connect real account and envelope data to populate KPI cards.",
-                    metrics: BuildDashboardMetrics(),
-                    envelopes: BuildEnvelopeTiles())),
+                Content: new DashboardViewModel()),
             new RouteDefinition(
                 Key: "/envelopes",
                 Label: "Envelopes",
@@ -119,16 +113,6 @@ public sealed class RouteRegistry : IRouteRegistry
 
         var trimmed = routeKey.Trim();
         return trimmed.StartsWith('/') ? trimmed : $"/{trimmed}";
-    }
-
-    private static IReadOnlyList<MetricTileViewModel> BuildDashboardMetrics()
-    {
-        return
-        [
-            new MetricTileViewModel("Remaining Budget", "$1,240", "+$210 vs last week", MetricTrendDirection.Positive),
-            new MetricTileViewModel("Allocated", "72%", "On target", MetricTrendDirection.Neutral),
-            new MetricTileViewModel("Weekly Spend", "$360", "-$45 vs average", MetricTrendDirection.Positive)
-        ];
     }
 
     private static IReadOnlyList<MetricTileViewModel> BuildPendingMetrics(string subject)

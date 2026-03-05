@@ -2,6 +2,107 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:controls="clr-namespace:DragonEnvelopes.Desktop.Controls"
                     xmlns:viewModels="clr-namespace:DragonEnvelopes.Desktop.ViewModels">
+    <DataTemplate DataType="{x:Type viewModels:DashboardViewModel}">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Dashboard" Style="{StaticResource DisplayTextStyle}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Text="Net worth, balances, and recent activity health at a glance."
+                               Style="{StaticResource BodyTextStyle}" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Content="Reload"
+                        Command="{Binding LoadCommand}" />
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Padding="12"
+                    CornerRadius="10"
+                    Background="#4B311B"
+                    BorderBrush="#A35D2F"
+                    BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+
+                <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource CaptionTextStyle}" Foreground="#FFD2A8" />
+            </Border>
+
+            <Grid Grid.Row="2" Margin="0,12,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <controls:CardControl Grid.Row="0"
+                                      Header="Budget KPI Cards"
+                                      Subheader="Current financial health snapshot"
+                                      EmptyMessage="No KPI data returned."
+                                      IsLoading="{Binding IsLoading}"
+                                      IsEmpty="{Binding IsEmpty}">
+                    <ItemsControl ItemsSource="{Binding KpiCards}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel ItemWidth="220" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type viewModels:MetricTileViewModel}">
+                                <controls:MetricTileControl Margin="0,0,14,14"
+                                                            Label="{Binding Label}"
+                                                            Value="{Binding Value}"
+                                                            Trend="{Binding Trend}"
+                                                            TrendDirection="{Binding TrendDirection}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </controls:CardControl>
+
+                <controls:CardControl Grid.Row="1"
+                                      Margin="0,14,0,0"
+                                      Header="Recent Transactions"
+                                      Subheader="Most recent posted activity"
+                                      EmptyMessage="No recent transactions found."
+                                      IsLoading="{Binding IsLoading}"
+                                      IsEmpty="{Binding IsEmpty}">
+                    <ItemsControl ItemsSource="{Binding RecentTransactions}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type viewModels:TransactionRowViewModel}">
+                                <controls:TransactionRowControl Date="{Binding Date}"
+                                                                Merchant="{Binding Merchant}"
+                                                                Amount="{Binding Amount}"
+                                                                Envelope="{Binding Envelope}"
+                                                                Category="{Binding Category}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </controls:CardControl>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type viewModels:ShellContentViewModel}">
         <Grid Margin="8">
             <Grid.RowDefinitions>

@@ -58,7 +58,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private string topBarSubtitle = "Route not selected";
 
     [ObservableProperty]
-    private ShellContentViewModel? currentContent;
+    private object? currentContent;
 
     [ObservableProperty]
     private bool isAuthenticated;

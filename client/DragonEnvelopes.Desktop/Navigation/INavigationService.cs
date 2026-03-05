@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using DragonEnvelopes.Desktop.ViewModels;
 
 namespace DragonEnvelopes.Desktop.Navigation;
 
@@ -11,7 +10,7 @@ public interface INavigationService : INotifyPropertyChanged
 
     string CurrentSubtitle { get; }
 
-    ShellContentViewModel? CurrentContent { get; }
+    object? CurrentContent { get; }
 
     IReadOnlyCollection<RouteDefinition> Routes { get; }
 

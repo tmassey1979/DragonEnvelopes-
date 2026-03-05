@@ -1,5 +1,4 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using DragonEnvelopes.Desktop.ViewModels;
 
 namespace DragonEnvelopes.Desktop.Navigation;
 
@@ -25,7 +24,7 @@ public sealed partial class NavigationService : ObservableObject, INavigationSer
     private string currentSubtitle = "Budget health and status";
 
     [ObservableProperty]
-    private ShellContentViewModel? currentContent;
+    private object? currentContent;
 
     public bool Navigate(string routeKey)
     {

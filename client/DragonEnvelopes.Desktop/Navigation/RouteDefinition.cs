@@ -7,4 +7,4 @@ public sealed record RouteDefinition(
     string Label,
     string Glyph,
     string TopBarSubtitle,
-    ShellContentViewModel Content);
+    object Content);
