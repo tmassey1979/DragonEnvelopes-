@@ -1,9 +1,11 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:DragonEnvelopes.Desktop.Controls"
                     xmlns:viewModels="clr-namespace:DragonEnvelopes.Desktop.ViewModels">
     <DataTemplate DataType="{x:Type viewModels:ShellContentViewModel}">
         <Grid Margin="8">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
@@ -15,20 +17,62 @@
                            Style="{StaticResource BodyTextStyle}" />
             </StackPanel>
 
-            <Border Grid.Row="1"
-                    Margin="0,24,0,0"
-                    CornerRadius="18"
-                    Padding="24"
-                    Background="{StaticResource PanelBackgroundBrush}"
-                    BorderBrush="{StaticResource PanelOutlineBrush}"
-                    BorderThickness="1">
-                <StackPanel>
-                    <TextBlock Text="{Binding EmptyStateTitle}" Style="{StaticResource HeadingTextStyle}" />
-                    <TextBlock Margin="0,10,0,0"
-                               Text="{Binding EmptyStateBody}"
-                               Style="{StaticResource BodyTextStyle}" />
-                </StackPanel>
-            </Border>
+            <ItemsControl Grid.Row="1" Margin="0,20,0,0" ItemsSource="{Binding Metrics}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel ItemWidth="220" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type viewModels:MetricTileViewModel}">
+                        <controls:MetricTileControl Margin="0,0,14,14"
+                                                    Label="{Binding Label}"
+                                                    Value="{Binding Value}"
+                                                    Trend="{Binding Trend}"
+                                                    TrendDirection="{Binding TrendDirection}"
+                                                    IsLoading="{Binding IsLoading}"
+                                                    IsEmpty="{Binding IsEmpty}"
+                                                    EmptyMessage="{Binding EmptyMessage}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <controls:CardControl Grid.Row="2"
+                                  Margin="0,8,0,0"
+                                  Header="{Binding EmptyStateTitle}"
+                                  Subheader="Primary content region"
+                                  EmptyMessage="{Binding EmptyStateBody}"
+                                  IsLoading="{Binding IsLoading}"
+                                  IsEmpty="{Binding IsEmpty}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Margin="0,0,12,0"
+                            Padding="14"
+                            CornerRadius="10"
+                            Background="{StaticResource PanelMutedBackgroundBrush}"
+                            BorderBrush="{StaticResource PanelOutlineBrush}"
+                            BorderThickness="1">
+                        <TextBlock Text="This reusable Card wraps the main workspace panel and centralizes loading/empty visuals."
+                                   Style="{StaticResource BodyTextStyle}" />
+                    </Border>
+
+                    <Border Grid.Column="1"
+                            Margin="12,0,0,0"
+                            Padding="14"
+                            CornerRadius="10"
+                            Background="{StaticResource PanelMutedBackgroundBrush}"
+                            BorderBrush="{StaticResource PanelOutlineBrush}"
+                            BorderThickness="1">
+                        <TextBlock Text="MetricTile controls above share a consistent dependency-property contract for label, value, trend, and state flags."
+                                   Style="{StaticResource BodyTextStyle}" />
+                    </Border>
+                </Grid>
+            </controls:CardControl>
         </Grid>
     </DataTemplate>
 </ResourceDictionary>

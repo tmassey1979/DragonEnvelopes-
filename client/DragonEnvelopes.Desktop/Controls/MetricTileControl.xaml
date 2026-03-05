@@ -1,0 +1,83 @@
+<UserControl x:Class="DragonEnvelopes.Desktop.Controls.MetricTileControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:viewModels="clr-namespace:DragonEnvelopes.Desktop.ViewModels"
+             x:Name="Root">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+    </UserControl.Resources>
+
+    <Border Width="220"
+            MinHeight="116"
+            CornerRadius="14"
+            Padding="14"
+            Background="{StaticResource PanelMutedBackgroundBrush}"
+            BorderBrush="{StaticResource PanelOutlineBrush}"
+            BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Text="{Binding Label, ElementName=Root}" Style="{StaticResource CaptionTextStyle}" />
+
+            <StackPanel Grid.Row="1" Margin="0,10,0,0" VerticalAlignment="Bottom">
+                <TextBlock Text="{Binding Value, ElementName=Root}" Style="{StaticResource HeadingTextStyle}" FontSize="24" />
+                <TextBlock Margin="0,4,0,0"
+                           Text="{Binding Trend, ElementName=Root}"
+>
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+                            <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding TrendDirection, ElementName=Root}" Value="{x:Static viewModels:MetricTrendDirection.Positive}">
+                                    <Setter Property="Foreground" Value="#8BE59E" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding TrendDirection, ElementName=Root}" Value="{x:Static viewModels:MetricTrendDirection.Negative}">
+                                    <Setter Property="Foreground" Value="#FF9F9F" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+
+            <Border Grid.RowSpan="2"
+                    Background="#920B1220"
+                    CornerRadius="10"
+                    Visibility="{Binding IsLoading, ElementName=Root, Converter={StaticResource BoolToVisibilityConverter}}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <ProgressBar Width="120" Height="6" IsIndeterminate="True" />
+                    <TextBlock Margin="0,8,0,0" Text="Loading..." Style="{StaticResource CaptionTextStyle}" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.RowSpan="2"
+                    Background="#920B1220"
+                    CornerRadius="10">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsEmpty, ElementName=Root}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsLoading, ElementName=Root}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+
+                <TextBlock HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Margin="10"
+                           Text="{Binding EmptyMessage, ElementName=Root}"
+
+                           TextAlignment="Center" />
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>
+
