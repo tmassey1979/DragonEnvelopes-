@@ -99,6 +99,17 @@ public sealed class FinancialIntegrationDataService : IFinancialIntegrationDataS
             cancellationToken);
     }
 
+    public Task<RewrapProviderSecretsResponse> RewrapProviderSecretsAsync(CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        return SendAsync<RewrapProviderSecretsResponse>(
+            HttpMethod.Post,
+            $"families/{familyId}/financial/security/rewrap-provider-secrets",
+            payload: null,
+            "Rewrapping provider secrets",
+            cancellationToken);
+    }
+
     public Task<CreatePlaidLinkTokenResponse> CreatePlaidLinkTokenAsync(
         string? clientName,
         CancellationToken cancellationToken = default)

@@ -2051,7 +2051,15 @@
                                     <Button Margin="0,0,8,8"
                                             Content="Retry Selected Failed Notification"
                                             Command="{Binding RetrySelectedFailedNotificationDispatchEventCommand}" />
+                                    <Button Margin="0,0,8,8"
+                                            Content="Rewrap Secrets"
+                                            Command="{Binding RewrapProviderSecretsCommand}" />
                                 </WrapPanel>
+
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding ProviderSecretRewrapSummary}"
+                                           Style="{StaticResource CaptionTextStyle}"
+                                           TextWrapping="Wrap" />
                             </StackPanel>
 
                             <TextBlock Grid.Row="1"

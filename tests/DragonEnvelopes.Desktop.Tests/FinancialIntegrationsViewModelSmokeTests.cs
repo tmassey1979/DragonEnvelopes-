@@ -99,6 +99,21 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
     }
 
     [Fact]
+    public async Task RewrapProviderSecretsCommand_UpdatesSummaryAndStatus()
+    {
+        var harness = CreateHarness();
+        await EnsureLoadedAsync(harness.ViewModel);
+
+        await harness.ViewModel.RewrapProviderSecretsCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(harness.ViewModel);
+
+        Assert.False(harness.ViewModel.HasError);
+        Assert.Equal(1, harness.FinancialDataService.RewrapProviderSecretsCallCount);
+        Assert.Contains("fields touched 3", harness.ViewModel.ProviderSecretRewrapSummary, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Provider secret rewrap completed.", harness.ViewModel.StatusMessage);
+    }
+
+    [Fact]
     public async Task CardCommands_AndControlFlow_ExecuteWithDeterministicStateTransitions()
     {
         var harness = CreateHarness();

@@ -46,6 +46,11 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
             InAppEnabled: true,
             SmsEnabled: false,
             UpdatedAtUtc: now);
+        RewrapProviderSecretsResponse = new RewrapProviderSecretsResponse(
+            FamilyId: familyId,
+            ProfileFound: true,
+            FieldsTouched: 3,
+            ExecutedAtUtc: now);
         PlaidLinkTokenResponse = new CreatePlaidLinkTokenResponse("link-token-001", now.AddMinutes(30));
         PlaidSyncResponse = new PlaidTransactionSyncResponse(
             familyId,
@@ -193,6 +198,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
 
     public NotificationPreferenceResponse NotificationPreferenceResponse { get; private set; }
 
+    public RewrapProviderSecretsResponse RewrapProviderSecretsResponse { get; set; }
+
     public CreatePlaidLinkTokenResponse PlaidLinkTokenResponse { get; set; }
 
     public PlaidTransactionSyncResponse PlaidSyncResponse { get; set; }
@@ -226,6 +233,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
     public int DeletePlaidAccountLinkCallCount { get; private set; }
 
     public int RetryFailedNotificationDispatchEventCallCount { get; private set; }
+
+    public int RewrapProviderSecretsCallCount { get; private set; }
 
     public int FreezeCardCallCount { get; private set; }
 
@@ -312,6 +321,16 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow,
             null));
+    }
+
+    public Task<RewrapProviderSecretsResponse> RewrapProviderSecretsAsync(CancellationToken cancellationToken = default)
+    {
+        RewrapProviderSecretsCallCount += 1;
+        RewrapProviderSecretsResponse = RewrapProviderSecretsResponse with
+        {
+            ExecutedAtUtc = DateTimeOffset.UtcNow
+        };
+        return Task.FromResult(RewrapProviderSecretsResponse);
     }
 
     public Task<CreatePlaidLinkTokenResponse> CreatePlaidLinkTokenAsync(

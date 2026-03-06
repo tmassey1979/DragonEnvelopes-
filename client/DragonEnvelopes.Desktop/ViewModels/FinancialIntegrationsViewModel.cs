@@ -54,6 +54,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         ProviderHealthTraceId = "-";
         ProviderTimelineSummary = "No provider timeline events loaded.";
         NotificationRetrySummary = "No failed notification dispatch events loaded.";
+        ProviderSecretRewrapSummary = "Provider secret rewrap has not been run.";
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         RefreshStatusCommand = new AsyncRelayCommand(RefreshStatusAsync);
@@ -61,6 +62,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         RefreshProviderTimelineCommand = new AsyncRelayCommand(RefreshProviderTimelineAsync);
         RefreshFailedNotificationEventsCommand = new AsyncRelayCommand(RefreshFailedNotificationEventsAsync);
         RetrySelectedFailedNotificationDispatchEventCommand = new AsyncRelayCommand(RetrySelectedFailedNotificationDispatchEventAsync);
+        RewrapProviderSecretsCommand = new AsyncRelayCommand(RewrapProviderSecretsAsync);
         SaveNotificationPreferenceCommand = new AsyncRelayCommand(SaveNotificationPreferenceAsync);
         CreatePlaidLinkTokenCommand = new AsyncRelayCommand(CreatePlaidLinkTokenAsync);
         LaunchNativePlaidLinkCommand = new AsyncRelayCommand(LaunchNativePlaidLinkAsync);
@@ -98,6 +100,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public IAsyncRelayCommand RefreshProviderTimelineCommand { get; }
     public IAsyncRelayCommand RefreshFailedNotificationEventsCommand { get; }
     public IAsyncRelayCommand RetrySelectedFailedNotificationDispatchEventCommand { get; }
+    public IAsyncRelayCommand RewrapProviderSecretsCommand { get; }
     public IAsyncRelayCommand SaveNotificationPreferenceCommand { get; }
     public IAsyncRelayCommand CreatePlaidLinkTokenCommand { get; }
     public IAsyncRelayCommand LaunchNativePlaidLinkCommand { get; }
@@ -357,6 +360,9 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     [ObservableProperty]
     private FailedNotificationDispatchEventItemViewModel? selectedFailedNotificationDispatchEvent;
 
+    [ObservableProperty]
+    private string providerSecretRewrapSummary = string.Empty;
+
     public bool HasEnvelopeSelection => SelectedEnvelope is not null;
     public bool HasCardSelection => SelectedCard is not null;
     public bool HasFailedNotificationSelection => SelectedFailedNotificationDispatchEvent is not null;
@@ -512,6 +518,21 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
                 ct);
             ApplyNotificationPreference(updated);
             StatusMessage = "Notification preferences saved.";
+        }, cancellationToken);
+    }
+
+    private Task RewrapProviderSecretsAsync(CancellationToken cancellationToken)
+    {
+        return RunOperationAsync("Rewrapping provider secrets...", async ct =>
+        {
+            var result = await _financialIntegrationDataService.RewrapProviderSecretsAsync(ct);
+            var outcome = result.ProfileFound
+                ? $"Profile found; fields touched {result.FieldsTouched}"
+                : "No financial profile exists for this family";
+            ProviderSecretRewrapSummary = $"{outcome}. Executed {FormatDate(result.ExecutedAtUtc)}.";
+
+            await RefreshStatusCoreAsync(ct);
+            StatusMessage = "Provider secret rewrap completed.";
         }, cancellationToken);
     }
 

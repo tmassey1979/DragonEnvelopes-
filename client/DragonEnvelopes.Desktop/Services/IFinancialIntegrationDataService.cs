@@ -28,6 +28,8 @@ public interface IFinancialIntegrationDataService
         Guid eventId,
         CancellationToken cancellationToken = default);
 
+    Task<RewrapProviderSecretsResponse> RewrapProviderSecretsAsync(CancellationToken cancellationToken = default);
+
     Task<CreatePlaidLinkTokenResponse> CreatePlaidLinkTokenAsync(
         string? clientName,
         CancellationToken cancellationToken = default);
