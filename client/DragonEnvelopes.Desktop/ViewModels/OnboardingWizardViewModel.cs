@@ -239,10 +239,6 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
             StatusMessage = updated.IsCompleted
                 ? "Onboarding marked complete."
                 : "Progress saved.";
-            if (!IsLastStep)
-            {
-                CurrentStepIndex++;
-            }
         }
         catch (Exception ex)
         {

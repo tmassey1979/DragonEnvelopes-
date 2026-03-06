@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#167` Onboarding status-aware step list UI.
+- Active task: `#168` Onboarding mark-complete double-advance fix.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#166` Onboarding reconcile operation.
+- Previous completed task: `#167` Onboarding status-aware step list UI.
 - Last updated: `2026-03-06`.

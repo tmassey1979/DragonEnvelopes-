@@ -81,12 +81,12 @@ public sealed class OnboardingWizardViewModelTests
         Assert.False(viewModel.HasError);
         Assert.Equal(1, onboardingDataService.UpdateProfileCallCount);
         Assert.True(viewModel.PlaidCompleted);
-        Assert.Equal(6, viewModel.CurrentStepIndex);
+        Assert.Equal(5, viewModel.CurrentStepIndex);
         Assert.Equal("Progress saved.", viewModel.StatusMessage);
         Assert.Equal(63, viewModel.ProgressPercent);
         Assert.True(viewModel.StepItems[4].IsCompleted);
         Assert.False(viewModel.StepItems[4].IsCurrent);
-        Assert.True(viewModel.StepItems[6].IsCurrent);
+        Assert.True(viewModel.StepItems[5].IsCurrent);
     }
 
     [Fact]
