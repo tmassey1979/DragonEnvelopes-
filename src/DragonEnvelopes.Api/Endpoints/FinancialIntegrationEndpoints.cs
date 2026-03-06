@@ -247,6 +247,69 @@ internal static class FinancialIntegrationEndpoints
             .WithName("IssueVirtualEnvelopeCard")
             .WithOpenApi();
 
+        v1.MapPost("/families/{familyId:guid}/envelopes/{envelopeId:guid}/cards/physical", async (
+                Guid familyId,
+                Guid envelopeId,
+                CreatePhysicalEnvelopeCardRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopePaymentCardService envelopePaymentCardService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var issuance = await envelopePaymentCardService.IssuePhysicalCardAsync(
+                    familyId,
+                    envelopeId,
+                    request.CardholderName,
+                    request.RecipientName,
+                    request.AddressLine1,
+                    request.AddressLine2,
+                    request.City,
+                    request.StateOrProvince,
+                    request.PostalCode,
+                    request.CountryCode,
+                    cancellationToken);
+
+                return Results.Ok(new EnvelopePhysicalCardIssuanceResponse(
+                    new EnvelopePaymentCardResponse(
+                        issuance.Card.Id,
+                        issuance.Card.FamilyId,
+                        issuance.Card.EnvelopeId,
+                        issuance.Card.EnvelopeFinancialAccountId,
+                        issuance.Card.Provider,
+                        issuance.Card.ProviderCardId,
+                        issuance.Card.Type,
+                        issuance.Card.Status,
+                        issuance.Card.Brand,
+                        issuance.Card.Last4,
+                        issuance.Card.CreatedAtUtc,
+                        issuance.Card.UpdatedAtUtc),
+                    new EnvelopePaymentCardShipmentResponse(
+                        issuance.Shipment.Id,
+                        issuance.Shipment.FamilyId,
+                        issuance.Shipment.EnvelopeId,
+                        issuance.Shipment.CardId,
+                        issuance.Shipment.RecipientName,
+                        issuance.Shipment.AddressLine1,
+                        issuance.Shipment.AddressLine2,
+                        issuance.Shipment.City,
+                        issuance.Shipment.StateOrProvince,
+                        issuance.Shipment.PostalCode,
+                        issuance.Shipment.CountryCode,
+                        issuance.Shipment.Status,
+                        issuance.Shipment.Carrier,
+                        issuance.Shipment.TrackingNumber,
+                        issuance.Shipment.RequestedAtUtc,
+                        issuance.Shipment.UpdatedAtUtc)));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("IssuePhysicalEnvelopeCard")
+            .WithOpenApi();
+
         v1.MapGet("/families/{familyId:guid}/envelopes/{envelopeId:guid}/cards", async (
                 Guid familyId,
                 Guid envelopeId,
@@ -391,6 +454,120 @@ internal static class FinancialIntegrationEndpoints
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
             .WithName("CancelEnvelopeCard")
+            .WithOpenApi();
+
+        v1.MapGet("/families/{familyId:guid}/envelopes/{envelopeId:guid}/cards/{cardId:guid}/issuance", async (
+                Guid familyId,
+                Guid envelopeId,
+                Guid cardId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopePaymentCardService envelopePaymentCardService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var issuance = await envelopePaymentCardService.GetPhysicalCardIssuanceAsync(
+                    familyId,
+                    envelopeId,
+                    cardId,
+                    cancellationToken);
+
+                return issuance is null
+                    ? Results.NotFound()
+                    : Results.Ok(new EnvelopePhysicalCardIssuanceResponse(
+                        new EnvelopePaymentCardResponse(
+                            issuance.Card.Id,
+                            issuance.Card.FamilyId,
+                            issuance.Card.EnvelopeId,
+                            issuance.Card.EnvelopeFinancialAccountId,
+                            issuance.Card.Provider,
+                            issuance.Card.ProviderCardId,
+                            issuance.Card.Type,
+                            issuance.Card.Status,
+                            issuance.Card.Brand,
+                            issuance.Card.Last4,
+                            issuance.Card.CreatedAtUtc,
+                            issuance.Card.UpdatedAtUtc),
+                        new EnvelopePaymentCardShipmentResponse(
+                            issuance.Shipment.Id,
+                            issuance.Shipment.FamilyId,
+                            issuance.Shipment.EnvelopeId,
+                            issuance.Shipment.CardId,
+                            issuance.Shipment.RecipientName,
+                            issuance.Shipment.AddressLine1,
+                            issuance.Shipment.AddressLine2,
+                            issuance.Shipment.City,
+                            issuance.Shipment.StateOrProvince,
+                            issuance.Shipment.PostalCode,
+                            issuance.Shipment.CountryCode,
+                            issuance.Shipment.Status,
+                            issuance.Shipment.Carrier,
+                            issuance.Shipment.TrackingNumber,
+                            issuance.Shipment.RequestedAtUtc,
+                            issuance.Shipment.UpdatedAtUtc)));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("GetEnvelopePhysicalCardIssuance")
+            .WithOpenApi();
+
+        v1.MapPost("/families/{familyId:guid}/envelopes/{envelopeId:guid}/cards/{cardId:guid}/issuance/refresh", async (
+                Guid familyId,
+                Guid envelopeId,
+                Guid cardId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopePaymentCardService envelopePaymentCardService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var issuance = await envelopePaymentCardService.RefreshPhysicalCardIssuanceStatusAsync(
+                    familyId,
+                    envelopeId,
+                    cardId,
+                    cancellationToken);
+
+                return Results.Ok(new EnvelopePhysicalCardIssuanceResponse(
+                    new EnvelopePaymentCardResponse(
+                        issuance.Card.Id,
+                        issuance.Card.FamilyId,
+                        issuance.Card.EnvelopeId,
+                        issuance.Card.EnvelopeFinancialAccountId,
+                        issuance.Card.Provider,
+                        issuance.Card.ProviderCardId,
+                        issuance.Card.Type,
+                        issuance.Card.Status,
+                        issuance.Card.Brand,
+                        issuance.Card.Last4,
+                        issuance.Card.CreatedAtUtc,
+                        issuance.Card.UpdatedAtUtc),
+                    new EnvelopePaymentCardShipmentResponse(
+                        issuance.Shipment.Id,
+                        issuance.Shipment.FamilyId,
+                        issuance.Shipment.EnvelopeId,
+                        issuance.Shipment.CardId,
+                        issuance.Shipment.RecipientName,
+                        issuance.Shipment.AddressLine1,
+                        issuance.Shipment.AddressLine2,
+                        issuance.Shipment.City,
+                        issuance.Shipment.StateOrProvince,
+                        issuance.Shipment.PostalCode,
+                        issuance.Shipment.CountryCode,
+                        issuance.Shipment.Status,
+                        issuance.Shipment.Carrier,
+                        issuance.Shipment.TrackingNumber,
+                        issuance.Shipment.RequestedAtUtc,
+                        issuance.Shipment.UpdatedAtUtc)));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("RefreshEnvelopePhysicalCardIssuance")
             .WithOpenApi();
 
         v1.MapPut("/families/{familyId:guid}/envelopes/{envelopeId:guid}/cards/{cardId:guid}/controls", async (

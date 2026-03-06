@@ -43,6 +43,16 @@ public sealed record EnvelopeFinancialAccountResponse(
 public sealed record CreateVirtualEnvelopeCardRequest(
     string? CardholderName);
 
+public sealed record CreatePhysicalEnvelopeCardRequest(
+    string? CardholderName,
+    string RecipientName,
+    string AddressLine1,
+    string? AddressLine2,
+    string City,
+    string StateOrProvince,
+    string PostalCode,
+    string CountryCode);
+
 public sealed record EnvelopePaymentCardResponse(
     Guid Id,
     Guid FamilyId,
@@ -56,6 +66,28 @@ public sealed record EnvelopePaymentCardResponse(
     string? Last4,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc);
+
+public sealed record EnvelopePaymentCardShipmentResponse(
+    Guid Id,
+    Guid FamilyId,
+    Guid EnvelopeId,
+    Guid CardId,
+    string RecipientName,
+    string AddressLine1,
+    string? AddressLine2,
+    string City,
+    string StateOrProvince,
+    string PostalCode,
+    string CountryCode,
+    string Status,
+    string? Carrier,
+    string? TrackingNumber,
+    DateTimeOffset RequestedAtUtc,
+    DateTimeOffset UpdatedAtUtc);
+
+public sealed record EnvelopePhysicalCardIssuanceResponse(
+    EnvelopePaymentCardResponse Card,
+    EnvelopePaymentCardShipmentResponse Shipment);
 
 public sealed record UpsertEnvelopePaymentCardControlRequest(
     decimal? DailyLimitAmount,

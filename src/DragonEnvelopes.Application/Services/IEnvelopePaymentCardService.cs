@@ -10,9 +10,34 @@ public interface IEnvelopePaymentCardService
         string? cardholderName,
         CancellationToken cancellationToken = default);
 
+    Task<EnvelopePhysicalCardIssuanceDetails> IssuePhysicalCardAsync(
+        Guid familyId,
+        Guid envelopeId,
+        string? cardholderName,
+        string recipientName,
+        string addressLine1,
+        string? addressLine2,
+        string city,
+        string stateOrProvince,
+        string postalCode,
+        string countryCode,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<EnvelopePaymentCardDetails>> ListByEnvelopeAsync(
         Guid familyId,
         Guid envelopeId,
+        CancellationToken cancellationToken = default);
+
+    Task<EnvelopePhysicalCardIssuanceDetails?> GetPhysicalCardIssuanceAsync(
+        Guid familyId,
+        Guid envelopeId,
+        Guid cardId,
+        CancellationToken cancellationToken = default);
+
+    Task<EnvelopePhysicalCardIssuanceDetails> RefreshPhysicalCardIssuanceStatusAsync(
+        Guid familyId,
+        Guid envelopeId,
+        Guid cardId,
         CancellationToken cancellationToken = default);
 
     Task<EnvelopePaymentCardDetails> FreezeCardAsync(

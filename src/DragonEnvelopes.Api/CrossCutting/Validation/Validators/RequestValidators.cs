@@ -162,6 +162,42 @@ public sealed class CreateVirtualEnvelopeCardRequestValidator : AbstractValidato
     }
 }
 
+public sealed class CreatePhysicalEnvelopeCardRequestValidator : AbstractValidator<CreatePhysicalEnvelopeCardRequest>
+{
+    public CreatePhysicalEnvelopeCardRequestValidator()
+    {
+        RuleFor(static request => request.CardholderName)
+            .MaximumLength(128);
+
+        RuleFor(static request => request.RecipientName)
+            .NotEmpty()
+            .MaximumLength(128);
+
+        RuleFor(static request => request.AddressLine1)
+            .NotEmpty()
+            .MaximumLength(128);
+
+        RuleFor(static request => request.AddressLine2)
+            .MaximumLength(128);
+
+        RuleFor(static request => request.City)
+            .NotEmpty()
+            .MaximumLength(64);
+
+        RuleFor(static request => request.StateOrProvince)
+            .NotEmpty()
+            .MaximumLength(64);
+
+        RuleFor(static request => request.PostalCode)
+            .NotEmpty()
+            .MaximumLength(32);
+
+        RuleFor(static request => request.CountryCode)
+            .NotEmpty()
+            .Length(2);
+    }
+}
+
 public sealed class UpsertEnvelopePaymentCardControlRequestValidator : AbstractValidator<UpsertEnvelopePaymentCardControlRequest>
 {
     public UpsertEnvelopePaymentCardControlRequestValidator()

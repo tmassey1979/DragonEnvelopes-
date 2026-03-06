@@ -9,6 +9,7 @@ public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbC
     public DbSet<FamilyFinancialProfile> FamilyFinancialProfiles => Set<FamilyFinancialProfile>();
     public DbSet<EnvelopeFinancialAccount> EnvelopeFinancialAccounts => Set<EnvelopeFinancialAccount>();
     public DbSet<EnvelopePaymentCard> EnvelopePaymentCards => Set<EnvelopePaymentCard>();
+    public DbSet<EnvelopePaymentCardShipment> EnvelopePaymentCardShipments => Set<EnvelopePaymentCardShipment>();
     public DbSet<EnvelopePaymentCardControl> EnvelopePaymentCardControls => Set<EnvelopePaymentCardControl>();
     public DbSet<EnvelopePaymentCardControlAudit> EnvelopePaymentCardControlAudits => Set<EnvelopePaymentCardControlAudit>();
     public DbSet<OnboardingProfile> OnboardingProfiles => Set<OnboardingProfile>();

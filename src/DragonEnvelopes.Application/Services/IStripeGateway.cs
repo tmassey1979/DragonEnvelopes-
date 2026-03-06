@@ -26,6 +26,14 @@ public interface IStripeGateway
         string cardholderName,
         CancellationToken cancellationToken = default);
 
+    Task<StripeCardIssuanceResult> CreatePhysicalCardAsync(
+        string financialAccountId,
+        Guid familyId,
+        Guid envelopeId,
+        string cardholderName,
+        StripeCardShippingAddress shippingAddress,
+        CancellationToken cancellationToken = default);
+
     Task UpdateCardStatusAsync(
         string providerCardId,
         string status,
@@ -36,5 +44,9 @@ public interface IStripeGateway
         decimal? dailyLimitAmount,
         IReadOnlyList<string> allowedMerchantCategories,
         IReadOnlyList<string> allowedMerchantNames,
+        CancellationToken cancellationToken = default);
+
+    Task<StripeCardStatusResult> GetCardStatusAsync(
+        string providerCardId,
         CancellationToken cancellationToken = default);
 }

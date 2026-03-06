@@ -491,6 +491,41 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Cannot_Issue_Physical_Card_For_FamilyB()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/envelopes/{TestApiFactory.EnvelopeBId}/cards/physical",
+            new
+            {
+                cardholderName = "Blocked User",
+                recipientName = "Blocked User",
+                addressLine1 = "123 Main St",
+                addressLine2 = (string?)null,
+                city = "Austin",
+                stateOrProvince = "TX",
+                postalCode = "78701",
+                countryCode = "US"
+            });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Get_FamilyB_Physical_Card_Issuance()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/envelopes/{TestApiFactory.EnvelopeBId}/cards/{Guid.NewGuid()}/issuance");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserA_Cannot_Upsert_FamilyB_Card_Controls()
     {
         using var client = _factory.CreateClient();
