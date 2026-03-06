@@ -166,6 +166,10 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddSingleton(BuildKeycloakAdminOptions(builder.Configuration));
 builder.Services.AddHttpClient<IKeycloakProvisioningService, KeycloakProvisioningService>();
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHostedService<RecurringBillAutoPostWorker>();
+}
 
 var defaultConnection = builder.Configuration.GetConnectionString("Default");
 var healthChecks = builder.Services.AddHealthChecks()
