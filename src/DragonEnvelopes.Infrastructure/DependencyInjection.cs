@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IEnvelopeRepository, EnvelopeRepository>();
         services.AddScoped<IBudgetRepository, BudgetRepository>();
         services.AddScoped<IRecurringBillRepository, RecurringBillRepository>();
+        services.AddScoped<IRecurringBillExecutionRepository, RecurringBillExecutionRepository>();
         services.AddScoped<ITransactionRepository, TransactionRepository>();
         services.AddScoped<IReportingRepository, ReportingRepository>();
 

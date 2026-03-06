@@ -7,6 +7,7 @@ using DragonEnvelopes.Contracts.Runtime;
 using DragonEnvelopes.Contracts.Transactions;
 using DragonEnvelopes.Domain.Entities;
 using DragonEnvelopes.Domain.ValueObjects;
+using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
@@ -252,6 +253,30 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task RecurringExecutionRepository_HasExecution_ChecksIdempotencyKey()
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IRecurringBillExecutionRepository>();
+
+        var dueDate = new DateOnly(2026, 3, 1);
+        var initialHasExecution = await repo.HasExecutionAsync(TestApiFactory.RecurringBillAId, dueDate);
+        Assert.False(initialHasExecution);
+
+        await repo.AddAsync(new RecurringBillExecution(
+            Guid.NewGuid(),
+            TestApiFactory.RecurringBillAId,
+            TestApiFactory.FamilyAId,
+            dueDate,
+            DateTimeOffset.UtcNow,
+            transactionId: null,
+            result: "Posted",
+            notes: "Integration test"));
+
+        var finalHasExecution = await repo.HasExecutionAsync(TestApiFactory.RecurringBillAId, dueDate);
+        Assert.True(finalHasExecution);
+    }
+
+    [Fact]
     public async Task System_Health_Is_Available_Anonymously()
     {
         using var client = _factory.CreateClient();
@@ -288,6 +313,7 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
     public static readonly Guid EnvelopeAId = Guid.Parse("aaaaaaaa-1111-1111-1111-111111111111");
     public static readonly Guid EnvelopeA2Id = Guid.Parse("aaaaaaaa-2222-2222-2222-222222222222");
     public static readonly Guid EnvelopeBId = Guid.Parse("bbbbbbbb-1111-1111-1111-111111111111");
+    public static readonly Guid RecurringBillAId = Guid.Parse("12345678-90ab-cdef-1234-567890abcdef");
     public static readonly Guid TransactionAId = Guid.Parse("11111111-2222-3333-4444-555555555555");
     public static readonly Guid TransactionBId = Guid.Parse("66666666-7777-8888-9999-aaaaaaaaaaaa");
     public const string UserAId = "user-a";
@@ -369,6 +395,19 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
                 "Cafe B",
                 DateTimeOffset.UtcNow,
                 "Dining"));
+
+        dbContext.RecurringBills.Add(
+            new RecurringBill(
+                RecurringBillAId,
+                FamilyAId,
+                "Rent",
+                "Landlord",
+                Money.FromDecimal(1000m),
+                RecurringBillFrequency.Monthly,
+                dayOfMonth: 1,
+                startDate: new DateOnly(2026, 1, 1),
+                endDate: null,
+                isActive: true));
 
         dbContext.SaveChanges();
     }
