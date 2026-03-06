@@ -80,6 +80,9 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         LinkPlaidAccountCommand = new AsyncRelayCommand(LinkPlaidAccountAsync);
         RemovePlaidAccountLinkCommand = new AsyncRelayCommand(RemovePlaidAccountLinkAsync);
         SyncPlaidTransactionsCommand = new AsyncRelayCommand(SyncPlaidTransactionsAsync);
+        RefreshStripeProvisioningCommand = new AsyncRelayCommand(RefreshStripeProvisioningAsync);
+        ProvisionSelectedStripeAccountsCommand = new AsyncRelayCommand(ProvisionSelectedStripeAccountsAsync);
+        RetryFailedStripeProvisioningCommand = new AsyncRelayCommand(RetryFailedStripeProvisioningAsync);
         CreateInviteCommand = new AsyncRelayCommand(CreateFamilyInviteAsync);
         CancelInviteCommand = new AsyncRelayCommand(CancelFamilyInviteAsync);
         AddAccountRowCommand = new RelayCommand(AddAccountRow);
@@ -122,6 +125,9 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public IAsyncRelayCommand LinkPlaidAccountCommand { get; }
     public IAsyncRelayCommand RemovePlaidAccountLinkCommand { get; }
     public IAsyncRelayCommand SyncPlaidTransactionsCommand { get; }
+    public IAsyncRelayCommand RefreshStripeProvisioningCommand { get; }
+    public IAsyncRelayCommand ProvisionSelectedStripeAccountsCommand { get; }
+    public IAsyncRelayCommand RetryFailedStripeProvisioningCommand { get; }
     public IAsyncRelayCommand CreateInviteCommand { get; }
     public IAsyncRelayCommand CancelInviteCommand { get; }
     public IRelayCommand AddAccountRowCommand { get; }
@@ -290,6 +296,12 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     [ObservableProperty]
     private string plaidSyncSummary = "No Plaid transaction sync has been run.";
 
+    [ObservableProperty]
+    private ObservableCollection<OnboardingStripeProvisioningItemViewModel> stripeProvisioningItems = [];
+
+    [ObservableProperty]
+    private string stripeProvisioningMessage = "Select envelopes to provision Stripe financial accounts.";
+
     public string CurrentStepTitle => Steps[Math.Clamp(CurrentStepIndex, 0, Steps.Count - 1)];
 
     public bool IsFirstStep => CurrentStepIndex == 0;
@@ -302,6 +314,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public bool IsEnvelopesStep => CurrentStepIndex == 3;
     public bool IsBudgetStep => CurrentStepIndex == 4;
     public bool IsPlaidStep => CurrentStepIndex == 5;
+    public bool IsStripeStep => CurrentStepIndex == 6;
 
     public int ProgressPercent
     {
@@ -340,6 +353,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
             ApplyFamilyProfile(await familyProfileTask);
             ApplyBudgetPreferences(await budgetPreferencesTask);
             await LoadPlaidStepStateAsync(cancellationToken);
+            await LoadStripeProvisioningStateAsync(cancellationToken);
 
             var profile = await profileTask;
             profile = await SyncMembersMilestoneFromRealStateAsync(profile, cancellationToken);
@@ -462,6 +476,13 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
                 nextPlaid = true;
                 break;
             case 6:
+                if (!ComputeStripeAccountsCompletedFromState())
+                {
+                    HasError = true;
+                    ErrorMessage = "Provision at least one Stripe financial account before completing this step.";
+                    return;
+                }
+
                 nextStripeAccounts = true;
                 break;
             case 7:
@@ -808,6 +829,86 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         }
     }
 
+    private async Task RefreshStripeProvisioningAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        try
+        {
+            await LoadStripeProvisioningStateAsync(cancellationToken);
+            StatusMessage = "Stripe provisioning status refreshed.";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to refresh Stripe provisioning state: {ex.Message}";
+        }
+    }
+
+    private async Task ProvisionSelectedStripeAccountsAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_financialIntegrationDataService is null || _envelopesDataService is null)
+        {
+            HasError = true;
+            ErrorMessage = "Stripe provisioning services are not configured for onboarding.";
+            return;
+        }
+
+        var selected = StripeProvisioningItems
+            .Where(static item => item.IsSelected)
+            .ToArray();
+        if (selected.Length == 0)
+        {
+            HasError = true;
+            ErrorMessage = "Select at least one envelope to provision.";
+            return;
+        }
+
+        var provisioned = 0;
+        var failed = 0;
+
+        foreach (var item in selected)
+        {
+            item.Status = "Provisioning";
+            item.StatusDetail = "Request in progress...";
+
+            try
+            {
+                var account = await _financialIntegrationDataService.LinkStripeEnvelopeFinancialAccountAsync(
+                    item.EnvelopeId,
+                    string.IsNullOrWhiteSpace(item.DisplayName) ? null : item.DisplayName.Trim(),
+                    cancellationToken);
+
+                item.Status = "Provisioned";
+                item.StatusDetail = SensitiveValueMasker.MaskIdentifier(account.ProviderFinancialAccountId);
+                provisioned += 1;
+            }
+            catch (Exception ex)
+            {
+                item.Status = "Failed";
+                item.StatusDetail = ex.Message;
+                failed += 1;
+            }
+        }
+
+        StripeProvisioningMessage = $"Provisioned {provisioned} envelope account(s); failed {failed}. Retry failed rows as needed.";
+        StatusMessage = StripeProvisioningMessage;
+    }
+
+    private Task RetryFailedStripeProvisioningAsync(CancellationToken cancellationToken)
+    {
+        foreach (var item in StripeProvisioningItems)
+        {
+            item.IsSelected = item.IsFailed;
+        }
+
+        return ProvisionSelectedStripeAccountsAsync(cancellationToken);
+    }
+
     private async Task CreateFamilyInviteAsync(CancellationToken cancellationToken)
     {
         HasError = false;
@@ -960,6 +1061,52 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
             : $"Plaid mappings ready: {PlaidAccountLinks.Count} linked account(s).";
     }
 
+    private async Task LoadStripeProvisioningStateAsync(CancellationToken cancellationToken)
+    {
+        if (_financialIntegrationDataService is null || _envelopesDataService is null)
+        {
+            StripeProvisioningItems = [];
+            StripeProvisioningMessage = "Stripe provisioning step is unavailable in this desktop configuration.";
+            return;
+        }
+
+        var envelopes = await _envelopesDataService.GetEnvelopesAsync(cancellationToken);
+        var eligible = envelopes
+            .Where(static envelope => !envelope.IsArchived)
+            .OrderBy(static envelope => envelope.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var items = new List<OnboardingStripeProvisioningItemViewModel>(eligible.Length);
+        foreach (var envelope in eligible)
+        {
+            var account = await _financialIntegrationDataService.GetEnvelopeFinancialAccountAsync(envelope.Id, cancellationToken);
+            if (account is null)
+            {
+                items.Add(new OnboardingStripeProvisioningItemViewModel(
+                    envelope.Id,
+                    envelope.Name,
+                    displayName: envelope.Name,
+                    isSelected: false,
+                    status: "NotProvisioned",
+                    statusDetail: "No Stripe financial account linked."));
+                continue;
+            }
+
+            items.Add(new OnboardingStripeProvisioningItemViewModel(
+                envelope.Id,
+                envelope.Name,
+                displayName: envelope.Name,
+                isSelected: false,
+                status: "Provisioned",
+                statusDetail: SensitiveValueMasker.MaskIdentifier(account.ProviderFinancialAccountId)));
+        }
+
+        StripeProvisioningItems = new ObservableCollection<OnboardingStripeProvisioningItemViewModel>(items);
+        StripeProvisioningMessage = items.Count == 0
+            ? "No eligible envelopes available for Stripe provisioning."
+            : $"Loaded {items.Count} envelope(s) for Stripe provisioning.";
+    }
+
     private async Task RefreshPlaidAccountLinksAsync(CancellationToken cancellationToken)
     {
         if (_financialIntegrationDataService is null)
@@ -1019,6 +1166,11 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     private bool ComputePlaidCompletedFromState()
     {
         return PlaidAccountLinks.Count > 0;
+    }
+
+    private bool ComputeStripeAccountsCompletedFromState()
+    {
+        return StripeProvisioningItems.Any(static item => item.IsProvisioned);
     }
 
     private OnboardingProfileData CurrentProfileSnapshot()
@@ -1438,6 +1590,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         OnPropertyChanged(nameof(IsEnvelopesStep));
         OnPropertyChanged(nameof(IsBudgetStep));
         OnPropertyChanged(nameof(IsPlaidStep));
+        OnPropertyChanged(nameof(IsStripeStep));
         RefreshStepItems();
     }
 

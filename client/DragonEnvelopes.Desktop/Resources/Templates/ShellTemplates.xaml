@@ -3212,6 +3212,66 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Margin="0,12,0,0"
+                                Padding="10"
+                                CornerRadius="8"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsStripeStep}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel>
+                                <TextBlock Text="Stripe Financial Account Provisioning" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding StripeProvisioningMessage}"
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CaptionTextStyle}" />
+
+                                <StackPanel Margin="0,10,0,0"
+                                            Orientation="Horizontal">
+                                    <Button Margin="0,0,8,0"
+                                            Content="Refresh Status"
+                                            Command="{Binding RefreshStripeProvisioningCommand}" />
+                                    <Button Margin="0,0,8,0"
+                                            Content="Provision Selected"
+                                            Command="{Binding ProvisionSelectedStripeAccountsCommand}" />
+                                    <Button Content="Retry Failed"
+                                            Command="{Binding RetryFailedStripeProvisioningCommand}" />
+                                </StackPanel>
+
+                                <DataGrid Margin="0,10,0,0"
+                                          ItemsSource="{Binding StripeProvisioningItems}"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          IsReadOnly="False"
+                                          HeadersVisibility="Column"
+                                          RowHeight="30"
+                                          GridLinesVisibility="Horizontal"
+                                          Background="{StaticResource SidebarBackgroundBrush}"
+                                          BorderBrush="{StaticResource PanelOutlineBrush}"
+                                          BorderThickness="1"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridCheckBoxColumn Header="Select" Binding="{Binding IsSelected, Mode=TwoWay}" Width="70" />
+                                        <DataGridTextColumn Header="Envelope" Binding="{Binding EnvelopeName}" Width="*" IsReadOnly="True" />
+                                        <DataGridTextColumn Header="Display Name" Binding="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" Width="180" />
+                                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="130" IsReadOnly="True" />
+                                        <DataGridTextColumn Header="Detail" Binding="{Binding StatusDetail}" Width="220" IsReadOnly="True" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </StackPanel>
+                        </Border>
+
                         <StackPanel Margin="0,18,0,0"
                                     Orientation="Horizontal">
                             <Button Margin="0,0,8,0"

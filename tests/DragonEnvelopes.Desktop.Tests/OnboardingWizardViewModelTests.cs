@@ -64,7 +64,7 @@ public sealed class OnboardingWizardViewModelTests
                 EnvelopesCompleted: true,
                 BudgetCompleted: true,
                 PlaidCompleted: true,
-                StripeAccountsCompleted: false,
+                StripeAccountsCompleted: true,
                 CardsCompleted: false,
                 AutomationCompleted: false,
                 IsCompleted: false,
@@ -79,21 +79,21 @@ public sealed class OnboardingWizardViewModelTests
         var viewModel = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
         await EnsureLoadedAsync(viewModel);
 
-        Assert.Equal(6, viewModel.CurrentStepIndex);
-        Assert.Equal("Stripe Accounts", viewModel.CurrentStepTitle);
+        Assert.Equal(7, viewModel.CurrentStepIndex);
+        Assert.Equal("Cards", viewModel.CurrentStepTitle);
 
         await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null);
         await WaitForIdleAsync(viewModel);
 
         Assert.False(viewModel.HasError);
         Assert.Equal(1, onboardingDataService.UpdateProfileCallCount);
-        Assert.True(viewModel.StripeAccountsCompleted);
-        Assert.Equal(7, viewModel.CurrentStepIndex);
+        Assert.True(viewModel.CardsCompleted);
+        Assert.Equal(8, viewModel.CurrentStepIndex);
         Assert.Equal("Progress saved.", viewModel.StatusMessage);
-        Assert.Equal(78, viewModel.ProgressPercent);
-        Assert.True(viewModel.StepItems[6].IsCompleted);
-        Assert.False(viewModel.StepItems[6].IsCurrent);
-        Assert.True(viewModel.StepItems[7].IsCurrent);
+        Assert.Equal(89, viewModel.ProgressPercent);
+        Assert.True(viewModel.StepItems[7].IsCompleted);
+        Assert.False(viewModel.StepItems[7].IsCurrent);
+        Assert.True(viewModel.StepItems[8].IsCurrent);
     }
 
     [Fact]
@@ -285,6 +285,48 @@ public sealed class OnboardingWizardViewModelTests
 
         Assert.True(viewModel.HasError);
         Assert.Equal("Complete Plaid account linking before marking this step done.", viewModel.ErrorMessage);
+        Assert.Equal(0, onboardingDataService.UpdateProfileCallCount);
+    }
+
+    [Fact]
+    public async Task MarkCurrentStepComplete_StripeStep_Requires_Provisioned_Account()
+    {
+        var familyId = Guid.Parse("10000000-0000-0000-0000-000000000008");
+        var now = DateTimeOffset.UtcNow;
+        var onboardingDataService = new FakeOnboardingDataService(familyId)
+        {
+            Profile = new OnboardingProfileData(
+                Guid.NewGuid(),
+                familyId,
+                MembersCompleted: true,
+                AccountsCompleted: true,
+                EnvelopesCompleted: true,
+                BudgetCompleted: true,
+                PlaidCompleted: true,
+                StripeAccountsCompleted: false,
+                CardsCompleted: false,
+                AutomationCompleted: false,
+                IsCompleted: false,
+                CreatedAtUtc: now,
+                UpdatedAtUtc: now,
+                CompletedAtUtc: null)
+        };
+
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-1", "Owner One", "owner1@test.dev", "Parent"));
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-2", "Owner Two", "owner2@test.dev", "Adult"));
+
+        var viewModel = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
+        await EnsureLoadedAsync(viewModel);
+
+        Assert.Equal(6, viewModel.CurrentStepIndex);
+        Assert.Empty(viewModel.StripeProvisioningItems);
+
+        await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.True(viewModel.HasError);
+        Assert.Equal("Provision at least one Stripe financial account before completing this step.", viewModel.ErrorMessage);
         Assert.Equal(0, onboardingDataService.UpdateProfileCallCount);
     }
 
