@@ -47,19 +47,25 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     private readonly IFinancialIntegrationDataService? _financialIntegrationDataService;
     private readonly IAccountsDataService? _accountsDataService;
     private readonly IDesktopPlaidLinkService? _desktopPlaidLinkService;
+    private readonly IReportsDataService? _reportsDataService;
+    private readonly IEnvelopesDataService? _envelopesDataService;
 
     public OnboardingWizardViewModel(
         IOnboardingDataService onboardingDataService,
         IFamilyMembersDataService familyMembersDataService,
         IFinancialIntegrationDataService? financialIntegrationDataService = null,
         IAccountsDataService? accountsDataService = null,
-        IDesktopPlaidLinkService? desktopPlaidLinkService = null)
+        IDesktopPlaidLinkService? desktopPlaidLinkService = null,
+        IReportsDataService? reportsDataService = null,
+        IEnvelopesDataService? envelopesDataService = null)
     {
         _onboardingDataService = onboardingDataService;
         _familyMembersDataService = familyMembersDataService;
         _financialIntegrationDataService = financialIntegrationDataService;
         _accountsDataService = accountsDataService;
         _desktopPlaidLinkService = desktopPlaidLinkService;
+        _reportsDataService = reportsDataService;
+        _envelopesDataService = envelopesDataService;
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         NextStepCommand = new RelayCommand(NextStep);
@@ -80,6 +86,10 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         RemoveAccountRowCommand = new RelayCommand<OnboardingAccountDraftViewModel?>(RemoveAccountRow);
         AddEnvelopeRowCommand = new RelayCommand(AddEnvelopeRow);
         RemoveEnvelopeRowCommand = new RelayCommand<OnboardingEnvelopeDraftViewModel?>(RemoveEnvelopeRow);
+        GenerateEnvelopeSuggestionsCommand = new AsyncRelayCommand(GenerateEnvelopeSuggestionsAsync);
+        RemoveEnvelopeSuggestionCommand = new RelayCommand(RemoveEnvelopeSuggestion);
+        MergeEnvelopeSuggestionsCommand = new RelayCommand(MergeEnvelopeSuggestions);
+        ApplyEnvelopeSuggestionsCommand = new AsyncRelayCommand(ApplyEnvelopeSuggestionsAsync);
         SubmitBootstrapCommand = new AsyncRelayCommand(SubmitBootstrapAsync);
         CancelCommand = new RelayCommand(Cancel);
         foreach (var (title, index) in StepTitles.Select(static (title, index) => (title, index)))
@@ -118,6 +128,10 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public IRelayCommand<OnboardingAccountDraftViewModel?> RemoveAccountRowCommand { get; }
     public IRelayCommand AddEnvelopeRowCommand { get; }
     public IRelayCommand<OnboardingEnvelopeDraftViewModel?> RemoveEnvelopeRowCommand { get; }
+    public IAsyncRelayCommand GenerateEnvelopeSuggestionsCommand { get; }
+    public IRelayCommand RemoveEnvelopeSuggestionCommand { get; }
+    public IRelayCommand MergeEnvelopeSuggestionsCommand { get; }
+    public IAsyncRelayCommand ApplyEnvelopeSuggestionsCommand { get; }
     public IAsyncRelayCommand SubmitBootstrapCommand { get; }
     public IRelayCommand CancelCommand { get; }
 
@@ -200,6 +214,21 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
 
     [ObservableProperty]
     private ObservableCollection<OnboardingEnvelopeDraftViewModel> envelopeDrafts = [];
+
+    [ObservableProperty]
+    private ObservableCollection<ReportCategoryBreakdownRowViewModel> spendCategoryBreakdown = [];
+
+    [ObservableProperty]
+    private ObservableCollection<OnboardingEnvelopeSuggestionViewModel> envelopeSuggestions = [];
+
+    [ObservableProperty]
+    private OnboardingEnvelopeSuggestionViewModel? selectedEnvelopeSuggestion;
+
+    [ObservableProperty]
+    private string spendReviewMessage = "Generate spend-based suggestions after importing transactions.";
+
+    [ObservableProperty]
+    private ObservableCollection<string> spendSuggestionDecisionEvents = [];
 
     [ObservableProperty]
     private string budgetMonth = string.Empty;
@@ -1202,6 +1231,195 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         EnvelopeDrafts.Remove(row);
     }
 
+    private async Task GenerateEnvelopeSuggestionsAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_reportsDataService is null)
+        {
+            HasError = true;
+            ErrorMessage = "Reports service is not configured for spend review suggestions.";
+            return;
+        }
+
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var from = now.AddMonths(-3);
+            var workspace = await _reportsDataService.GetWorkspaceAsync(
+                now.ToString("yyyy-MM"),
+                from,
+                now,
+                includeArchived: false,
+                cancellationToken);
+
+            SpendCategoryBreakdown = new ObservableCollection<ReportCategoryBreakdownRowViewModel>(
+                workspace.CategoryBreakdown
+                    .OrderByDescending(static category => category.TotalSpend)
+                    .Select(static category => new ReportCategoryBreakdownRowViewModel(
+                        category.Category,
+                        category.TotalSpend.ToString("$#,##0.00"))));
+
+            EnvelopeSuggestions = new ObservableCollection<OnboardingEnvelopeSuggestionViewModel>(
+                workspace.CategoryBreakdown
+                    .Where(static category => !string.IsNullOrWhiteSpace(category.Category))
+                    .OrderByDescending(static category => category.TotalSpend)
+                    .Select(category => new OnboardingEnvelopeSuggestionViewModel(
+                        category.Category.Trim(),
+                        BuildDefaultEnvelopeName(category.Category),
+                        Math.Abs(category.TotalSpend).ToString("0.##"))));
+
+            SelectedEnvelopeSuggestion = EnvelopeSuggestions.FirstOrDefault();
+            SpendReviewMessage = EnvelopeSuggestions.Count == 0
+                ? "No category spend data found for suggestion generation."
+                : $"Generated {EnvelopeSuggestions.Count} envelope suggestions from recent category spend.";
+            AppendSuggestionDecisionEvent(SpendReviewMessage);
+            StatusMessage = SpendReviewMessage;
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to generate spend suggestions: {ex.Message}";
+        }
+    }
+
+    private void RemoveEnvelopeSuggestion()
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (SelectedEnvelopeSuggestion is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select an envelope suggestion to remove.";
+            return;
+        }
+
+        var removedName = SelectedEnvelopeSuggestion.EnvelopeName;
+        EnvelopeSuggestions.Remove(SelectedEnvelopeSuggestion);
+        SelectedEnvelopeSuggestion = EnvelopeSuggestions.FirstOrDefault();
+        SpendReviewMessage = $"Removed suggestion '{removedName}'.";
+        AppendSuggestionDecisionEvent(SpendReviewMessage);
+        StatusMessage = SpendReviewMessage;
+    }
+
+    private void MergeEnvelopeSuggestions()
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (EnvelopeSuggestions.Count < 2)
+        {
+            HasError = true;
+            ErrorMessage = "At least two suggestions are required to merge.";
+            return;
+        }
+
+        var normalizedGroups = EnvelopeSuggestions
+            .GroupBy(
+                static suggestion => suggestion.EnvelopeName.Trim(),
+                StringComparer.OrdinalIgnoreCase)
+            .Where(static group => group.Count() > 1)
+            .ToArray();
+
+        if (normalizedGroups.Length == 0)
+        {
+            HasError = true;
+            ErrorMessage = "No duplicate envelope names were found to merge.";
+            return;
+        }
+
+        foreach (var group in normalizedGroups)
+        {
+            var items = group.ToArray();
+            var primary = items[0];
+            var mergedBudget = items.Sum(static item => item.GetMonthlyBudgetOrZero());
+            var mergedCategory = string.Join(
+                " + ",
+                items
+                    .Select(static item => item.Category)
+                    .Where(static category => !string.IsNullOrWhiteSpace(category))
+                    .Distinct(StringComparer.OrdinalIgnoreCase));
+
+            primary.MonthlyBudget = mergedBudget.ToString("0.##");
+            primary.Category = string.IsNullOrWhiteSpace(mergedCategory)
+                ? primary.Category
+                : mergedCategory;
+
+            foreach (var duplicate in items.Skip(1))
+            {
+                EnvelopeSuggestions.Remove(duplicate);
+            }
+        }
+
+        SelectedEnvelopeSuggestion = EnvelopeSuggestions.FirstOrDefault();
+        SpendReviewMessage = "Merged duplicate envelope-name suggestions.";
+        AppendSuggestionDecisionEvent(SpendReviewMessage);
+        StatusMessage = SpendReviewMessage;
+    }
+
+    private async Task ApplyEnvelopeSuggestionsAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_envelopesDataService is null)
+        {
+            HasError = true;
+            ErrorMessage = "Envelope service is not configured for applying suggestions.";
+            return;
+        }
+
+        if (EnvelopeSuggestions.Count == 0)
+        {
+            HasError = true;
+            ErrorMessage = "No suggestions are available to apply.";
+            return;
+        }
+
+        var appliedCount = 0;
+        var skippedCount = 0;
+        var existing = await _envelopesDataService.GetEnvelopesAsync(cancellationToken);
+        var existingNames = new HashSet<string>(
+            existing.Select(static envelope => envelope.Name.Trim()),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var suggestion in EnvelopeSuggestions.ToArray())
+        {
+            var name = suggestion.EnvelopeName.Trim();
+            var parsedBudget = suggestion.GetMonthlyBudgetOrZero();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                skippedCount += 1;
+                continue;
+            }
+
+            if (existingNames.Contains(name))
+            {
+                skippedCount += 1;
+                continue;
+            }
+
+            await _envelopesDataService.CreateEnvelopeAsync(name, parsedBudget, cancellationToken);
+            existingNames.Add(name);
+            appliedCount += 1;
+
+            if (!EnvelopeDrafts.Any(draft => draft.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+            {
+                EnvelopeDrafts.Add(new OnboardingEnvelopeDraftViewModel
+                {
+                    Name = name,
+                    MonthlyBudget = parsedBudget.ToString("0.##")
+                });
+            }
+        }
+
+        SpendReviewMessage = $"Applied {appliedCount} suggestion(s); skipped {skippedCount}.";
+        AppendSuggestionDecisionEvent(SpendReviewMessage);
+        StatusMessage = SpendReviewMessage;
+    }
+
     private void Cancel()
     {
         StatusMessage = "Onboarding canceled for now. You can resume later.";
@@ -1463,6 +1681,34 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
             : "Not provided";
 
         return $"Pay {preferences.PayFrequency} | Style {preferences.BudgetingStyle} | Income {income}";
+    }
+
+    private void AppendSuggestionDecisionEvent(string detail)
+    {
+        var timestamped = $"{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss} UTC - {detail}";
+        SpendSuggestionDecisionEvents.Insert(0, timestamped);
+
+        while (SpendSuggestionDecisionEvents.Count > 50)
+        {
+            SpendSuggestionDecisionEvents.RemoveAt(SpendSuggestionDecisionEvents.Count - 1);
+        }
+    }
+
+    private static string BuildDefaultEnvelopeName(string category)
+    {
+        var normalized = category.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return "Uncategorized";
+        }
+
+        return string.Join(
+            ' ',
+            normalized
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(static segment => segment.Length == 1
+                    ? segment.ToUpperInvariant()
+                    : char.ToUpperInvariant(segment[0]) + segment[1..].ToLowerInvariant()));
     }
 
     partial void OnFamilyProfileCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));

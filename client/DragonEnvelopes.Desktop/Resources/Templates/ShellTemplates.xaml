@@ -2931,6 +2931,93 @@
                                 <Button Width="130"
                                         Content="Add Envelope"
                                         Command="{Binding AddEnvelopeRowCommand}" />
+
+                                <Separator Margin="0,12,0,12" />
+
+                                <StackPanel>
+                                    <TextBlock Text="Spend Category Review" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               Text="{Binding SpendReviewMessage}"
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource CaptionTextStyle}" />
+                                    <Button Margin="0,8,0,0"
+                                            Width="250"
+                                            Content="Generate Suggestions from Spend"
+                                            Command="{Binding GenerateEnvelopeSuggestionsCommand}" />
+
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1*" />
+                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="1.4*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <DataGrid Grid.Column="0"
+                                                  ItemsSource="{Binding SpendCategoryBreakdown}"
+                                                  AutoGenerateColumns="False"
+                                                  CanUserAddRows="False"
+                                                  CanUserDeleteRows="False"
+                                                  IsReadOnly="True"
+                                                  HeadersVisibility="Column"
+                                                  RowHeight="30"
+                                                  GridLinesVisibility="Horizontal"
+                                                  Background="{StaticResource SidebarBackgroundBrush}"
+                                                  BorderBrush="{StaticResource PanelOutlineBrush}"
+                                                  BorderThickness="1"
+                                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="*" />
+                                                <DataGridTextColumn Header="Total Spend" Binding="{Binding TotalSpend}" Width="120" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+
+                                        <DataGrid Grid.Column="2"
+                                                  ItemsSource="{Binding EnvelopeSuggestions}"
+                                                  SelectedItem="{Binding SelectedEnvelopeSuggestion, Mode=TwoWay}"
+                                                  AutoGenerateColumns="False"
+                                                  CanUserAddRows="False"
+                                                  CanUserDeleteRows="False"
+                                                  IsReadOnly="False"
+                                                  HeadersVisibility="Column"
+                                                  RowHeight="30"
+                                                  GridLinesVisibility="Horizontal"
+                                                  Background="{StaticResource SidebarBackgroundBrush}"
+                                                  BorderBrush="{StaticResource PanelOutlineBrush}"
+                                                  BorderThickness="1"
+                                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Category" Binding="{Binding Category, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                                                <DataGridTextColumn Header="Envelope Name" Binding="{Binding EnvelopeName, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                                                <DataGridTextColumn Header="Monthly Budget" Binding="{Binding MonthlyBudget, UpdateSourceTrigger=PropertyChanged}" Width="130" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Grid>
+
+                                    <StackPanel Margin="0,10,0,0"
+                                                Orientation="Horizontal">
+                                        <Button Margin="0,0,8,0"
+                                                Content="Remove Selected"
+                                                Command="{Binding RemoveEnvelopeSuggestionCommand}" />
+                                        <Button Margin="0,0,8,0"
+                                                Content="Merge Duplicate Names"
+                                                Command="{Binding MergeEnvelopeSuggestionsCommand}" />
+                                        <Button Content="Apply Suggestions"
+                                                Command="{Binding ApplyEnvelopeSuggestionsCommand}" />
+                                    </StackPanel>
+
+                                    <ItemsControl Margin="0,10,0,0"
+                                                  ItemsSource="{Binding SpendSuggestionDecisionEvents}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}"
+                                                           TextWrapping="Wrap"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
