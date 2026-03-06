@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Net.Http;
+using System.Net.Http.Json;
 using DragonEnvelopes.Contracts.Accounts;
 using DragonEnvelopes.Desktop.Api;
 using DragonEnvelopes.Desktop.ViewModels;
@@ -19,12 +21,8 @@ public sealed class AccountsDataService : IAccountsDataService
 
     public async Task<IReadOnlyList<AccountListItemViewModel>> GetAccountsAsync(CancellationToken cancellationToken = default)
     {
-        if (!_familyContext.FamilyId.HasValue)
-        {
-            throw new InvalidOperationException("No family is selected for the current session.");
-        }
-
-        using var response = await _apiClient.GetAsync($"accounts?familyId={_familyContext.FamilyId.Value}", cancellationToken);
+        var familyId = RequireFamilyId();
+        using var response = await _apiClient.GetAsync($"accounts?familyId={familyId}", cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             throw new InvalidOperationException($"Accounts API request failed with status {(int)response.StatusCode}.");
@@ -40,5 +38,40 @@ public sealed class AccountsDataService : IAccountsDataService
             account.Type,
             account.Balance.ToString("$#,##0.00")))
             .ToArray();
+    }
+
+    public async Task CreateAccountAsync(
+        string name,
+        string type,
+        decimal openingBalance,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var payload = new CreateAccountRequest(
+            familyId,
+            name,
+            type,
+            openingBalance);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "accounts")
+        {
+            Content = JsonContent.Create(payload, options: SerializerOptions)
+        };
+
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Create account API request failed with status {(int)response.StatusCode}.");
+        }
+    }
+
+    private Guid RequireFamilyId()
+    {
+        if (!_familyContext.FamilyId.HasValue)
+        {
+            throw new InvalidOperationException("No family is selected for the current session.");
+        }
+
+        return _familyContext.FamilyId.Value;
     }
 }

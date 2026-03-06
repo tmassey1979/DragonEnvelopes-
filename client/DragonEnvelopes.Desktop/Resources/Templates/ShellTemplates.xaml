@@ -246,7 +246,7 @@
                 <Button Grid.Column="2"
                         VerticalAlignment="Center"
                         Content="Add Account"
-                        Command="{Binding AddAccountPlaceholderCommand}" />
+                        Command="{Binding SaveAccountCommand}" />
             </Grid>
 
             <Border Grid.Row="1"
@@ -305,9 +305,50 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <TextBlock Margin="0,8,0,0"
-                               Text="{Binding PlaceholderMessage}"
-                               Style="{StaticResource CaptionTextStyle}" />
+                    <Border Margin="0,12,0,0"
+                            Padding="12"
+                            CornerRadius="10"
+                            Background="{StaticResource PanelMutedBackgroundBrush}"
+                            BorderBrush="{StaticResource PanelOutlineBrush}"
+                            BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock Text="{Binding EditorMessage}" Style="{StaticResource CaptionTextStyle}" />
+
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.3*" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Margin="0,0,0,6" Text="Name" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBox Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Margin="0,0,0,6" Text="Type" Style="{StaticResource CaptionTextStyle}" />
+                                    <ComboBox ItemsSource="{Binding AccountTypeOptions}"
+                                              SelectedItem="{Binding DraftType, Mode=TwoWay}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Margin="0,0,0,6" Text="Opening Balance" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBox Text="{Binding DraftOpeningBalance, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+                                <Button Margin="0,0,8,0"
+                                        Content="Create Account"
+                                        Command="{Binding SaveAccountCommand}" />
+                                <Button Content="Reset"
+                                        Command="{Binding ResetAccountDraftCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </controls:CardControl>
         </Grid>
