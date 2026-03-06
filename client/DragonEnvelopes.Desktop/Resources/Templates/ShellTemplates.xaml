@@ -1555,6 +1555,158 @@
         </Grid>
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type viewModels:ImportsViewModel}">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="90" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Imports" Style="{StaticResource DisplayTextStyle}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Text="Preview and commit transaction CSV data with dedupe awareness."
+                               Style="{StaticResource BodyTextStyle}" />
+                </StackPanel>
+
+                <ComboBox Grid.Column="1"
+                          Margin="12,0,8,0"
+                          VerticalAlignment="Center"
+                          ItemsSource="{Binding Accounts}"
+                          SelectedItem="{Binding SelectedAccount, Mode=TwoWay}"
+                          DisplayMemberPath="Name" />
+
+                <TextBox Grid.Column="2"
+                         Margin="0,0,8,0"
+                         VerticalAlignment="Center"
+                         Text="{Binding Delimiter, UpdateSourceTrigger=PropertyChanged}" />
+
+                <Button Grid.Column="3"
+                        Margin="0,0,8,0"
+                        VerticalAlignment="Center"
+                        Content="Preview"
+                        Command="{Binding PreviewCommand}" />
+
+                <Button Grid.Column="4"
+                        VerticalAlignment="Center"
+                        Content="Commit"
+                        Command="{Binding CommitCommand}" />
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Padding="12"
+                    CornerRadius="10"
+                    Background="#4B311B"
+                    BorderBrush="#A35D2F"
+                    BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource CaptionTextStyle}" Foreground="#FFD2A8" />
+            </Border>
+
+            <Grid Grid.Row="2" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1*" />
+                    <ColumnDefinition Width="14" />
+                    <ColumnDefinition Width="1.1*" />
+                </Grid.ColumnDefinitions>
+
+                <controls:CardControl Grid.Column="0"
+                                      Header="CSV Input"
+                                      Subheader="Paste CSV content from your bank export"
+                                      EmptyMessage="No CSV content provided."
+                                      IsLoading="{Binding IsLoading}"
+                                      IsEmpty="False">
+                    <StackPanel>
+                        <TextBox MinHeight="420"
+                                 AcceptsReturn="True"
+                                 TextWrapping="NoWrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 Text="{Binding CsvContent, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                            <CheckBox Content="Include deduped rows on commit"
+                                      IsChecked="{Binding IncludeDedupedRows}" />
+                            <Button Margin="12,0,0,0"
+                                    Content="Reset"
+                                    Command="{Binding ResetCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </controls:CardControl>
+
+                <controls:CardControl Grid.Column="2"
+                                      Header="Preview"
+                                      Subheader="{Binding PreviewSummary}"
+                                      EmptyMessage="Run preview to inspect parsed rows."
+                                      IsLoading="{Binding IsLoading}"
+                                      IsEmpty="{Binding IsEmpty}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <DataGrid Grid.Row="0"
+                                  ItemsSource="{Binding PreviewRows}"
+                                  AutoGenerateColumns="False"
+                                  HeadersVisibility="Column"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  IsReadOnly="True"
+                                  RowHeight="34"
+                                  GridLinesVisibility="Horizontal"
+                                  Background="{StaticResource PanelMutedBackgroundBrush}"
+                                  BorderBrush="{StaticResource PanelOutlineBrush}"
+                                  BorderThickness="1"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="#" Binding="{Binding RowNumber}" Width="45" />
+                                <DataGridTextColumn Header="Date" Binding="{Binding OccurredOn}" Width="90" />
+                                <DataGridTextColumn Header="Amount" Binding="{Binding Amount}" Width="90" />
+                                <DataGridTextColumn Header="Merchant" Binding="{Binding Merchant}" Width="130" />
+                                <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*" />
+                                <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="110" />
+                                <DataGridCheckBoxColumn Header="Dup" Binding="{Binding IsDuplicate}" Width="55" />
+                                <DataGridTextColumn Header="Errors" Binding="{Binding Errors}" Width="220" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <Border Grid.Row="1"
+                                Margin="0,10,0,0"
+                                Padding="10"
+                                CornerRadius="8"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <TextBlock Text="{Binding CommitSummary}" Style="{StaticResource CaptionTextStyle}" />
+                        </Border>
+                    </Grid>
+                </controls:CardControl>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type viewModels:SettingsViewModel}">
         <Grid Margin="8">
             <Grid.RowDefinitions>

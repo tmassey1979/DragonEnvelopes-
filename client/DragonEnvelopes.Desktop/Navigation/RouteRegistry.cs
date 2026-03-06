@@ -68,6 +68,12 @@ public sealed class RouteRegistry : IRouteRegistry
                 TopBarSubtitle: "Recurring bills and upcoming projection",
                 Content: new RecurringBillsViewModel(new RecurringBillsDataService(apiClient, familyContext))),
             new RouteDefinition(
+                Key: "/imports",
+                Label: "Imports",
+                Glyph: "\uE898",
+                TopBarSubtitle: "CSV transaction import workflow",
+                Content: new ImportsViewModel(new ImportsDataService(apiClient, familyContext))),
+            new RouteDefinition(
                 Key: "/settings",
                 Label: "Settings",
                 Glyph: "\uE713",
