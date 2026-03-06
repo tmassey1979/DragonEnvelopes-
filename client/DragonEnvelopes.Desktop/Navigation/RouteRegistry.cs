@@ -56,6 +56,12 @@ public sealed class RouteRegistry : IRouteRegistry
                 TopBarSubtitle: "Rules and allocation automations",
                 Content: new AutomationRulesViewModel(new AutomationRulesDataService(apiClient, familyContext))),
             new RouteDefinition(
+                Key: "/family-members",
+                Label: "Family",
+                Glyph: "\uE716",
+                TopBarSubtitle: "Household membership management",
+                Content: new FamilyMembersViewModel(new FamilyMembersDataService(apiClient, familyContext))),
+            new RouteDefinition(
                 Key: "/settings",
                 Label: "Settings",
                 Glyph: "\uE713",

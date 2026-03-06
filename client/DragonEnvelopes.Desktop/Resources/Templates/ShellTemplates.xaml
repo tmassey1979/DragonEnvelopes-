@@ -1234,6 +1234,121 @@
         </Grid>
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type viewModels:FamilyMembersViewModel}">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Family Members" Style="{StaticResource DisplayTextStyle}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Text="Manage household members and roles for the active family."
+                               Style="{StaticResource BodyTextStyle}" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Content="Reload"
+                        Command="{Binding LoadCommand}" />
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Padding="12"
+                    CornerRadius="10"
+                    Background="#4B311B"
+                    BorderBrush="#A35D2F"
+                    BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource CaptionTextStyle}" Foreground="#FFD2A8" />
+            </Border>
+
+            <Grid Grid.Row="2" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.1*" />
+                    <ColumnDefinition Width="14" />
+                    <ColumnDefinition Width="1*" />
+                </Grid.ColumnDefinitions>
+
+                <controls:CardControl Grid.Column="0"
+                                      Header="Member List"
+                                      Subheader="Current members in active family"
+                                      EmptyMessage="No family members found."
+                                      IsLoading="{Binding IsLoading}"
+                                      IsEmpty="{Binding IsEmpty}">
+                    <DataGrid ItemsSource="{Binding Members}"
+                              AutoGenerateColumns="False"
+                              HeadersVisibility="Column"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              IsReadOnly="True"
+                              RowHeight="34"
+                              GridLinesVisibility="Horizontal"
+                              Background="{StaticResource PanelMutedBackgroundBrush}"
+                              BorderBrush="{StaticResource PanelOutlineBrush}"
+                              BorderThickness="1">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
+                            <DataGridTextColumn Header="Email" Binding="{Binding Email}" Width="200" />
+                            <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="110" />
+                            <DataGridTextColumn Header="Keycloak User Id" Binding="{Binding KeycloakUserId}" Width="220" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </controls:CardControl>
+
+                <controls:CardControl Grid.Column="2"
+                                      Header="Add Member"
+                                      Subheader="Invite/link user to this family"
+                                      EmptyMessage="Member editor unavailable."
+                                      IsLoading="False"
+                                      IsEmpty="False">
+                    <StackPanel>
+                        <TextBlock Text="{Binding EditorMessage}" Style="{StaticResource CaptionTextStyle}" />
+
+                        <TextBlock Margin="0,12,0,6" Text="Keycloak User Id" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBox Text="{Binding DraftKeycloakUserId, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Margin="0,12,0,6" Text="Name" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBox Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Margin="0,12,0,6" Text="Email" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBox Text="{Binding DraftEmail, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Margin="0,12,0,6" Text="Role" Style="{StaticResource CaptionTextStyle}" />
+                        <ComboBox ItemsSource="{Binding RoleOptions}"
+                                  SelectedItem="{Binding DraftRole, Mode=TwoWay}" />
+
+                        <StackPanel Margin="0,16,0,0" Orientation="Horizontal">
+                            <Button Margin="0,0,8,0"
+                                    Content="Add Member"
+                                    Command="{Binding AddMemberCommand}" />
+                            <Button Content="Reset"
+                                    Command="{Binding ResetDraftCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </controls:CardControl>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type viewModels:SettingsViewModel}">
         <Grid Margin="8">
             <Grid.RowDefinitions>
