@@ -48,7 +48,7 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Reports",
                 Glyph: "\uE9D2",
                 TopBarSubtitle: "Spend and budget reporting",
-                Content: new ReportsViewModel(new ReportsDataService(apiClient))),
+                Content: new ReportsViewModel(new ReportsDataService(apiClient, familyContext))),
             new RouteDefinition(
                 Key: "/automation",
                 Label: "Automation",

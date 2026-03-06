@@ -992,6 +992,8 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="120" />
+                    <ColumnDefinition Width="120" />
+                    <ColumnDefinition Width="120" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
@@ -999,20 +1001,31 @@
                 <StackPanel Grid.Column="0">
                     <TextBlock Text="Reports" Style="{StaticResource DisplayTextStyle}" />
                     <TextBlock Margin="0,8,0,0"
-                               Text="Reporting summaries with filter-ready endpoint bindings."
+                               Text="Envelope, monthly spend, and category breakdown reports."
                                Style="{StaticResource BodyTextStyle}" />
                 </StackPanel>
 
                 <TextBox Grid.Column="1"
                          Margin="12,0,8,0"
                          VerticalAlignment="Center"
+                         ToolTip="Month (yyyy-MM)"
                          Text="{Binding SelectedMonth, UpdateSourceTrigger=PropertyChanged}" />
-                <CheckBox Grid.Column="2"
+                <TextBox Grid.Column="2"
+                         Margin="0,0,8,0"
+                         VerticalAlignment="Center"
+                         ToolTip="Range from (yyyy-MM-dd)"
+                         Text="{Binding RangeFrom, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox Grid.Column="3"
+                         Margin="0,0,8,0"
+                         VerticalAlignment="Center"
+                         ToolTip="Range to (yyyy-MM-dd)"
+                         Text="{Binding RangeTo, UpdateSourceTrigger=PropertyChanged}" />
+                <CheckBox Grid.Column="4"
                           Margin="0,0,8,0"
                           VerticalAlignment="Center"
                           Content="Include Archived"
                           IsChecked="{Binding IncludeArchived}" />
-                <Button Grid.Column="3"
+                <Button Grid.Column="5"
                         VerticalAlignment="Center"
                         Content="Apply"
                         Command="{Binding ApplyFiltersCommand}" />
@@ -1040,27 +1053,118 @@
 
             <controls:CardControl Grid.Row="2"
                                   Margin="0,12,0,0"
-                                  Header="Report Summary"
-                                  Subheader="API-driven reporting scaffold"
+                                  Header="Report Workspace"
+                                  Subheader="Summary + envelope balances + monthly spend + category breakdown"
                                   EmptyMessage="{Binding NoDataMessage}"
                                   IsLoading="{Binding IsLoading}"
                                   IsEmpty="{Binding IsEmpty}">
-                <ItemsControl ItemsSource="{Binding SummaryTiles}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel ItemWidth="220" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type viewModels:MetricTileViewModel}">
-                            <controls:MetricTileControl Margin="0,0,14,14"
-                                                        Label="{Binding Label}"
-                                                        Value="{Binding Value}"
-                                                        Trend="{Binding Trend}"
-                                                        TrendDirection="{Binding TrendDirection}" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <ItemsControl Grid.Row="0" ItemsSource="{Binding SummaryTiles}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel ItemWidth="220" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type viewModels:MetricTileViewModel}">
+                                <controls:MetricTileControl Margin="0,0,14,14"
+                                                            Label="{Binding Label}"
+                                                            Value="{Binding Value}"
+                                                            Trend="{Binding Trend}"
+                                                            TrendDirection="{Binding TrendDirection}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Grid Grid.Row="1" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="1*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0"
+                                Padding="10"
+                                CornerRadius="10"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Monthly Spend" Style="{StaticResource CaptionTextStyle}" />
+                                <DataGrid Margin="0,8,0,0"
+                                          ItemsSource="{Binding MonthlySpendRows}"
+                                          AutoGenerateColumns="False"
+                                          HeadersVisibility="Column"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          IsReadOnly="True"
+                                          RowHeight="30">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Month" Binding="{Binding Month}" Width="*" />
+                                        <DataGridTextColumn Header="Total Spend" Binding="{Binding TotalSpend}" Width="120" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="2"
+                                Padding="10"
+                                CornerRadius="10"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Category Breakdown" Style="{StaticResource CaptionTextStyle}" />
+                                <DataGrid Margin="0,8,0,0"
+                                          ItemsSource="{Binding CategoryBreakdownRows}"
+                                          AutoGenerateColumns="False"
+                                          HeadersVisibility="Column"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          IsReadOnly="True"
+                                          RowHeight="30">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="*" />
+                                        <DataGridTextColumn Header="Total Spend" Binding="{Binding TotalSpend}" Width="120" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Border Grid.Row="2"
+                            Margin="0,12,0,0"
+                            Padding="10"
+                            CornerRadius="10"
+                            Background="{StaticResource PanelMutedBackgroundBrush}"
+                            BorderBrush="{StaticResource PanelOutlineBrush}"
+                            BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock Text="Envelope Balances" Style="{StaticResource CaptionTextStyle}" />
+                            <DataGrid Margin="0,8,0,0"
+                                      ItemsSource="{Binding EnvelopeBalances}"
+                                      AutoGenerateColumns="False"
+                                      HeadersVisibility="Column"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      IsReadOnly="True"
+                                      RowHeight="30">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Envelope" Binding="{Binding EnvelopeName}" Width="*" />
+                                    <DataGridTextColumn Header="Monthly Budget" Binding="{Binding MonthlyBudget}" Width="130" />
+                                    <DataGridTextColumn Header="Current Balance" Binding="{Binding CurrentBalance}" Width="130" />
+                                    <DataGridCheckBoxColumn Header="Archived" Binding="{Binding IsArchived}" Width="80" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+                    </Border>
+                </Grid>
             </controls:CardControl>
         </Grid>
     </DataTemplate>

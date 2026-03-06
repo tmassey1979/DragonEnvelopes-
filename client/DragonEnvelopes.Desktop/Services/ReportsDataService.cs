@@ -1,65 +1,122 @@
 using System.Text.Json;
+using DragonEnvelopes.Contracts.Reports;
 using DragonEnvelopes.Desktop.Api;
 
 namespace DragonEnvelopes.Desktop.Services;
 
 public sealed class ReportsDataService : IReportsDataService
 {
+    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
     private readonly IBackendApiClient _apiClient;
+    private readonly IFamilyContext _familyContext;
 
-    public ReportsDataService(IBackendApiClient apiClient)
+    public ReportsDataService(IBackendApiClient apiClient, IFamilyContext familyContext)
     {
         _apiClient = apiClient;
+        _familyContext = familyContext;
     }
 
-    public async Task<ReportSummaryData?> GetSummaryAsync(
+    public async Task<ReportWorkspaceData> GetWorkspaceAsync(
         string month,
+        DateTimeOffset from,
+        DateTimeOffset to,
         bool includeArchived,
         CancellationToken cancellationToken = default)
     {
+        var familyId = RequireFamilyId();
         var encodedMonth = Uri.EscapeDataString(month);
-        var requestPath = $"reports/summary?month={encodedMonth}&includeArchived={includeArchived.ToString().ToLowerInvariant()}";
+        using var remainingResponse = await _apiClient.GetAsync(
+            $"reports/remaining-budget?familyId={familyId}&month={encodedMonth}",
+            cancellationToken);
 
-        using var response = await _apiClient.GetAsync(requestPath, cancellationToken);
-        if (response.StatusCode is System.Net.HttpStatusCode.NotFound
-            or System.Net.HttpStatusCode.NoContent)
+        ReportSummaryData? summary = null;
+        if (remainingResponse.IsSuccessStatusCode)
         {
-            return null;
+            await using var stream = await remainingResponse.Content.ReadAsStreamAsync(cancellationToken);
+            var remaining = await JsonSerializer.DeserializeAsync<RemainingBudgetReportResponse>(stream, SerializerOptions, cancellationToken);
+            if (remaining is not null)
+            {
+                summary = new ReportSummaryData(
+                    NetWorth: 0m,
+                    MonthlySpend: remaining.TotalIncome - remaining.RemainingAmount,
+                    RemainingBudget: remaining.RemainingAmount,
+                    EnvelopeCoveragePercent: remaining.TotalIncome == 0m
+                        ? 0m
+                        : decimal.Round((remaining.AllocatedAmount / remaining.TotalIncome) * 100m, 1, MidpointRounding.AwayFromZero));
+            }
+        }
+        else if (remainingResponse.StatusCode is not System.Net.HttpStatusCode.NotFound
+                 and not System.Net.HttpStatusCode.NoContent)
+        {
+            throw new InvalidOperationException($"Remaining budget report request failed with status {(int)remainingResponse.StatusCode}.");
         }
 
-        if (!response.IsSuccessStatusCode)
+        using var envelopeResponse = await _apiClient.GetAsync(
+            $"reports/envelope-balances?familyId={familyId}",
+            cancellationToken);
+        if (!envelopeResponse.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException($"Reports API returned status {(int)response.StatusCode}.");
+            throw new InvalidOperationException($"Envelope balances report request failed with status {(int)envelopeResponse.StatusCode}.");
         }
 
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-        var root = document.RootElement;
+        await using var envelopeStream = await envelopeResponse.Content.ReadAsStreamAsync(cancellationToken);
+        var envelopeRows = await JsonSerializer.DeserializeAsync<List<EnvelopeBalanceReportResponse>>(
+            envelopeStream,
+            SerializerOptions,
+            cancellationToken) ?? [];
 
-        if (!TryGetDecimal(root, "netWorth", out var netWorth)
-            || !TryGetDecimal(root, "monthlySpend", out var monthlySpend)
-            || !TryGetDecimal(root, "remainingBudget", out var remainingBudget)
-            || !TryGetDecimal(root, "envelopeCoveragePercent", out var envelopeCoveragePercent))
+        using var monthlySpendResponse = await _apiClient.GetAsync(
+            $"reports/monthly-spend?familyId={familyId}&from={Uri.EscapeDataString(from.ToString("o"))}&to={Uri.EscapeDataString(to.ToString("o"))}",
+            cancellationToken);
+        if (!monthlySpendResponse.IsSuccessStatusCode)
         {
-            return null;
+            throw new InvalidOperationException($"Monthly spend report request failed with status {(int)monthlySpendResponse.StatusCode}.");
         }
 
-        return new ReportSummaryData(netWorth, monthlySpend, remainingBudget, envelopeCoveragePercent);
+        await using var monthlyStream = await monthlySpendResponse.Content.ReadAsStreamAsync(cancellationToken);
+        var monthlyRows = await JsonSerializer.DeserializeAsync<List<MonthlySpendReportPointResponse>>(
+            monthlyStream,
+            SerializerOptions,
+            cancellationToken) ?? [];
+
+        using var categoryResponse = await _apiClient.GetAsync(
+            $"reports/category-breakdown?familyId={familyId}&from={Uri.EscapeDataString(from.ToString("o"))}&to={Uri.EscapeDataString(to.ToString("o"))}",
+            cancellationToken);
+        if (!categoryResponse.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Category breakdown report request failed with status {(int)categoryResponse.StatusCode}.");
+        }
+
+        await using var categoryStream = await categoryResponse.Content.ReadAsStreamAsync(cancellationToken);
+        var categoryRows = await JsonSerializer.DeserializeAsync<List<CategoryBreakdownReportItemResponse>>(
+            categoryStream,
+            SerializerOptions,
+            cancellationToken) ?? [];
+
+        return new ReportWorkspaceData(
+            summary,
+            envelopeRows
+                .Where(row => includeArchived || !row.IsArchived)
+                .OrderByDescending(static row => row.CurrentBalance)
+                .Select(static row => new ReportEnvelopeBalanceData(row.EnvelopeName, row.MonthlyBudget, row.CurrentBalance, row.IsArchived))
+                .ToArray(),
+            monthlyRows
+                .OrderBy(static row => row.Month, StringComparer.OrdinalIgnoreCase)
+                .Select(static row => new ReportMonthlySpendData(row.Month, row.TotalSpend))
+                .ToArray(),
+            categoryRows
+                .OrderByDescending(static row => row.TotalSpend)
+                .Select(static row => new ReportCategoryBreakdownData(row.Category, row.TotalSpend))
+                .ToArray());
     }
 
-    private static bool TryGetDecimal(JsonElement root, string propertyName, out decimal value)
+    private Guid RequireFamilyId()
     {
-        value = default;
-        if (!root.TryGetProperty(propertyName, out var element))
+        if (!_familyContext.FamilyId.HasValue)
         {
-            return false;
+            throw new InvalidOperationException("No family selected for reports.");
         }
 
-        return element.ValueKind switch
-        {
-            JsonValueKind.Number => element.TryGetDecimal(out value),
-            JsonValueKind.String => decimal.TryParse(element.GetString(), out value),
-            _ => false
-        };
+        return _familyContext.FamilyId.Value;
     }
 }
