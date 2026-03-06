@@ -50,7 +50,8 @@ public sealed record ProviderActivityHealthResponse(
     int DriftedAccountCount,
     decimal TotalAbsoluteDrift,
     StripeWebhookActivityResponse? LastStripeWebhook,
-    SpendNotificationDispatchStatusResponse NotificationDispatch);
+    SpendNotificationDispatchStatusResponse NotificationDispatch,
+    string TraceId);
 
 public sealed record CreateStripeEnvelopeFinancialAccountRequest(
     string? DisplayName);

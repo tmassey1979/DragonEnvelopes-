@@ -12,6 +12,12 @@ internal static class FinancialIntegrationEndpoints
 {
     public static RouteGroupBuilder MapFinancialIntegrationEndpoints(this RouteGroupBuilder v1)
     {
+        v1.AddEndpointFilterFactory(static (_, next) => async invocationContext =>
+        {
+            invocationContext.HttpContext.Response.Headers["X-Trace-Id"] = invocationContext.HttpContext.TraceIdentifier;
+            return await next(invocationContext);
+        });
+
         v1.MapPost("/webhooks/stripe", async (
                 HttpRequest httpRequest,
                 IStripeWebhookService stripeWebhookService,
@@ -146,6 +152,7 @@ internal static class FinancialIntegrationEndpoints
         v1.MapGet("/families/{familyId:guid}/financial/provider-activity", async (
                 Guid familyId,
                 ClaimsPrincipal user,
+                HttpContext httpContext,
                 DragonEnvelopesDbContext dbContext,
                 CancellationToken cancellationToken) =>
             {
@@ -225,7 +232,8 @@ internal static class FinancialIntegrationEndpoints
                         sentCount,
                         failedCount,
                         lastNotification?.LastAttemptAtUtc ?? lastNotification?.CreatedAtUtc,
-                        TrimActivityError(lastNotification?.ErrorMessage))));
+                        TrimActivityError(lastNotification?.ErrorMessage)),
+                    TraceId: httpContext.TraceIdentifier));
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
             .WithName("GetProviderActivityHealth")

@@ -51,6 +51,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         ProviderHealthWebhookSummary = "No Stripe webhook events recorded.";
         ProviderHealthNotificationSummary = "Notification dispatch status unavailable.";
         ProviderHealthNotificationError = "-";
+        ProviderHealthTraceId = "-";
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         RefreshStatusCommand = new AsyncRelayCommand(RefreshStatusAsync);
@@ -62,6 +63,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         CopyPlaidLinkTokenCommand = new RelayCommand(CopyPlaidLinkToken);
         ToggleStripeClientSecretVisibilityCommand = new RelayCommand(ToggleStripeClientSecretVisibility);
         CopyStripeClientSecretCommand = new RelayCommand(CopyStripeClientSecret);
+        CopyProviderTraceIdCommand = new RelayCommand(CopyProviderTraceId);
         ToggleProviderIdentifierVisibilityCommand = new RelayCommand(ToggleProviderIdentifierVisibility);
         ExchangePlaidPublicTokenCommand = new AsyncRelayCommand(ExchangePlaidPublicTokenAsync);
         UpsertPlaidAccountLinkCommand = new AsyncRelayCommand(UpsertPlaidAccountLinkAsync);
@@ -94,6 +96,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public IRelayCommand CopyPlaidLinkTokenCommand { get; }
     public IRelayCommand ToggleStripeClientSecretVisibilityCommand { get; }
     public IRelayCommand CopyStripeClientSecretCommand { get; }
+    public IRelayCommand CopyProviderTraceIdCommand { get; }
     public IRelayCommand ToggleProviderIdentifierVisibilityCommand { get; }
     public IAsyncRelayCommand ExchangePlaidPublicTokenCommand { get; }
     public IAsyncRelayCommand UpsertPlaidAccountLinkCommand { get; }
@@ -323,6 +326,9 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     [ObservableProperty]
     private bool providerHealthNotificationHasError;
 
+    [ObservableProperty]
+    private string providerHealthTraceId = string.Empty;
+
     public bool HasEnvelopeSelection => SelectedEnvelope is not null;
     public bool HasCardSelection => SelectedCard is not null;
     public bool SelectedCardIsPhysical => SelectedCard?.IsPhysical == true;
@@ -468,6 +474,26 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     private void CopyStripeClientSecret()
     {
         CopySensitiveValue(StripeClientSecret, "Stripe client secret copied to clipboard.");
+    }
+
+    private void CopyProviderTraceId()
+    {
+        if (string.IsNullOrWhiteSpace(ProviderHealthTraceId) || ProviderHealthTraceId == "-")
+        {
+            SetValidationError("No provider trace id is available to copy.");
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetText(ProviderHealthTraceId);
+            RecordSecurityEvent("Provider activity trace id copied.");
+            StatusMessage = "Provider trace id copied to clipboard.";
+        }
+        catch (Exception ex)
+        {
+            SetValidationError($"Clipboard copy failed: {ex.Message}");
+        }
     }
 
     private void ToggleProviderIdentifierVisibility()
@@ -1095,6 +1121,9 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         ProviderHealthNotificationError = string.IsNullOrWhiteSpace(dispatch.LastErrorMessage)
             ? "-"
             : dispatch.LastErrorMessage;
+        ProviderHealthTraceId = string.IsNullOrWhiteSpace(activity.TraceId)
+            ? "-"
+            : activity.TraceId.Trim();
 
         ProviderHealthStatusSummary = $"Generated {ProviderActivityGeneratedAt}.";
     }

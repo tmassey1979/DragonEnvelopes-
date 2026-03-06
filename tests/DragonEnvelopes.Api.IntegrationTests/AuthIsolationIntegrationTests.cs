@@ -398,6 +398,8 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.Equal(TestApiFactory.FamilyAId, payload!.FamilyId);
         Assert.False(payload.PlaidConnected);
         Assert.False(payload.StripeConnected);
+        Assert.True(response.Headers.TryGetValues("X-Trace-Id", out var traceHeaderValues));
+        Assert.False(string.IsNullOrWhiteSpace(traceHeaderValues!.FirstOrDefault()));
     }
 
     [Fact]
@@ -424,6 +426,9 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.NotNull(payload);
         Assert.Equal(TestApiFactory.FamilyAId, payload!.FamilyId);
         Assert.Equal("NoEvents", payload.NotificationDispatch.Status);
+        Assert.False(string.IsNullOrWhiteSpace(payload.TraceId));
+        Assert.True(response.Headers.TryGetValues("X-Trace-Id", out var traceHeaderValues));
+        Assert.False(string.IsNullOrWhiteSpace(traceHeaderValues!.FirstOrDefault()));
     }
 
     [Fact]

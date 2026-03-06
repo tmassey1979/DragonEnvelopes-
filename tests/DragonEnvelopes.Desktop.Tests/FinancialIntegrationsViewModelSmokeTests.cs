@@ -24,6 +24,7 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
         Assert.Single(harness.ViewModel.Cards);
         Assert.NotNull(harness.ViewModel.SelectedEnvelope);
         Assert.NotNull(harness.ViewModel.SelectedCard);
+        Assert.Equal("trace-test-001", harness.ViewModel.ProviderHealthTraceId);
         Assert.Equal("Financial integrations loaded.", harness.ViewModel.StatusMessage);
     }
 

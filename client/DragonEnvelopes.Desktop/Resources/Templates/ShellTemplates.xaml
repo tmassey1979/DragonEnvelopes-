@@ -1997,6 +1997,14 @@
                                            Style="{StaticResource CaptionTextStyle}"
                                            TextWrapping="Wrap" />
                                 <TextBlock Margin="0,6,0,0"
+                                           Text="{Binding ProviderHealthTraceId, StringFormat=Trace Id: {0}}"
+                                           Style="{StaticResource CaptionTextStyle}"
+                                           TextWrapping="Wrap" />
+                                <Button Margin="0,6,0,0"
+                                        Width="110"
+                                        Content="Copy Trace Id"
+                                        Command="{Binding CopyProviderTraceIdCommand}" />
+                                <TextBlock Margin="0,6,0,0"
                                            Text="{Binding ProviderHealthNotificationError}"
                                            TextWrapping="Wrap">
                                     <TextBlock.Style>

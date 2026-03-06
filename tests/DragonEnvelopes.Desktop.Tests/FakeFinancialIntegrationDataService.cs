@@ -100,7 +100,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
                 SentCount: 2,
                 FailedCount: 0,
                 LastAttemptAtUtc: now.AddMinutes(-1),
-                LastErrorMessage: null));
+                LastErrorMessage: null),
+            TraceId: "trace-test-001");
 
         PlaidLinks =
         [
