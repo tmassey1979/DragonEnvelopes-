@@ -20,6 +20,29 @@ public sealed class EnvelopePaymentCardRepository(DragonEnvelopesDbContext dbCon
             .FirstOrDefaultAsync(x => x.Id == cardId, cancellationToken);
     }
 
+    public Task<EnvelopePaymentCard?> GetByProviderCardIdAsync(
+        string provider,
+        string providerCardId,
+        CancellationToken cancellationToken = default)
+    {
+        return dbContext.EnvelopePaymentCards
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.Provider == provider && x.ProviderCardId == providerCardId,
+                cancellationToken);
+    }
+
+    public Task<EnvelopePaymentCard?> GetByProviderCardIdForUpdateAsync(
+        string provider,
+        string providerCardId,
+        CancellationToken cancellationToken = default)
+    {
+        return dbContext.EnvelopePaymentCards
+            .FirstOrDefaultAsync(
+                x => x.Provider == provider && x.ProviderCardId == providerCardId,
+                cancellationToken);
+    }
+
     public async Task<IReadOnlyList<EnvelopePaymentCard>> ListByEnvelopeAsync(Guid envelopeId, CancellationToken cancellationToken = default)
     {
         return await dbContext.EnvelopePaymentCards

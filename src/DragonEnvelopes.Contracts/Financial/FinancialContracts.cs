@@ -126,3 +126,9 @@ public sealed record EvaluateEnvelopeCardSpendResponse(
     bool IsAllowed,
     string? DenialReason,
     decimal? RemainingDailyLimit);
+
+public sealed record StripeWebhookProcessResponse(
+    string Outcome,
+    string? EventId,
+    string? EventType,
+    string? Message);

@@ -8,6 +8,7 @@ using DragonEnvelopes.Api.CrossCutting.Validation;
 using DragonEnvelopes.Api.Endpoints;
 using DragonEnvelopes.Api.Services;
 using DragonEnvelopes.Application;
+using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Infrastructure;
 using DragonEnvelopes.Infrastructure.Persistence;
 using DragonEnvelopes.ProviderClients;
@@ -16,6 +17,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
@@ -156,6 +158,7 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddProviderClients(builder.Configuration);
+builder.Services.AddSingleton(Options.Create(BuildStripeWebhookOptions(builder.Configuration)));
 builder.Services.AddSingleton(BuildKeycloakAdminOptions(builder.Configuration));
 builder.Services.AddHttpClient<IKeycloakProvisioningService, KeycloakProvisioningService>();
 if (!builder.Environment.IsEnvironment("Testing"))
@@ -273,6 +276,18 @@ static KeycloakAdminOptions BuildKeycloakAdminOptions(IConfiguration configurati
         AdminClientId = configuration["Keycloak:AdminClientId"] ?? defaults.AdminClientId,
         AdminUsername = configuration["Keycloak:AdminUsername"] ?? defaults.AdminUsername,
         AdminPassword = configuration["Keycloak:AdminPassword"] ?? defaults.AdminPassword
+    };
+}
+
+static StripeWebhookOptions BuildStripeWebhookOptions(IConfiguration configuration)
+{
+    return new StripeWebhookOptions
+    {
+        Enabled = bool.TryParse(configuration["Stripe:Webhooks:Enabled"], out var enabled) && enabled,
+        SigningSecret = configuration["Stripe:Webhooks:SigningSecret"] ?? string.Empty,
+        SignatureToleranceSeconds = int.TryParse(configuration["Stripe:Webhooks:SignatureToleranceSeconds"], out var tolerance)
+            ? Math.Max(1, tolerance)
+            : 300
     };
 }
 

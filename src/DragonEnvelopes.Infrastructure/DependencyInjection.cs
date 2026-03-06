@@ -46,6 +46,7 @@ public static class DependencyInjection
         services.AddScoped<IEnvelopePaymentCardRepository, EnvelopePaymentCardRepository>();
         services.AddScoped<IEnvelopePaymentCardShipmentRepository, EnvelopePaymentCardShipmentRepository>();
         services.AddScoped<IEnvelopePaymentCardControlRepository, EnvelopePaymentCardControlRepository>();
+        services.AddScoped<IStripeWebhookEventRepository, StripeWebhookEventRepository>();
         services.AddScoped<IOnboardingProfileRepository, OnboardingProfileRepository>();
         services.AddScoped<IOnboardingBootstrapRepository, OnboardingBootstrapRepository>();
         services.AddScoped<IAutomationRuleRepository, AutomationRuleRepository>();

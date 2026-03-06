@@ -1,3 +1,4 @@
+using System.IO;
 using System.Security.Claims;
 using DragonEnvelopes.Api.CrossCutting.Auth;
 using DragonEnvelopes.Application.Services;
@@ -10,6 +11,40 @@ internal static class FinancialIntegrationEndpoints
 {
     public static RouteGroupBuilder MapFinancialIntegrationEndpoints(this RouteGroupBuilder v1)
     {
+        v1.MapPost("/webhooks/stripe", async (
+                HttpRequest httpRequest,
+                IStripeWebhookService stripeWebhookService,
+                CancellationToken cancellationToken) =>
+            {
+                using var reader = new StreamReader(httpRequest.Body);
+                var payload = await reader.ReadToEndAsync(cancellationToken);
+                var signatureHeader = httpRequest.Headers["Stripe-Signature"].ToString();
+                var result = await stripeWebhookService.ProcessAsync(payload, signatureHeader, cancellationToken);
+
+                if (result.Outcome.Equals("InvalidSignature", StringComparison.OrdinalIgnoreCase)
+                    || result.Outcome.Equals("Disabled", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Results.Unauthorized();
+                }
+
+                if (result.Outcome.Equals("Failed", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Results.Problem(
+                        title: "Stripe webhook processing failed.",
+                        detail: result.Message,
+                        statusCode: StatusCodes.Status500InternalServerError);
+                }
+
+                return Results.Ok(new StripeWebhookProcessResponse(
+                    result.Outcome,
+                    result.EventId,
+                    result.EventType,
+                    result.Message));
+            })
+            .AllowAnonymous()
+            .WithName("ProcessStripeWebhook")
+            .WithOpenApi();
+
         v1.MapGet("/families/{familyId:guid}/financial/status", async (
                 Guid familyId,
                 ClaimsPrincipal user,

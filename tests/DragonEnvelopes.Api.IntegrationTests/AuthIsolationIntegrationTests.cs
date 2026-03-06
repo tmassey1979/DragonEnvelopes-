@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Encodings.Web;
 using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Contracts.Financial;
@@ -601,6 +602,22 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.False(string.IsNullOrWhiteSpace(payload!.Version));
         Assert.False(string.IsNullOrWhiteSpace(payload.Environment));
     }
+
+    [Fact]
+    public async Task Stripe_Webhook_With_Invalid_Signature_Returns401()
+    {
+        using var client = _factory.CreateClient();
+        var payload = "{\"id\":\"evt_invalid_sig\",\"type\":\"card_transaction\",\"data\":{\"object\":{\"card\":\"card_test\",\"amount\":100}}}";
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/stripe")
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+        request.Headers.Add("Stripe-Signature", "t=1700000000,v1=invalidsignature");
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
 }
 
 public sealed class TestApiFactory : WebApplicationFactory<Program>
@@ -626,7 +643,10 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
             configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Authentication:Authority"] = "http://test-authority",
-                ["Authentication:Audience"] = "dragonenvelopes-api"
+                ["Authentication:Audience"] = "dragonenvelopes-api",
+                ["Stripe:Webhooks:Enabled"] = "true",
+                ["Stripe:Webhooks:SigningSecret"] = "whsec_test",
+                ["Stripe:Webhooks:SignatureToleranceSeconds"] = "300"
             });
         });
 
