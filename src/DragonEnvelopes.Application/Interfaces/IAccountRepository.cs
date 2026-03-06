@@ -16,4 +16,10 @@ public interface IAccountRepository
     Task<IReadOnlyList<Account>> ListAccountsAsync(
         Guid? familyId,
         CancellationToken cancellationToken = default);
+
+    Task<Account?> GetByIdForUpdateAsync(
+        Guid accountId,
+        CancellationToken cancellationToken = default);
+
+    Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

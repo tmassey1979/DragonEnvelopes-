@@ -13,3 +13,7 @@ public sealed record PlaidTransactionSyncResult(
     bool HasMore,
     IReadOnlyList<PlaidTransactionRecord> Added,
     IReadOnlyList<PlaidTransactionRecord> Modified);
+
+public sealed record PlaidAccountBalanceRecord(
+    string PlaidAccountId,
+    decimal CurrentBalance);

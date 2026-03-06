@@ -166,3 +166,24 @@ public sealed record PlaidTransactionSyncResponse(
     int UnmappedCount,
     string? NextCursor,
     DateTimeOffset ProcessedAtUtc);
+
+public sealed record PlaidBalanceRefreshResponse(
+    Guid FamilyId,
+    int RefreshedCount,
+    int DriftedCount,
+    decimal TotalAbsoluteDrift,
+    DateTimeOffset RefreshedAtUtc);
+
+public sealed record PlaidReconciliationAccountResponse(
+    Guid AccountId,
+    string AccountName,
+    string PlaidAccountId,
+    decimal InternalBalance,
+    decimal ProviderBalance,
+    decimal DriftAmount,
+    bool IsDrifted);
+
+public sealed record PlaidReconciliationReportResponse(
+    Guid FamilyId,
+    DateTimeOffset GeneratedAtUtc,
+    IReadOnlyList<PlaidReconciliationAccountResponse> Accounts);

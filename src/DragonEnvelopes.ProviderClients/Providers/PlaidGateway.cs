@@ -173,6 +173,69 @@ public sealed class PlaidGateway(
             modified);
     }
 
+    public async Task<IReadOnlyList<PlaidAccountBalanceRecord>> GetAccountBalancesAsync(
+        string accessToken,
+        CancellationToken cancellationToken = default)
+    {
+        var configured = options.Value;
+        EnsureConfigured(configured);
+
+        if (string.IsNullOrWhiteSpace(accessToken))
+        {
+            throw new DomainValidationException("Plaid access token is required.");
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(configured.BaseUrl, "/accounts/balance/get"));
+        request.Content = new StringContent(
+            JsonSerializer.Serialize(new
+            {
+                client_id = configured.ClientId,
+                secret = configured.Secret,
+                access_token = accessToken.Trim()
+            }),
+            Encoding.UTF8,
+            "application/json");
+
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogError(
+                "Plaid balance refresh failed. Status={StatusCode}, Body={Body}",
+                (int)response.StatusCode,
+                payload);
+            throw new DomainValidationException("Plaid balance refresh failed.");
+        }
+
+        using var doc = JsonDocument.Parse(payload);
+        if (!doc.RootElement.TryGetProperty("accounts", out var accounts)
+            || accounts.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var balances = new List<PlaidAccountBalanceRecord>();
+        foreach (var account in accounts.EnumerateArray())
+        {
+            var accountId = account.TryGetProperty("account_id", out var accountIdElement)
+                ? accountIdElement.GetString()
+                : null;
+
+            if (string.IsNullOrWhiteSpace(accountId)
+                || !account.TryGetProperty("balances", out var balancesElement)
+                || balancesElement.ValueKind != JsonValueKind.Object
+                || !balancesElement.TryGetProperty("current", out var currentElement)
+                || !currentElement.TryGetDecimal(out var currentBalance))
+            {
+                continue;
+            }
+
+            balances.Add(new PlaidAccountBalanceRecord(accountId, currentBalance));
+        }
+
+        return balances;
+    }
+
     private static void EnsureConfigured(PlaidGatewayOptions options)
     {
         if (!options.Enabled)

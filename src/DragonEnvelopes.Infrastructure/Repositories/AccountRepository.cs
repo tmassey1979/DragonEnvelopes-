@@ -47,4 +47,17 @@ public sealed class AccountRepository(DragonEnvelopesDbContext dbContext) : IAcc
             .OrderBy(x => x.Name)
             .ToArrayAsync(cancellationToken);
     }
+
+    public Task<Account?> GetByIdForUpdateAsync(
+        Guid accountId,
+        CancellationToken cancellationToken = default)
+    {
+        return dbContext.Accounts
+            .FirstOrDefaultAsync(x => x.Id == accountId, cancellationToken);
+    }
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        return dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

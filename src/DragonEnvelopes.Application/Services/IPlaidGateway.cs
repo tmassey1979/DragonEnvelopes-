@@ -17,4 +17,8 @@ public interface IPlaidGateway
         string? cursor,
         int count,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PlaidAccountBalanceRecord>> GetAccountBalancesAsync(
+        string accessToken,
+        CancellationToken cancellationToken = default);
 }

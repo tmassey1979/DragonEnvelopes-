@@ -166,6 +166,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddHostedService<RecurringBillAutoPostWorker>();
     builder.Services.AddHostedService<SpendNotificationDispatchWorker>();
     builder.Services.AddHostedService<PlaidTransactionSyncWorker>();
+    builder.Services.AddHostedService<PlaidBalanceRefreshWorker>();
 }
 
 var defaultConnection = builder.Configuration.GetConnectionString("Default");

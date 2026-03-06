@@ -18,6 +18,7 @@ public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbC
     public DbSet<PlaidAccountLink> PlaidAccountLinks => Set<PlaidAccountLink>();
     public DbSet<PlaidSyncCursor> PlaidSyncCursors => Set<PlaidSyncCursor>();
     public DbSet<PlaidSyncedTransaction> PlaidSyncedTransactions => Set<PlaidSyncedTransaction>();
+    public DbSet<PlaidBalanceSnapshot> PlaidBalanceSnapshots => Set<PlaidBalanceSnapshot>();
     public DbSet<OnboardingProfile> OnboardingProfiles => Set<OnboardingProfile>();
     public DbSet<FamilyInvite> FamilyInvites => Set<FamilyInvite>();
     public DbSet<FamilyMember> FamilyMembers => Set<FamilyMember>();

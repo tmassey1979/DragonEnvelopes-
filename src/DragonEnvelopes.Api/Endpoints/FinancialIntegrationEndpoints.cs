@@ -279,6 +279,59 @@ internal static class FinancialIntegrationEndpoints
             .WithName("SyncPlaidTransactions")
             .WithOpenApi();
 
+        v1.MapPost("/families/{familyId:guid}/financial/plaid/refresh-balances", async (
+                Guid familyId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IPlaidBalanceReconciliationService plaidBalanceReconciliationService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var refresh = await plaidBalanceReconciliationService.RefreshFamilyBalancesAsync(familyId, cancellationToken);
+                return Results.Ok(new PlaidBalanceRefreshResponse(
+                    refresh.FamilyId,
+                    refresh.RefreshedCount,
+                    refresh.DriftedCount,
+                    refresh.TotalAbsoluteDrift,
+                    refresh.RefreshedAtUtc));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("RefreshPlaidBalances")
+            .WithOpenApi();
+
+        v1.MapGet("/families/{familyId:guid}/financial/plaid/reconciliation", async (
+                Guid familyId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IPlaidBalanceReconciliationService plaidBalanceReconciliationService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var report = await plaidBalanceReconciliationService.GetReconciliationReportAsync(familyId, cancellationToken);
+                return Results.Ok(new PlaidReconciliationReportResponse(
+                    report.FamilyId,
+                    report.GeneratedAtUtc,
+                    report.Accounts.Select(account => new PlaidReconciliationAccountResponse(
+                        account.AccountId,
+                        account.AccountName,
+                        account.PlaidAccountId,
+                        account.InternalBalance,
+                        account.ProviderBalance,
+                        account.DriftAmount,
+                        account.IsDrifted)).ToArray()));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("GetPlaidReconciliationReport")
+            .WithOpenApi();
+
         v1.MapPost("/families/{familyId:guid}/financial/stripe/setup-intent", async (
                 Guid familyId,
                 CreateStripeSetupIntentRequest request,
