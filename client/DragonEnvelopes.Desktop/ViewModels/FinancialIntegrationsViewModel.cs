@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DragonEnvelopes.Contracts.Financial;
@@ -48,6 +49,11 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         SaveNotificationPreferenceCommand = new AsyncRelayCommand(SaveNotificationPreferenceAsync);
         CreatePlaidLinkTokenCommand = new AsyncRelayCommand(CreatePlaidLinkTokenAsync);
         LaunchNativePlaidLinkCommand = new AsyncRelayCommand(LaunchNativePlaidLinkAsync);
+        TogglePlaidLinkTokenVisibilityCommand = new RelayCommand(TogglePlaidLinkTokenVisibility);
+        CopyPlaidLinkTokenCommand = new RelayCommand(CopyPlaidLinkToken);
+        ToggleStripeClientSecretVisibilityCommand = new RelayCommand(ToggleStripeClientSecretVisibility);
+        CopyStripeClientSecretCommand = new RelayCommand(CopyStripeClientSecret);
+        ToggleProviderIdentifierVisibilityCommand = new RelayCommand(ToggleProviderIdentifierVisibility);
         ExchangePlaidPublicTokenCommand = new AsyncRelayCommand(ExchangePlaidPublicTokenAsync);
         UpsertPlaidAccountLinkCommand = new AsyncRelayCommand(UpsertPlaidAccountLinkAsync);
         SyncPlaidTransactionsCommand = new AsyncRelayCommand(SyncPlaidTransactionsAsync);
@@ -74,6 +80,11 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public IAsyncRelayCommand SaveNotificationPreferenceCommand { get; }
     public IAsyncRelayCommand CreatePlaidLinkTokenCommand { get; }
     public IAsyncRelayCommand LaunchNativePlaidLinkCommand { get; }
+    public IRelayCommand TogglePlaidLinkTokenVisibilityCommand { get; }
+    public IRelayCommand CopyPlaidLinkTokenCommand { get; }
+    public IRelayCommand ToggleStripeClientSecretVisibilityCommand { get; }
+    public IRelayCommand CopyStripeClientSecretCommand { get; }
+    public IRelayCommand ToggleProviderIdentifierVisibilityCommand { get; }
     public IAsyncRelayCommand ExchangePlaidPublicTokenCommand { get; }
     public IAsyncRelayCommand UpsertPlaidAccountLinkCommand { get; }
     public IAsyncRelayCommand SyncPlaidTransactionsCommand { get; }
@@ -120,6 +131,9 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     private string financialStatusUpdatedAt = "-";
 
     [ObservableProperty]
+    private bool showProviderIdentifiers;
+
+    [ObservableProperty]
     private bool notificationEmailEnabled;
 
     [ObservableProperty]
@@ -133,6 +147,9 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
 
     [ObservableProperty]
     private string plaidLinkToken = string.Empty;
+
+    [ObservableProperty]
+    private bool showPlaidLinkToken;
 
     [ObservableProperty]
     private string plaidLinkTokenExpiresAt = "-";
@@ -178,6 +195,9 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
 
     [ObservableProperty]
     private string stripeClientSecret = string.Empty;
+
+    [ObservableProperty]
+    private bool showStripeClientSecret;
 
     [ObservableProperty]
     private ObservableCollection<EnvelopeOptionViewModel> availableEnvelopes = [];
@@ -263,9 +283,62 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     [ObservableProperty]
     private string cardSpendEvaluationResult = string.Empty;
 
+    [ObservableProperty]
+    private ObservableCollection<SecurityAuditEventItemViewModel> securityAuditEvents = [];
+
     public bool HasEnvelopeSelection => SelectedEnvelope is not null;
     public bool HasCardSelection => SelectedCard is not null;
     public bool SelectedCardIsPhysical => SelectedCard?.IsPhysical == true;
+    public string PlaidItemIdentifierDisplay => GetMaskedIdentifierDisplay(PlaidItemIdentifier);
+    public string StripeCustomerIdentifierDisplay => GetMaskedIdentifierDisplay(StripeCustomerIdentifier);
+    public string StripeSetupIntentIdDisplay => GetMaskedIdentifierDisplay(StripeSetupIntentId);
+    public string StripeSetupCustomerIdDisplay => GetMaskedIdentifierDisplay(StripeSetupCustomerId);
+    public string PlaidLinkTokenDisplay => ShowPlaidLinkToken
+        ? NormalizeSensitiveValue(PlaidLinkToken)
+        : SensitiveValueMasker.MaskToken(PlaidLinkToken);
+    public string StripeClientSecretDisplay => ShowStripeClientSecret
+        ? NormalizeSensitiveValue(StripeClientSecret)
+        : SensitiveValueMasker.MaskToken(StripeClientSecret);
+    public string ProviderIdentifierVisibilityLabel => ShowProviderIdentifiers ? "Hide IDs" : "Reveal IDs";
+    public string PlaidLinkTokenVisibilityLabel => ShowPlaidLinkToken ? "Hide Token" : "Reveal Token";
+    public string StripeClientSecretVisibilityLabel => ShowStripeClientSecret ? "Hide Secret" : "Reveal Secret";
+
+    partial void OnShowProviderIdentifiersChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ProviderIdentifierVisibilityLabel));
+        OnPropertyChanged(nameof(PlaidItemIdentifierDisplay));
+        OnPropertyChanged(nameof(StripeCustomerIdentifierDisplay));
+        OnPropertyChanged(nameof(StripeSetupIntentIdDisplay));
+        OnPropertyChanged(nameof(StripeSetupCustomerIdDisplay));
+        RecordSecurityEvent(value
+            ? "Provider identifier reveal enabled."
+            : "Provider identifier reveal disabled.");
+    }
+
+    partial void OnShowPlaidLinkTokenChanged(bool value)
+    {
+        OnPropertyChanged(nameof(PlaidLinkTokenDisplay));
+        OnPropertyChanged(nameof(PlaidLinkTokenVisibilityLabel));
+        RecordSecurityEvent(value
+            ? "Plaid link token reveal enabled."
+            : "Plaid link token reveal disabled.");
+    }
+
+    partial void OnShowStripeClientSecretChanged(bool value)
+    {
+        OnPropertyChanged(nameof(StripeClientSecretDisplay));
+        OnPropertyChanged(nameof(StripeClientSecretVisibilityLabel));
+        RecordSecurityEvent(value
+            ? "Stripe client secret reveal enabled."
+            : "Stripe client secret reveal disabled.");
+    }
+
+    partial void OnPlaidItemIdentifierChanged(string value) => OnPropertyChanged(nameof(PlaidItemIdentifierDisplay));
+    partial void OnStripeCustomerIdentifierChanged(string value) => OnPropertyChanged(nameof(StripeCustomerIdentifierDisplay));
+    partial void OnStripeSetupIntentIdChanged(string value) => OnPropertyChanged(nameof(StripeSetupIntentIdDisplay));
+    partial void OnStripeSetupCustomerIdChanged(string value) => OnPropertyChanged(nameof(StripeSetupCustomerIdDisplay));
+    partial void OnPlaidLinkTokenChanged(string value) => OnPropertyChanged(nameof(PlaidLinkTokenDisplay));
+    partial void OnStripeClientSecretChanged(string value) => OnPropertyChanged(nameof(StripeClientSecretDisplay));
 
     partial void OnSelectedEnvelopeChanged(EnvelopeOptionViewModel? value)
     {
@@ -327,6 +400,31 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             ApplyNotificationPreference(updated);
             StatusMessage = "Notification preferences saved.";
         }, cancellationToken);
+    }
+
+    private void TogglePlaidLinkTokenVisibility()
+    {
+        ShowPlaidLinkToken = !ShowPlaidLinkToken;
+    }
+
+    private void CopyPlaidLinkToken()
+    {
+        CopySensitiveValue(PlaidLinkToken, "Plaid link token copied to clipboard.");
+    }
+
+    private void ToggleStripeClientSecretVisibility()
+    {
+        ShowStripeClientSecret = !ShowStripeClientSecret;
+    }
+
+    private void CopyStripeClientSecret()
+    {
+        CopySensitiveValue(StripeClientSecret, "Stripe client secret copied to clipboard.");
+    }
+
+    private void ToggleProviderIdentifierVisibility()
+    {
+        ShowProviderIdentifiers = !ShowProviderIdentifiers;
     }
 
     private Task CreatePlaidLinkTokenAsync(CancellationToken cancellationToken)
@@ -508,7 +606,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
                 string.IsNullOrWhiteSpace(StripeFinancialAccountDisplayName) ? null : StripeFinancialAccountDisplayName.Trim(),
                 ct);
 
-            EnvelopeFinancialAccountSummary = $"Linked {account.Provider} account {account.ProviderFinancialAccountId}.";
+            EnvelopeFinancialAccountSummary = $"Linked {account.Provider} account {SensitiveValueMasker.MaskIdentifier(account.ProviderFinancialAccountId)}.";
             await LoadFamilyFinancialAccountsCoreAsync(ct);
             await LoadSelectedEnvelopeCoreAsync(ct);
             StatusMessage = "Stripe financial account linked.";
@@ -815,7 +913,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
                     link.Id,
                     link.AccountId,
                     accountLookup.TryGetValue(link.AccountId, out var accountName) ? accountName : link.AccountId.ToString(),
-                    link.PlaidAccountId,
+                    SensitiveValueMasker.MaskIdentifier(link.PlaidAccountId),
                     FormatDate(link.UpdatedAtUtc))));
     }
 
@@ -832,7 +930,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
                     account.EnvelopeId,
                     envelopeLookup.TryGetValue(account.EnvelopeId, out var envelopeName) ? envelopeName : account.EnvelopeId.ToString(),
                     account.Provider,
-                    account.ProviderFinancialAccountId,
+                    SensitiveValueMasker.MaskIdentifier(account.ProviderFinancialAccountId),
                     FormatDate(account.UpdatedAtUtc))));
     }
 
@@ -853,7 +951,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         var account = await financialAccountTask;
         EnvelopeFinancialAccountSummary = account is null
             ? "No linked Stripe financial account."
-            : $"Linked {account.Provider} account {account.ProviderFinancialAccountId}.";
+            : $"Linked {account.Provider} account {SensitiveValueMasker.MaskIdentifier(account.ProviderFinancialAccountId)}.";
 
         var cardItems = (await cardsTask)
             .OrderByDescending(static card => card.CreatedAtUtc)
@@ -957,6 +1055,40 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         StatusMessage = message;
     }
 
+    private void CopySensitiveValue(string? value, string auditMessage)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            SetValidationError("No sensitive value is currently available to copy.");
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetText(value);
+            RecordSecurityEvent(auditMessage);
+            StatusMessage = "Value copied to clipboard.";
+        }
+        catch (Exception ex)
+        {
+            SetValidationError($"Clipboard copy failed: {ex.Message}");
+        }
+    }
+
+    private void RecordSecurityEvent(string action)
+    {
+        SecurityAuditEvents.Insert(
+            0,
+            new SecurityAuditEventItemViewModel(
+                Timestamp: FormatDate(DateTimeOffset.UtcNow),
+                Action: action));
+
+        while (SecurityAuditEvents.Count > 100)
+        {
+            SecurityAuditEvents.RemoveAt(SecurityAuditEvents.Count - 1);
+        }
+    }
+
     private void ApplyFinancialStatus(FamilyFinancialStatusResponse status)
     {
         PlaidConnected = status.PlaidConnected;
@@ -1057,13 +1189,25 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             card.Id,
             card.EnvelopeId,
             card.Provider,
-            card.ProviderCardId,
+            SensitiveValueMasker.MaskIdentifier(card.ProviderCardId),
             card.Type,
             card.Status,
             string.IsNullOrWhiteSpace(card.Brand) ? "-" : card.Brand,
             string.IsNullOrWhiteSpace(card.Last4) ? "-" : card.Last4,
             FormatDate(card.CreatedAtUtc),
             FormatDate(card.UpdatedAtUtc));
+    }
+
+    private string GetMaskedIdentifierDisplay(string? value)
+    {
+        return ShowProviderIdentifiers
+            ? NormalizeSensitiveValue(value)
+            : SensitiveValueMasker.MaskIdentifier(value);
+    }
+
+    private static string NormalizeSensitiveValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
     }
 
     private static string FormatIssuanceSummary(EnvelopePhysicalCardIssuanceResponse issuance)

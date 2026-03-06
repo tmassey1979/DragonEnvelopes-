@@ -1949,10 +1949,14 @@
 
                             <StackPanel Grid.Column="0">
                                 <TextBlock Text="{Binding PlaidConnected, StringFormat=Plaid Connected: {0}}" Style="{StaticResource CaptionTextStyle}" />
-                                <TextBlock Margin="0,4,0,0" Text="{Binding PlaidItemIdentifier, StringFormat=Plaid Item: {0}}" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0" Text="{Binding PlaidItemIdentifierDisplay, StringFormat=Plaid Item: {0}}" Style="{StaticResource CaptionTextStyle}" />
                                 <TextBlock Margin="0,4,0,0" Text="{Binding StripeConnected, StringFormat=Stripe Connected: {0}}" Style="{StaticResource CaptionTextStyle}" />
-                                <TextBlock Margin="0,4,0,0" Text="{Binding StripeCustomerIdentifier, StringFormat=Stripe Customer: {0}}" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0" Text="{Binding StripeCustomerIdentifierDisplay, StringFormat=Stripe Customer: {0}}" Style="{StaticResource CaptionTextStyle}" />
                                 <TextBlock Margin="0,4,0,0" Text="{Binding FinancialStatusUpdatedAt, StringFormat=Updated: {0}}" Style="{StaticResource CaptionTextStyle}" />
+                                <Button Margin="0,8,0,0"
+                                        Width="120"
+                                        Content="{Binding ProviderIdentifierVisibilityLabel}"
+                                        Command="{Binding ToggleProviderIdentifierVisibilityCommand}" />
                             </StackPanel>
 
                             <StackPanel Grid.Column="2">
@@ -1984,7 +1988,16 @@
                                 <TextBox Text="{Binding PlaidClientName, UpdateSourceTrigger=PropertyChanged}" />
                                 <Button Margin="0,8,0,0" Content="Create Link Token" Command="{Binding CreatePlaidLinkTokenCommand}" />
                                 <Button Margin="0,8,0,0" Content="Launch Native Plaid Link" Command="{Binding LaunchNativePlaidLinkCommand}" />
-                                <TextBox Margin="0,8,0,0" Text="{Binding PlaidLinkToken}" IsReadOnly="True" />
+                                <TextBox Margin="0,8,0,0" Text="{Binding PlaidLinkTokenDisplay}" IsReadOnly="True" />
+                                <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+                                    <Button Margin="0,0,8,0"
+                                            Width="110"
+                                            Content="{Binding PlaidLinkTokenVisibilityLabel}"
+                                            Command="{Binding TogglePlaidLinkTokenVisibilityCommand}" />
+                                    <Button Width="92"
+                                            Content="Copy Token"
+                                            Command="{Binding CopyPlaidLinkTokenCommand}" />
+                                </StackPanel>
                                 <TextBlock Margin="0,4,0,0" Text="{Binding PlaidLinkTokenExpiresAt, StringFormat=Expires: {0}}" Style="{StaticResource CaptionTextStyle}" />
                                 <TextBox Margin="0,8,0,0" Text="{Binding PlaidPublicToken, UpdateSourceTrigger=PropertyChanged}" />
                                 <Button Margin="0,8,0,0" Content="Exchange Public Token" Command="{Binding ExchangePlaidPublicTokenCommand}" />
@@ -2079,11 +2092,21 @@
                             </Grid>
 
                             <TextBlock Margin="0,8,0,0"
-                                       Text="{Binding StripeSetupIntentId, StringFormat=Setup Intent: {0}}"
+                                       Text="{Binding StripeSetupIntentIdDisplay, StringFormat=Setup Intent: {0}}"
                                        Style="{StaticResource CaptionTextStyle}" />
                             <TextBlock Margin="0,4,0,0"
-                                       Text="{Binding StripeSetupCustomerId, StringFormat=Stripe Customer: {0}}"
+                                       Text="{Binding StripeSetupCustomerIdDisplay, StringFormat=Stripe Customer: {0}}"
                                        Style="{StaticResource CaptionTextStyle}" />
+                            <TextBox Margin="0,6,0,0" Text="{Binding StripeClientSecretDisplay}" IsReadOnly="True" />
+                            <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+                                <Button Margin="0,0,8,0"
+                                        Width="110"
+                                        Content="{Binding StripeClientSecretVisibilityLabel}"
+                                        Command="{Binding ToggleStripeClientSecretVisibilityCommand}" />
+                                <Button Width="100"
+                                        Content="Copy Secret"
+                                        Command="{Binding CopyStripeClientSecretCommand}" />
+                            </StackPanel>
 
                             <Grid Margin="0,12,0,0">
                                 <Grid.ColumnDefinitions>
@@ -2242,6 +2265,29 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Grid>
+                    </controls:CardControl>
+
+                    <controls:CardControl Margin="0,12,0,0"
+                                          Header="Security Event Log"
+                                          Subheader="Reveal/copy actions for sensitive values are recorded locally"
+                                          EmptyMessage="No security events yet."
+                                          IsLoading="{Binding IsLoading}"
+                                          IsEmpty="False">
+                        <DataGrid ItemsSource="{Binding SecurityAuditEvents}"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  IsReadOnly="True"
+                                  RowHeight="32"
+                                  GridLinesVisibility="Horizontal"
+                                  Background="{StaticResource PanelMutedBackgroundBrush}"
+                                  BorderBrush="{StaticResource PanelOutlineBrush}"
+                                  BorderThickness="1">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp}" Width="160" />
+                                <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
                     </controls:CardControl>
                 </StackPanel>
             </ScrollViewer>
