@@ -426,59 +426,89 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <WrapPanel Grid.Row="0">
-                        <Border Margin="0,0,12,12"
-                                Padding="12"
-                                Width="200"
-                                CornerRadius="10"
-                                Background="{StaticResource PanelMutedBackgroundBrush}"
-                                BorderBrush="{StaticResource PanelOutlineBrush}"
-                                BorderThickness="1">
-                            <StackPanel>
-                                <TextBlock Text="Total Income" Style="{StaticResource CaptionTextStyle}" />
-                                <TextBlock Margin="0,6,0,0" Text="{Binding TotalIncomeDisplay}" Style="{StaticResource BodyTextStyle}" />
-                            </StackPanel>
-                        </Border>
+                    <StackPanel Grid.Row="0">
+                        <WrapPanel>
+                            <Border Margin="0,0,12,12"
+                                    Padding="12"
+                                    Width="200"
+                                    CornerRadius="10"
+                                    Background="{StaticResource PanelMutedBackgroundBrush}"
+                                    BorderBrush="{StaticResource PanelOutlineBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Total Income" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock Margin="0,6,0,0" Text="{Binding TotalIncomeDisplay}" Style="{StaticResource BodyTextStyle}" />
+                                </StackPanel>
+                            </Border>
 
-                        <Border Margin="0,0,12,12"
-                                Padding="12"
-                                Width="200"
-                                CornerRadius="10"
-                                Background="{StaticResource PanelMutedBackgroundBrush}"
-                                BorderBrush="{StaticResource PanelOutlineBrush}"
-                                BorderThickness="1">
-                            <StackPanel>
-                                <TextBlock Text="Allocated" Style="{StaticResource CaptionTextStyle}" />
-                                <TextBlock Margin="0,6,0,0" Text="{Binding AllocatedDisplay}" Style="{StaticResource BodyTextStyle}" />
-                            </StackPanel>
-                        </Border>
+                            <Border Margin="0,0,12,12"
+                                    Padding="12"
+                                    Width="200"
+                                    CornerRadius="10"
+                                    Background="{StaticResource PanelMutedBackgroundBrush}"
+                                    BorderBrush="{StaticResource PanelOutlineBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Allocated" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock Margin="0,6,0,0" Text="{Binding AllocatedDisplay}" Style="{StaticResource BodyTextStyle}" />
+                                </StackPanel>
+                            </Border>
 
-                        <Border Margin="0,0,12,12"
-                                Padding="12"
-                                Width="200"
-                                CornerRadius="10"
-                                Background="{StaticResource PanelMutedBackgroundBrush}"
-                                BorderBrush="{StaticResource PanelOutlineBrush}"
-                                BorderThickness="1">
-                            <StackPanel>
-                                <TextBlock Text="Remaining" Style="{StaticResource CaptionTextStyle}" />
-                                <TextBlock Margin="0,6,0,0" Text="{Binding RemainingDisplay}" Style="{StaticResource BodyTextStyle}" />
-                            </StackPanel>
-                        </Border>
+                            <Border Margin="0,0,12,12"
+                                    Padding="12"
+                                    Width="200"
+                                    CornerRadius="10"
+                                    Background="{StaticResource PanelMutedBackgroundBrush}"
+                                    BorderBrush="{StaticResource PanelOutlineBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Remaining" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock Margin="0,6,0,0" Text="{Binding RemainingDisplay}" Style="{StaticResource BodyTextStyle}" />
+                                </StackPanel>
+                            </Border>
 
-                        <Border Margin="0,0,12,12"
+                            <Border Margin="0,0,12,12"
+                                    Padding="12"
+                                    Width="220"
+                                    CornerRadius="10"
+                                    Background="{StaticResource PanelMutedBackgroundBrush}"
+                                    BorderBrush="{StaticResource PanelOutlineBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Allocation Coverage" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock Margin="0,6,0,0" Text="{Binding AllocationPercentDisplay}" Style="{StaticResource BodyTextStyle}" />
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+
+                        <Border Margin="0,0,0,4"
                                 Padding="12"
-                                Width="220"
                                 CornerRadius="10"
                                 Background="{StaticResource PanelMutedBackgroundBrush}"
                                 BorderBrush="{StaticResource PanelOutlineBrush}"
                                 BorderThickness="1">
-                            <StackPanel>
-                                <TextBlock Text="Allocation Coverage" Style="{StaticResource CaptionTextStyle}" />
-                                <TextBlock Margin="0,6,0,0" Text="{Binding AllocationPercentDisplay}" Style="{StaticResource BodyTextStyle}" />
-                            </StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="{Binding BudgetEditorMessage}" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock Margin="0,8,0,4" Text="Total Income" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBox Width="240"
+                                             Text="{Binding DraftTotalIncome, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <Button Grid.Column="2"
+                                        Margin="12,0,0,0"
+                                        VerticalAlignment="Bottom"
+                                        Content="{Binding BudgetActionLabel}"
+                                        Command="{Binding SaveBudgetCommand}" />
+                            </Grid>
                         </Border>
-                    </WrapPanel>
+                    </StackPanel>
 
                     <DataGrid Grid.Row="1"
                               Margin="0,8,0,0"

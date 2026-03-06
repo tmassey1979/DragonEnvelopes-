@@ -8,6 +8,7 @@ namespace DragonEnvelopes.Desktop.ViewModels;
 public sealed partial class BudgetsViewModel : ObservableObject
 {
     private readonly IBudgetsDataService _budgetsDataService;
+    private Guid? _activeBudgetId;
 
     public BudgetsViewModel(IBudgetsDataService budgetsDataService)
     {
@@ -16,6 +17,7 @@ public sealed partial class BudgetsViewModel : ObservableObject
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         ApplyFiltersCommand = new AsyncRelayCommand(LoadAsync);
+        SaveBudgetCommand = new AsyncRelayCommand(SaveBudgetAsync);
 
         _ = LoadCommand.ExecuteAsync(null);
     }
@@ -23,6 +25,7 @@ public sealed partial class BudgetsViewModel : ObservableObject
     public IAsyncRelayCommand LoadCommand { get; }
 
     public IAsyncRelayCommand ApplyFiltersCommand { get; }
+    public IAsyncRelayCommand SaveBudgetCommand { get; }
 
     [ObservableProperty]
     private string selectedMonth = string.Empty;
@@ -58,6 +61,15 @@ public sealed partial class BudgetsViewModel : ObservableObject
     private string monthDisplay = "--";
 
     [ObservableProperty]
+    private decimal draftTotalIncome;
+
+    [ObservableProperty]
+    private string budgetEditorMessage = "Create monthly budget total.";
+
+    [ObservableProperty]
+    private string budgetActionLabel = "Create Budget";
+
+    [ObservableProperty]
     private ObservableCollection<BudgetAllocationEnvelopeViewModel> envelopeAllocations = [];
 
     private async Task LoadAsync(CancellationToken cancellationToken)
@@ -68,14 +80,15 @@ public sealed partial class BudgetsViewModel : ObservableObject
 
         try
         {
+            var budget = await _budgetsDataService.GetBudgetAsync(SelectedMonth, cancellationToken);
+            _activeBudgetId = budget?.Id;
+            DraftTotalIncome = budget?.TotalIncome ?? 0m;
+            BudgetActionLabel = budget is null ? "Create Budget" : "Update Budget";
+            BudgetEditorMessage = budget is null
+                ? "No budget exists for this month. Create one to enable full budget tracking."
+                : $"Editing budget for {budget.Month}.";
+
             var workspace = await _budgetsDataService.GetWorkspaceAsync(SelectedMonth, IncludeArchived, cancellationToken);
-            if (workspace is null)
-            {
-                ResetSummary();
-                EnvelopeAllocations.Clear();
-                IsEmpty = true;
-                return;
-            }
 
             var allocationPercent = workspace.TotalIncome == 0m
                 ? 0m
@@ -142,5 +155,47 @@ public sealed partial class BudgetsViewModel : ObservableObject
     private static string FormatCurrency(decimal amount)
     {
         return amount.ToString("$#,##0.00");
+    }
+
+    private async Task SaveBudgetAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(SelectedMonth) || !System.Text.RegularExpressions.Regex.IsMatch(SelectedMonth, @"^\d{4}-(0[1-9]|1[0-2])$"))
+        {
+            HasError = true;
+            ErrorMessage = "Month must be in yyyy-MM format.";
+            return;
+        }
+
+        if (DraftTotalIncome < 0m)
+        {
+            HasError = true;
+            ErrorMessage = "Total income cannot be negative.";
+            return;
+        }
+
+        try
+        {
+            if (_activeBudgetId.HasValue)
+            {
+                await _budgetsDataService.UpdateBudgetAsync(_activeBudgetId.Value, DraftTotalIncome, cancellationToken);
+                BudgetEditorMessage = "Budget updated.";
+            }
+            else
+            {
+                var created = await _budgetsDataService.CreateBudgetAsync(SelectedMonth, DraftTotalIncome, cancellationToken);
+                _activeBudgetId = created.Id;
+                BudgetEditorMessage = "Budget created.";
+            }
+
+            await LoadAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to save budget: {ex.Message}";
+        }
     }
 }
