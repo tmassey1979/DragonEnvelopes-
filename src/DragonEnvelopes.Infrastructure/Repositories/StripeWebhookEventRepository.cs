@@ -19,6 +19,32 @@ public sealed class StripeWebhookEventRepository(DragonEnvelopesDbContext dbCont
         await dbContext.StripeWebhookEvents.AddAsync(webhookEvent, cancellationToken);
     }
 
+    public async Task<int> DeleteProcessedBeforeAsync(
+        DateTimeOffset cutoffUtc,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedTake = take <= 0 ? 100 : take;
+        var ids = await dbContext.StripeWebhookEvents
+            .Where(x => x.ProcessedAtUtc < cutoffUtc)
+            .OrderBy(x => x.ProcessedAtUtc)
+            .Take(normalizedTake)
+            .Select(x => x.Id)
+            .ToArrayAsync(cancellationToken);
+        if (ids.Length == 0)
+        {
+            return 0;
+        }
+
+        var entities = await dbContext.StripeWebhookEvents
+            .Where(x => ids.Contains(x.Id))
+            .ToArrayAsync(cancellationToken);
+
+        dbContext.StripeWebhookEvents.RemoveRange(entities);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return entities.Length;
+    }
+
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return dbContext.SaveChangesAsync(cancellationToken);

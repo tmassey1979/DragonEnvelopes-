@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<IStripeWebhookService, StripeWebhookService>();
         services.AddScoped<IParentSpendNotificationService, ParentSpendNotificationService>();
         services.AddScoped<ISpendNotificationDispatchService, SpendNotificationDispatchService>();
+        services.AddScoped<IDataRetentionService, DataRetentionService>();
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IAutomationRuleService, AutomationRuleService>();
         services.AddScoped<ICategorizationRuleEngine, CategorizationRuleEngine>();

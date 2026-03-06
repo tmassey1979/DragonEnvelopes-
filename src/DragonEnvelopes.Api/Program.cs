@@ -159,12 +159,14 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddProviderClients(builder.Configuration);
 builder.Services.AddSingleton(Options.Create(BuildStripeWebhookOptions(builder.Configuration)));
+builder.Services.AddSingleton(Options.Create(BuildDataRetentionOptions(builder.Configuration)));
 builder.Services.AddSingleton(BuildKeycloakAdminOptions(builder.Configuration));
 builder.Services.AddHttpClient<IKeycloakProvisioningService, KeycloakProvisioningService>();
 if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddHostedService<RecurringBillAutoPostWorker>();
     builder.Services.AddHostedService<SpendNotificationDispatchWorker>();
+    builder.Services.AddHostedService<DataRetentionWorker>();
     builder.Services.AddHostedService<PlaidTransactionSyncWorker>();
     builder.Services.AddHostedService<PlaidBalanceRefreshWorker>();
 }
@@ -291,6 +293,26 @@ static StripeWebhookOptions BuildStripeWebhookOptions(IConfiguration configurati
         SignatureToleranceSeconds = int.TryParse(configuration["Stripe:Webhooks:SignatureToleranceSeconds"], out var tolerance)
             ? Math.Max(1, tolerance)
             : 300
+    };
+}
+
+static DataRetentionOptions BuildDataRetentionOptions(IConfiguration configuration)
+{
+    return new DataRetentionOptions
+    {
+        Enabled = !bool.TryParse(configuration["DataRetention:Enabled"], out var enabled) || enabled,
+        PollIntervalMinutes = int.TryParse(configuration["DataRetention:PollIntervalMinutes"], out var intervalMinutes)
+            ? Math.Max(5, intervalMinutes)
+            : 720,
+        BatchSize = int.TryParse(configuration["DataRetention:BatchSize"], out var batchSize)
+            ? Math.Max(1, batchSize)
+            : 500,
+        StripeWebhookRetentionDays = int.TryParse(configuration["DataRetention:StripeWebhookRetentionDays"], out var stripeDays)
+            ? Math.Max(1, stripeDays)
+            : 90,
+        SpendNotificationRetentionDays = int.TryParse(configuration["DataRetention:SpendNotificationRetentionDays"], out var notificationDays)
+            ? Math.Max(1, notificationDays)
+            : 90
     };
 }
 

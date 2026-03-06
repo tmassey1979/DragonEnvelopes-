@@ -8,5 +8,10 @@ public interface IStripeWebhookEventRepository
 
     Task AddAsync(StripeWebhookEvent webhookEvent, CancellationToken cancellationToken = default);
 
+    Task<int> DeleteProcessedBeforeAsync(
+        DateTimeOffset cutoffUtc,
+        int take,
+        CancellationToken cancellationToken = default);
+
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

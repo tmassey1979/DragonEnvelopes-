@@ -23,5 +23,10 @@ public interface ISpendNotificationEventRepository
         Guid eventId,
         CancellationToken cancellationToken = default);
 
+    Task<int> DeleteTerminalBeforeAsync(
+        DateTimeOffset cutoffUtc,
+        int take,
+        CancellationToken cancellationToken = default);
+
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }
