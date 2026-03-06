@@ -28,6 +28,30 @@ public sealed record FamilyFinancialStatusResponse(
     string? StripeCustomerId,
     DateTimeOffset? UpdatedAtUtc);
 
+public sealed record StripeWebhookActivityResponse(
+    string ProcessingStatus,
+    string EventType,
+    DateTimeOffset ProcessedAtUtc,
+    string? ErrorMessage);
+
+public sealed record SpendNotificationDispatchStatusResponse(
+    string Status,
+    int QueuedCount,
+    int SentCount,
+    int FailedCount,
+    DateTimeOffset? LastAttemptAtUtc,
+    string? LastErrorMessage);
+
+public sealed record ProviderActivityHealthResponse(
+    Guid FamilyId,
+    DateTimeOffset GeneratedAtUtc,
+    DateTimeOffset? LastPlaidTransactionSyncAtUtc,
+    DateTimeOffset? LastPlaidBalanceRefreshAtUtc,
+    int DriftedAccountCount,
+    decimal TotalAbsoluteDrift,
+    StripeWebhookActivityResponse? LastStripeWebhook,
+    SpendNotificationDispatchStatusResponse NotificationDispatch);
+
 public sealed record CreateStripeEnvelopeFinancialAccountRequest(
     string? DisplayName);
 

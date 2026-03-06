@@ -1972,6 +1972,67 @@
                     </controls:CardControl>
 
                     <controls:CardControl Margin="0,12,0,0"
+                                          Header="Provider Activity and Health"
+                                          Subheader="{Binding ProviderHealthStatusSummary}"
+                                          EmptyMessage="Provider activity metrics unavailable."
+                                          IsLoading="{Binding IsLoading}"
+                                          IsEmpty="False">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="14" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="{Binding ProviderActivityGeneratedAt, StringFormat=Generated: {0}}" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0" Text="{Binding ProviderHealthPlaidSyncAt, StringFormat=Plaid Sync: {0}}" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0" Text="{Binding ProviderHealthBalanceRefreshAt, StringFormat=Balance Refresh: {0}}" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0" Text="{Binding ProviderHealthDriftSummary}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                <TextBlock Margin="0,4,0,0" Text="{Binding ProviderHealthWebhookSummary}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="{Binding ProviderHealthNotificationSummary}"
+                                           Style="{StaticResource CaptionTextStyle}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Text="{Binding ProviderHealthNotificationError}"
+                                           TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Setter Property="FontSize" Value="12" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ProviderHealthNotificationHasError}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Setter Property="Foreground" Value="#FFD2A8" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <WrapPanel Margin="0,10,0,0">
+                                    <Button Margin="0,0,8,8"
+                                            Content="Refresh Panel"
+                                            Command="{Binding RefreshProviderActivityCommand}" />
+                                    <Button Margin="0,0,8,8"
+                                            Content="Retry Plaid Sync"
+                                            Command="{Binding SyncPlaidTransactionsCommand}" />
+                                    <Button Margin="0,0,8,8"
+                                            Content="Refresh Balances"
+                                            Command="{Binding RefreshPlaidBalancesCommand}" />
+                                    <Button Margin="0,0,8,8"
+                                            Content="Refresh Issuance"
+                                            Command="{Binding RefreshCardIssuanceCommand}" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Grid>
+                    </controls:CardControl>
+
+                    <controls:CardControl Margin="0,12,0,0"
                                           Header="Plaid"
                                           Subheader="Onboarding, account links, sync, and reconciliation"
                                           EmptyMessage="Plaid unavailable."

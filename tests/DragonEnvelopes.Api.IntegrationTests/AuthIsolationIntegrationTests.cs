@@ -412,6 +412,32 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Get_Own_Provider_Activity_Health()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/financial/provider-activity");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<ProviderActivityHealthResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(TestApiFactory.FamilyAId, payload!.FamilyId);
+        Assert.Equal("NoEvents", payload.NotificationDispatch.Status);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Get_FamilyB_Provider_Activity_Health()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/financial/provider-activity");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserA_Can_Get_Own_Notification_Preferences()
     {
         using var client = _factory.CreateClient();

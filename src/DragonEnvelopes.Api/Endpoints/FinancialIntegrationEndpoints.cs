@@ -4,6 +4,7 @@ using DragonEnvelopes.Api.CrossCutting.Auth;
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Financial;
 using DragonEnvelopes.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace DragonEnvelopes.Api.Endpoints;
 
@@ -140,6 +141,94 @@ internal static class FinancialIntegrationEndpoints
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
             .WithName("GetFamilyFinancialStatus")
+            .WithOpenApi();
+
+        v1.MapGet("/families/{familyId:guid}/financial/provider-activity", async (
+                Guid familyId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var plaidSyncCursor = await dbContext.PlaidSyncCursors
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.FamilyId == familyId, cancellationToken);
+
+                var latestPlaidBalanceRefreshAtUtc = await dbContext.PlaidBalanceSnapshots
+                    .AsNoTracking()
+                    .Where(x => x.FamilyId == familyId)
+                    .OrderByDescending(x => x.RefreshedAtUtc)
+                    .Select(static snapshot => (DateTimeOffset?)snapshot.RefreshedAtUtc)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                var driftedAccountCount = 0;
+                var totalAbsoluteDrift = 0m;
+                if (latestPlaidBalanceRefreshAtUtc.HasValue)
+                {
+                    var latestSnapshots = await dbContext.PlaidBalanceSnapshots
+                        .AsNoTracking()
+                        .Where(snapshot =>
+                            snapshot.FamilyId == familyId
+                            && snapshot.RefreshedAtUtc == latestPlaidBalanceRefreshAtUtc.Value)
+                        .ToArrayAsync(cancellationToken);
+
+                    driftedAccountCount = latestSnapshots.Count(snapshot => snapshot.DriftAmount != 0m);
+                    totalAbsoluteDrift = latestSnapshots.Sum(snapshot => decimal.Abs(snapshot.DriftAmount));
+                }
+
+                var lastWebhook = await dbContext.StripeWebhookEvents
+                    .AsNoTracking()
+                    .Where(x => x.FamilyId == familyId)
+                    .OrderByDescending(x => x.ProcessedAtUtc)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                var notificationEvents = await dbContext.SpendNotificationEvents
+                    .AsNoTracking()
+                    .Where(x => x.FamilyId == familyId)
+                    .ToArrayAsync(cancellationToken);
+
+                var queuedCount = notificationEvents.Count(x => x.Status.Equals("Queued", StringComparison.OrdinalIgnoreCase));
+                var sentCount = notificationEvents.Count(x => x.Status.Equals("Sent", StringComparison.OrdinalIgnoreCase));
+                var failedCount = notificationEvents.Count(x => x.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase));
+                var lastNotification = notificationEvents
+                    .OrderByDescending(x => x.LastAttemptAtUtc ?? x.CreatedAtUtc)
+                    .FirstOrDefault();
+                var dispatchStatus = failedCount > 0
+                    ? "Degraded"
+                    : queuedCount > 0
+                        ? "Pending"
+                        : sentCount > 0
+                            ? "Healthy"
+                            : "NoEvents";
+
+                return Results.Ok(new ProviderActivityHealthResponse(
+                    FamilyId: familyId,
+                    GeneratedAtUtc: DateTimeOffset.UtcNow,
+                    LastPlaidTransactionSyncAtUtc: plaidSyncCursor?.UpdatedAtUtc,
+                    LastPlaidBalanceRefreshAtUtc: latestPlaidBalanceRefreshAtUtc,
+                    DriftedAccountCount: driftedAccountCount,
+                    TotalAbsoluteDrift: totalAbsoluteDrift,
+                    LastStripeWebhook: lastWebhook is null
+                        ? null
+                        : new StripeWebhookActivityResponse(
+                            lastWebhook.ProcessingStatus,
+                            lastWebhook.EventType,
+                            lastWebhook.ProcessedAtUtc,
+                            TrimActivityError(lastWebhook.ErrorMessage)),
+                    NotificationDispatch: new SpendNotificationDispatchStatusResponse(
+                        dispatchStatus,
+                        queuedCount,
+                        sentCount,
+                        failedCount,
+                        lastNotification?.LastAttemptAtUtc ?? lastNotification?.CreatedAtUtc,
+                        TrimActivityError(lastNotification?.ErrorMessage))));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("GetProviderActivityHealth")
             .WithOpenApi();
 
         v1.MapPost("/families/{familyId:guid}/financial/plaid/link-token", async (
@@ -957,5 +1046,18 @@ internal static class FinancialIntegrationEndpoints
             .WithOpenApi();
 
         return v1;
+    }
+
+    private static string? TrimActivityError(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        return normalized.Length <= 240
+            ? normalized
+            : $"{normalized[..240]}...";
     }
 }

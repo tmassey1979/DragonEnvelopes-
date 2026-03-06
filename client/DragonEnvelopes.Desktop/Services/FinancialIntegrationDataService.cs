@@ -28,6 +28,15 @@ public sealed class FinancialIntegrationDataService : IFinancialIntegrationDataS
             cancellationToken);
     }
 
+    public Task<ProviderActivityHealthResponse> GetProviderActivityHealthAsync(CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        return GetAsync<ProviderActivityHealthResponse>(
+            $"families/{familyId}/financial/provider-activity",
+            "Loading provider activity health",
+            cancellationToken);
+    }
+
     public Task<NotificationPreferenceResponse> GetNotificationPreferenceAsync(CancellationToken cancellationToken = default)
     {
         var familyId = RequireFamilyId();

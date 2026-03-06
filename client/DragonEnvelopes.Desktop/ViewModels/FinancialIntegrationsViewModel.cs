@@ -43,9 +43,18 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         IssuanceSummary = "No physical card issuance selected.";
         CardControlSummary = "No spending controls loaded.";
         CardSpendEvaluationResult = "No card spend evaluation has been run.";
+        ProviderHealthStatusSummary = "Provider activity has not been loaded.";
+        ProviderActivityGeneratedAt = "-";
+        ProviderHealthPlaidSyncAt = "-";
+        ProviderHealthBalanceRefreshAt = "-";
+        ProviderHealthDriftSummary = "Drift metrics unavailable.";
+        ProviderHealthWebhookSummary = "No Stripe webhook events recorded.";
+        ProviderHealthNotificationSummary = "Notification dispatch status unavailable.";
+        ProviderHealthNotificationError = "-";
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         RefreshStatusCommand = new AsyncRelayCommand(RefreshStatusAsync);
+        RefreshProviderActivityCommand = new AsyncRelayCommand(RefreshProviderActivityAsync);
         SaveNotificationPreferenceCommand = new AsyncRelayCommand(SaveNotificationPreferenceAsync);
         CreatePlaidLinkTokenCommand = new AsyncRelayCommand(CreatePlaidLinkTokenAsync);
         LaunchNativePlaidLinkCommand = new AsyncRelayCommand(LaunchNativePlaidLinkAsync);
@@ -77,6 +86,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
 
     public IAsyncRelayCommand LoadCommand { get; }
     public IAsyncRelayCommand RefreshStatusCommand { get; }
+    public IAsyncRelayCommand RefreshProviderActivityCommand { get; }
     public IAsyncRelayCommand SaveNotificationPreferenceCommand { get; }
     public IAsyncRelayCommand CreatePlaidLinkTokenCommand { get; }
     public IAsyncRelayCommand LaunchNativePlaidLinkCommand { get; }
@@ -286,6 +296,33 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<SecurityAuditEventItemViewModel> securityAuditEvents = [];
 
+    [ObservableProperty]
+    private string providerHealthStatusSummary = string.Empty;
+
+    [ObservableProperty]
+    private string providerActivityGeneratedAt = string.Empty;
+
+    [ObservableProperty]
+    private string providerHealthPlaidSyncAt = string.Empty;
+
+    [ObservableProperty]
+    private string providerHealthBalanceRefreshAt = string.Empty;
+
+    [ObservableProperty]
+    private string providerHealthDriftSummary = string.Empty;
+
+    [ObservableProperty]
+    private string providerHealthWebhookSummary = string.Empty;
+
+    [ObservableProperty]
+    private string providerHealthNotificationSummary = string.Empty;
+
+    [ObservableProperty]
+    private string providerHealthNotificationError = string.Empty;
+
+    [ObservableProperty]
+    private bool providerHealthNotificationHasError;
+
     public bool HasEnvelopeSelection => SelectedEnvelope is not null;
     public bool HasCardSelection => SelectedCard is not null;
     public bool SelectedCardIsPhysical => SelectedCard?.IsPhysical == true;
@@ -374,6 +411,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             await LoadFamilyFinancialAccountsCoreAsync(ct);
             await LoadSelectedEnvelopeCoreAsync(ct);
             await LoadPlaidReconciliationCoreAsync(ct);
+            await LoadProviderActivityHealthCoreAsync(ct);
             StatusMessage = "Financial integrations loaded.";
         }, cancellationToken);
     }
@@ -384,7 +422,17 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         {
             await RefreshStatusCoreAsync(ct);
             await LoadNotificationPreferenceCoreAsync(ct);
+            await LoadProviderActivityHealthCoreAsync(ct);
             StatusMessage = "Integration status refreshed.";
+        }, cancellationToken);
+    }
+
+    private Task RefreshProviderActivityAsync(CancellationToken cancellationToken)
+    {
+        return RunOperationAsync("Refreshing provider activity health...", async ct =>
+        {
+            await LoadProviderActivityHealthCoreAsync(ct);
+            StatusMessage = "Provider activity health refreshed.";
         }, cancellationToken);
     }
 
@@ -526,6 +574,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             var sync = await _financialIntegrationDataService.SyncPlaidTransactionsAsync(ct);
             PlaidSyncSummary =
                 $"Pulled {sync.PulledCount}, inserted {sync.InsertedCount}, deduped {sync.DedupedCount}, unmapped {sync.UnmappedCount} at {FormatDate(sync.ProcessedAtUtc)}.";
+            await LoadProviderActivityHealthCoreAsync(ct);
             StatusMessage = "Plaid transaction sync completed.";
         }, cancellationToken);
     }
@@ -538,6 +587,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             PlaidBalanceRefreshSummary =
                 $"Refreshed {refresh.RefreshedCount} accounts, drifted {refresh.DriftedCount}, total drift {refresh.TotalAbsoluteDrift.ToString("$#,##0.00")} at {FormatDate(refresh.RefreshedAtUtc)}.";
             await LoadPlaidReconciliationCoreAsync(ct);
+            await LoadProviderActivityHealthCoreAsync(ct);
             StatusMessage = "Plaid balances refreshed.";
         }, cancellationToken);
     }
@@ -1014,6 +1064,39 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
                     account.ProviderBalance.ToString("$#,##0.00"),
                     account.DriftAmount.ToString("$#,##0.00"),
                     account.IsDrifted)));
+    }
+
+    private async Task LoadProviderActivityHealthCoreAsync(CancellationToken cancellationToken)
+    {
+        var activity = await _financialIntegrationDataService.GetProviderActivityHealthAsync(cancellationToken);
+
+        ProviderActivityGeneratedAt = FormatDate(activity.GeneratedAtUtc);
+        ProviderHealthPlaidSyncAt = activity.LastPlaidTransactionSyncAtUtc.HasValue
+            ? FormatDate(activity.LastPlaidTransactionSyncAtUtc.Value)
+            : "-";
+        ProviderHealthBalanceRefreshAt = activity.LastPlaidBalanceRefreshAtUtc.HasValue
+            ? FormatDate(activity.LastPlaidBalanceRefreshAtUtc.Value)
+            : "-";
+        ProviderHealthDriftSummary = $"Drifted accounts: {activity.DriftedAccountCount}. Total drift: {activity.TotalAbsoluteDrift.ToString("$#,##0.00")}.";
+
+        ProviderHealthWebhookSummary = activity.LastStripeWebhook is null
+            ? "No Stripe webhook events recorded."
+            : $"Last webhook {activity.LastStripeWebhook.EventType} -> {activity.LastStripeWebhook.ProcessingStatus} at {FormatDate(activity.LastStripeWebhook.ProcessedAtUtc)}.";
+
+        var dispatch = activity.NotificationDispatch;
+        var lastAttempt = dispatch.LastAttemptAtUtc.HasValue
+            ? FormatDate(dispatch.LastAttemptAtUtc.Value)
+            : "-";
+        ProviderHealthNotificationSummary =
+            $"Dispatch {dispatch.Status}. Queued {dispatch.QueuedCount}, sent {dispatch.SentCount}, failed {dispatch.FailedCount}. Last attempt {lastAttempt}.";
+
+        ProviderHealthNotificationHasError = dispatch.FailedCount > 0
+            || !string.IsNullOrWhiteSpace(dispatch.LastErrorMessage);
+        ProviderHealthNotificationError = string.IsNullOrWhiteSpace(dispatch.LastErrorMessage)
+            ? "-"
+            : dispatch.LastErrorMessage;
+
+        ProviderHealthStatusSummary = $"Generated {ProviderActivityGeneratedAt}.";
     }
 
     private async Task RunOperationAsync(

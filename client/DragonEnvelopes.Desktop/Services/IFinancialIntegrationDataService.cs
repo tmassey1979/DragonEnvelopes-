@@ -6,6 +6,8 @@ public interface IFinancialIntegrationDataService
 {
     Task<FamilyFinancialStatusResponse> GetFamilyFinancialStatusAsync(CancellationToken cancellationToken = default);
 
+    Task<ProviderActivityHealthResponse> GetProviderActivityHealthAsync(CancellationToken cancellationToken = default);
+
     Task<NotificationPreferenceResponse> GetNotificationPreferenceAsync(CancellationToken cancellationToken = default);
 
     Task<NotificationPreferenceResponse> UpdateNotificationPreferenceAsync(
