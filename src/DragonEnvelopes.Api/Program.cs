@@ -16,6 +16,7 @@ using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Contracts.Imports;
+using DragonEnvelopes.Contracts.Onboarding;
 using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Contracts.Reports;
 using DragonEnvelopes.Contracts.Runtime;
@@ -713,6 +714,51 @@ v1.MapPost("/families/{familyId:guid}/invites/{inviteId:guid}/cancel", async (
     .WithName("CancelFamilyInvite")
     .WithOpenApi();
 
+v1.MapGet("/families/{familyId:guid}/onboarding", async (
+        Guid familyId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
+        IOnboardingProfileService onboardingProfileService,
+        CancellationToken cancellationToken) =>
+    {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
+        var onboarding = await onboardingProfileService.GetOrCreateAsync(familyId, cancellationToken);
+        return Results.Ok(MapOnboardingProfileResponse(onboarding));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("GetFamilyOnboardingProfile")
+    .WithOpenApi();
+
+v1.MapPut("/families/{familyId:guid}/onboarding", async (
+        Guid familyId,
+        UpdateOnboardingProfileRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
+        IOnboardingProfileService onboardingProfileService,
+        CancellationToken cancellationToken) =>
+    {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
+        var onboarding = await onboardingProfileService.UpdateAsync(
+            familyId,
+            request.AccountsCompleted,
+            request.EnvelopesCompleted,
+            request.BudgetCompleted,
+            cancellationToken);
+
+        return Results.Ok(MapOnboardingProfileResponse(onboarding));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("UpdateFamilyOnboardingProfile")
+    .WithOpenApi();
+
 v1.MapPost("/families/invites/accept", async (
         AcceptFamilyInviteRequest request,
         IFamilyInviteService familyInviteService,
@@ -1385,6 +1431,20 @@ static FamilyInviteResponse MapFamilyInviteResponse(FamilyInviteDetails invite)
         invite.ExpiresAtUtc,
         invite.AcceptedAtUtc,
         invite.CancelledAtUtc);
+}
+
+static OnboardingProfileResponse MapOnboardingProfileResponse(OnboardingProfileDetails profile)
+{
+    return new OnboardingProfileResponse(
+        profile.Id,
+        profile.FamilyId,
+        profile.AccountsCompleted,
+        profile.EnvelopesCompleted,
+        profile.BudgetCompleted,
+        profile.IsCompleted,
+        profile.CreatedAtUtc,
+        profile.UpdatedAtUtc,
+        profile.CompletedAtUtc);
 }
 
 static AccountResponse MapAccountResponse(AccountDetails account)

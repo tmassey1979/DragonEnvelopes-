@@ -6,6 +6,7 @@ namespace DragonEnvelopes.Infrastructure.Persistence;
 public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbContext> options) : DbContext(options)
 {
     public DbSet<Family> Families => Set<Family>();
+    public DbSet<OnboardingProfile> OnboardingProfiles => Set<OnboardingProfile>();
     public DbSet<FamilyInvite> FamilyInvites => Set<FamilyInvite>();
     public DbSet<FamilyMember> FamilyMembers => Set<FamilyMember>();
     public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();

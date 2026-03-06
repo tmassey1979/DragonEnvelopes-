@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using DragonEnvelopes.Contracts.Families;
+using DragonEnvelopes.Contracts.Onboarding;
 using DragonEnvelopes.Contracts.Runtime;
 using DragonEnvelopes.Contracts.Transactions;
 using DragonEnvelopes.Domain.Entities;
@@ -274,6 +275,51 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
 
         var finalHasExecution = await repo.HasExecutionAsync(TestApiFactory.RecurringBillAId, dueDate);
         Assert.True(finalHasExecution);
+    }
+
+    [Fact]
+    public async Task UserA_Can_Get_And_Update_Own_Onboarding_Profile()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var getResponse = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/onboarding");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+        var initial = await getResponse.Content.ReadFromJsonAsync<OnboardingProfileResponse>();
+        Assert.NotNull(initial);
+        Assert.False(initial!.AccountsCompleted);
+        Assert.False(initial.EnvelopesCompleted);
+        Assert.False(initial.BudgetCompleted);
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/onboarding", new
+        {
+            accountsCompleted = true,
+            envelopesCompleted = true,
+            budgetCompleted = true
+        });
+
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        var updated = await updateResponse.Content.ReadFromJsonAsync<OnboardingProfileResponse>();
+        Assert.NotNull(updated);
+        Assert.True(updated!.IsCompleted);
+        Assert.NotNull(updated.CompletedAtUtc);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Update_FamilyB_Onboarding_Profile()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/onboarding", new
+        {
+            accountsCompleted = true,
+            envelopesCompleted = true,
+            budgetCompleted = true
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, updateResponse.StatusCode);
     }
 
     [Fact]
