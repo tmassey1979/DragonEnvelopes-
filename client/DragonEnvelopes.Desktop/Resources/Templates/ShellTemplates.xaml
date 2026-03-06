@@ -1972,4 +1972,120 @@
             </Grid>
         </Grid>
     </DataTemplate>
+
+    <DataTemplate DataType="{x:Type viewModels:OnboardingWizardViewModel}">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Onboarding Wizard" Style="{StaticResource DisplayTextStyle}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Text="Guided setup for accounts, envelopes, and initial budget configuration."
+                               Style="{StaticResource BodyTextStyle}" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Content="Reload"
+                        Command="{Binding LoadCommand}" />
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Padding="12"
+                    CornerRadius="10"
+                    Background="#4B311B"
+                    BorderBrush="#A35D2F"
+                    BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource CaptionTextStyle}" Foreground="#FFD2A8" />
+            </Border>
+
+            <Grid Grid.Row="2" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="260" />
+                    <ColumnDefinition Width="14" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <controls:CardControl Grid.Column="0"
+                                      Header="Steps"
+                                      Subheader="{Binding StatusMessage}"
+                                      EmptyMessage="No steps available."
+                                      IsLoading="{Binding IsLoading}"
+                                      IsEmpty="False">
+                    <StackPanel>
+                        <TextBlock Text="{Binding ProgressPercent, StringFormat=Progress: {0}%}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+
+                        <ItemsControl Margin="0,10,0,0"
+                                      ItemsSource="{Binding Steps}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,8"
+                                            Padding="8"
+                                            CornerRadius="8"
+                                            Background="{StaticResource PanelMutedBackgroundBrush}"
+                                            BorderBrush="{StaticResource PanelOutlineBrush}"
+                                            BorderThickness="1">
+                                        <TextBlock Text="{Binding}" Style="{StaticResource CaptionTextStyle}" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </controls:CardControl>
+
+                <controls:CardControl Grid.Column="2"
+                                      Header="{Binding CurrentStepTitle}"
+                                      Subheader="Wizard shell"
+                                      EmptyMessage="Step content unavailable."
+                                      IsLoading="{Binding IsLoading}"
+                                      IsEmpty="False">
+                    <StackPanel>
+                        <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource BodyTextStyle}" />
+                        <TextBlock Margin="0,12,0,0"
+                                   Text="Detailed data-entry fields are implemented in the next onboarding story."
+                                   Style="{StaticResource CaptionTextStyle}" />
+
+                        <StackPanel Margin="0,18,0,0"
+                                    Orientation="Horizontal">
+                            <Button Margin="0,0,8,0"
+                                    Content="Back"
+                                    IsEnabled="{Binding CanGoBack}"
+                                    Command="{Binding PreviousStepCommand}" />
+                            <Button Margin="0,0,8,0"
+                                    Content="Mark Complete"
+                                    Command="{Binding MarkCurrentStepCompleteCommand}" />
+                            <Button Margin="0,0,8,0"
+                                    Content="Next"
+                                    IsEnabled="{Binding CanGoNext}"
+                                    Command="{Binding NextStepCommand}" />
+                            <Button Content="Cancel"
+                                    Command="{Binding CancelCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </controls:CardControl>
+            </Grid>
+        </Grid>
+    </DataTemplate>
 </ResourceDictionary>

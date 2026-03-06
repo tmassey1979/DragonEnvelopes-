@@ -75,6 +75,13 @@ public sealed class RouteRegistry : IRouteRegistry
                 TopBarSubtitle: "CSV transaction import workflow",
                 Content: new ImportsViewModel(new ImportsDataService(apiClient, familyContext))),
             new RouteDefinition(
+                Key: "/onboarding",
+                Label: "Onboarding",
+                Glyph: "\uE8FD",
+                TopBarSubtitle: "Guided initial financial setup",
+                Content: new OnboardingWizardViewModel(new OnboardingDataService(apiClient, familyContext)),
+                RequiredRole: "Parent"),
+            new RouteDefinition(
                 Key: "/settings",
                 Label: "Settings",
                 Glyph: "\uE713",
