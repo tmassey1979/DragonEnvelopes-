@@ -83,6 +83,11 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         RefreshStripeProvisioningCommand = new AsyncRelayCommand(RefreshStripeProvisioningAsync);
         ProvisionSelectedStripeAccountsCommand = new AsyncRelayCommand(ProvisionSelectedStripeAccountsAsync);
         RetryFailedStripeProvisioningCommand = new AsyncRelayCommand(RetryFailedStripeProvisioningAsync);
+        RefreshCardProvisioningCommand = new AsyncRelayCommand(RefreshCardProvisioningAsync);
+        IssueOnboardingVirtualCardCommand = new AsyncRelayCommand(IssueOnboardingVirtualCardAsync);
+        IssueOnboardingPhysicalCardCommand = new AsyncRelayCommand(IssueOnboardingPhysicalCardAsync);
+        RefreshOnboardingCardIssuanceCommand = new AsyncRelayCommand(RefreshOnboardingCardIssuanceAsync);
+        SaveOnboardingCardControlsCommand = new AsyncRelayCommand(SaveOnboardingCardControlsAsync);
         CreateInviteCommand = new AsyncRelayCommand(CreateFamilyInviteAsync);
         CancelInviteCommand = new AsyncRelayCommand(CancelFamilyInviteAsync);
         AddAccountRowCommand = new RelayCommand(AddAccountRow);
@@ -128,6 +133,11 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public IAsyncRelayCommand RefreshStripeProvisioningCommand { get; }
     public IAsyncRelayCommand ProvisionSelectedStripeAccountsCommand { get; }
     public IAsyncRelayCommand RetryFailedStripeProvisioningCommand { get; }
+    public IAsyncRelayCommand RefreshCardProvisioningCommand { get; }
+    public IAsyncRelayCommand IssueOnboardingVirtualCardCommand { get; }
+    public IAsyncRelayCommand IssueOnboardingPhysicalCardCommand { get; }
+    public IAsyncRelayCommand RefreshOnboardingCardIssuanceCommand { get; }
+    public IAsyncRelayCommand SaveOnboardingCardControlsCommand { get; }
     public IAsyncRelayCommand CreateInviteCommand { get; }
     public IAsyncRelayCommand CancelInviteCommand { get; }
     public IRelayCommand AddAccountRowCommand { get; }
@@ -302,6 +312,60 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     [ObservableProperty]
     private string stripeProvisioningMessage = "Select envelopes to provision Stripe financial accounts.";
 
+    [ObservableProperty]
+    private ObservableCollection<OnboardingStripeProvisioningItemViewModel> cardProvisioningEnvelopeOptions = [];
+
+    [ObservableProperty]
+    private OnboardingStripeProvisioningItemViewModel? selectedCardProvisioningEnvelope;
+
+    [ObservableProperty]
+    private ObservableCollection<PaymentCardItemViewModel> onboardingIssuedCards = [];
+
+    [ObservableProperty]
+    private PaymentCardItemViewModel? selectedOnboardingIssuedCard;
+
+    [ObservableProperty]
+    private string cardProvisioningMessage = "Issue envelope-linked cards after Stripe account provisioning.";
+
+    [ObservableProperty]
+    private string onboardingVirtualCardholderName = string.Empty;
+
+    [ObservableProperty]
+    private string onboardingPhysicalCardholderName = string.Empty;
+
+    [ObservableProperty]
+    private string onboardingShipmentRecipientName = string.Empty;
+
+    [ObservableProperty]
+    private string onboardingShipmentAddressLine1 = string.Empty;
+
+    [ObservableProperty]
+    private string onboardingShipmentAddressLine2 = string.Empty;
+
+    [ObservableProperty]
+    private string onboardingShipmentCity = string.Empty;
+
+    [ObservableProperty]
+    private string onboardingShipmentStateOrProvince = string.Empty;
+
+    [ObservableProperty]
+    private string onboardingShipmentPostalCode = string.Empty;
+
+    [ObservableProperty]
+    private string onboardingShipmentCountryCode = "US";
+
+    [ObservableProperty]
+    private string onboardingIssuanceSummary = "No physical issuance selected.";
+
+    [ObservableProperty]
+    private string onboardingCardControlDailyLimit = string.Empty;
+
+    [ObservableProperty]
+    private string onboardingCardControlCategories = string.Empty;
+
+    [ObservableProperty]
+    private string onboardingCardControlMerchants = string.Empty;
+
     public string CurrentStepTitle => Steps[Math.Clamp(CurrentStepIndex, 0, Steps.Count - 1)];
 
     public bool IsFirstStep => CurrentStepIndex == 0;
@@ -315,6 +379,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public bool IsBudgetStep => CurrentStepIndex == 4;
     public bool IsPlaidStep => CurrentStepIndex == 5;
     public bool IsStripeStep => CurrentStepIndex == 6;
+    public bool IsCardsStep => CurrentStepIndex == 7;
 
     public int ProgressPercent
     {
@@ -486,6 +551,13 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
                 nextStripeAccounts = true;
                 break;
             case 7:
+                if (!ComputeCardsCompletedFromState())
+                {
+                    HasError = true;
+                    ErrorMessage = "Issue at least one card before completing this step.";
+                    return;
+                }
+
                 nextCards = true;
                 break;
             case 8:
@@ -897,6 +969,8 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
 
         StripeProvisioningMessage = $"Provisioned {provisioned} envelope account(s); failed {failed}. Retry failed rows as needed.";
         StatusMessage = StripeProvisioningMessage;
+        RefreshCardProvisioningEnvelopeOptions();
+        await LoadCardsForSelectedEnvelopeAsync(cancellationToken);
     }
 
     private Task RetryFailedStripeProvisioningAsync(CancellationToken cancellationToken)
@@ -907,6 +981,194 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         }
 
         return ProvisionSelectedStripeAccountsAsync(cancellationToken);
+    }
+
+    private async Task RefreshCardProvisioningAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        try
+        {
+            await LoadCardsForSelectedEnvelopeAsync(cancellationToken);
+            StatusMessage = "Card provisioning state refreshed.";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to refresh card provisioning state: {ex.Message}";
+        }
+    }
+
+    private async Task IssueOnboardingVirtualCardAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_financialIntegrationDataService is null || SelectedCardProvisioningEnvelope is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select a provisioned envelope before issuing a card.";
+            return;
+        }
+
+        try
+        {
+            var card = await _financialIntegrationDataService.IssueVirtualCardAsync(
+                SelectedCardProvisioningEnvelope.EnvelopeId,
+                string.IsNullOrWhiteSpace(OnboardingVirtualCardholderName) ? null : OnboardingVirtualCardholderName.Trim(),
+                cancellationToken);
+
+            CardProvisioningMessage = $"Virtual card issued for {SelectedCardProvisioningEnvelope.EnvelopeName}.";
+            StatusMessage = CardProvisioningMessage;
+
+            await LoadCardsForSelectedEnvelopeAsync(cancellationToken, card.Id);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to issue virtual card: {ex.Message}";
+        }
+    }
+
+    private async Task IssueOnboardingPhysicalCardAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_financialIntegrationDataService is null || SelectedCardProvisioningEnvelope is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select a provisioned envelope before issuing a physical card.";
+            return;
+        }
+
+        var validationError = ValidatePhysicalCardShippingDraft();
+        if (!string.IsNullOrWhiteSpace(validationError))
+        {
+            HasError = true;
+            ErrorMessage = validationError;
+            return;
+        }
+
+        try
+        {
+            var issuance = await _financialIntegrationDataService.IssuePhysicalCardAsync(
+                SelectedCardProvisioningEnvelope.EnvelopeId,
+                string.IsNullOrWhiteSpace(OnboardingPhysicalCardholderName) ? null : OnboardingPhysicalCardholderName.Trim(),
+                OnboardingShipmentRecipientName.Trim(),
+                OnboardingShipmentAddressLine1.Trim(),
+                string.IsNullOrWhiteSpace(OnboardingShipmentAddressLine2) ? null : OnboardingShipmentAddressLine2.Trim(),
+                OnboardingShipmentCity.Trim(),
+                OnboardingShipmentStateOrProvince.Trim(),
+                OnboardingShipmentPostalCode.Trim(),
+                OnboardingShipmentCountryCode.Trim().ToUpperInvariant(),
+                cancellationToken);
+
+            OnboardingIssuanceSummary =
+                $"Shipment {issuance.Shipment.Status} via {issuance.Shipment.Carrier ?? "pending carrier"}.";
+            CardProvisioningMessage = $"Physical card issued for {SelectedCardProvisioningEnvelope.EnvelopeName}.";
+            StatusMessage = CardProvisioningMessage;
+
+            await LoadCardsForSelectedEnvelopeAsync(cancellationToken, issuance.Card.Id);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to issue physical card: {ex.Message}";
+        }
+    }
+
+    private async Task RefreshOnboardingCardIssuanceAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_financialIntegrationDataService is null
+            || SelectedCardProvisioningEnvelope is null
+            || SelectedOnboardingIssuedCard is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select an issued card to refresh issuance status.";
+            return;
+        }
+
+        if (!SelectedOnboardingIssuedCard.IsPhysical)
+        {
+            OnboardingIssuanceSummary = "Selected card is virtual.";
+            StatusMessage = OnboardingIssuanceSummary;
+            return;
+        }
+
+        try
+        {
+            var issuance = await _financialIntegrationDataService.RefreshPhysicalCardIssuanceAsync(
+                SelectedCardProvisioningEnvelope.EnvelopeId,
+                SelectedOnboardingIssuedCard.Id,
+                cancellationToken);
+            OnboardingIssuanceSummary =
+                $"Shipment {issuance.Shipment.Status} via {issuance.Shipment.Carrier ?? "pending carrier"}, tracking {issuance.Shipment.TrackingNumber ?? "n/a"}.";
+            StatusMessage = "Physical card issuance status refreshed.";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to refresh issuance status: {ex.Message}";
+        }
+    }
+
+    private async Task SaveOnboardingCardControlsAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_financialIntegrationDataService is null
+            || SelectedCardProvisioningEnvelope is null
+            || SelectedOnboardingIssuedCard is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select an issued card before saving control defaults.";
+            return;
+        }
+
+        decimal? dailyLimit = null;
+        if (!string.IsNullOrWhiteSpace(OnboardingCardControlDailyLimit))
+        {
+            if (!decimal.TryParse(
+                    OnboardingCardControlDailyLimit,
+                    NumberStyles.Number | NumberStyles.AllowCurrencySymbol,
+                    CultureInfo.CurrentCulture,
+                    out var parsedDailyLimit)
+                || parsedDailyLimit < 0m)
+            {
+                HasError = true;
+                ErrorMessage = "Daily limit must be a non-negative number.";
+                return;
+            }
+
+            dailyLimit = parsedDailyLimit;
+        }
+
+        try
+        {
+            var updated = await _financialIntegrationDataService.UpsertCardControlsAsync(
+                SelectedCardProvisioningEnvelope.EnvelopeId,
+                SelectedOnboardingIssuedCard.Id,
+                dailyLimit,
+                ParseDelimitedValues(OnboardingCardControlCategories),
+                ParseDelimitedValues(OnboardingCardControlMerchants),
+                cancellationToken);
+
+            OnboardingCardControlDailyLimit = updated.DailyLimitAmount?.ToString("0.##") ?? string.Empty;
+            OnboardingCardControlCategories = string.Join(", ", updated.AllowedMerchantCategories);
+            OnboardingCardControlMerchants = string.Join(", ", updated.AllowedMerchantNames);
+            StatusMessage = "Card control defaults saved.";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to save card control defaults: {ex.Message}";
+        }
     }
 
     private async Task CreateFamilyInviteAsync(CancellationToken cancellationToken)
@@ -1105,6 +1367,95 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         StripeProvisioningMessage = items.Count == 0
             ? "No eligible envelopes available for Stripe provisioning."
             : $"Loaded {items.Count} envelope(s) for Stripe provisioning.";
+
+        RefreshCardProvisioningEnvelopeOptions();
+        await LoadCardsForSelectedEnvelopeAsync(cancellationToken);
+    }
+
+    private void RefreshCardProvisioningEnvelopeOptions()
+    {
+        var previouslySelectedId = SelectedCardProvisioningEnvelope?.EnvelopeId;
+        CardProvisioningEnvelopeOptions = new ObservableCollection<OnboardingStripeProvisioningItemViewModel>(
+            StripeProvisioningItems
+                .Where(static item => item.IsProvisioned)
+                .OrderBy(static item => item.EnvelopeName, StringComparer.OrdinalIgnoreCase));
+
+        SelectedCardProvisioningEnvelope = previouslySelectedId.HasValue
+            ? CardProvisioningEnvelopeOptions.FirstOrDefault(item => item.EnvelopeId == previouslySelectedId.Value)
+            : CardProvisioningEnvelopeOptions.FirstOrDefault();
+
+        if (SelectedCardProvisioningEnvelope is null)
+        {
+            OnboardingIssuedCards = [];
+            SelectedOnboardingIssuedCard = null;
+            CardProvisioningMessage = "Provision an envelope account before issuing cards.";
+            OnboardingIssuanceSummary = "No physical issuance selected.";
+        }
+    }
+
+    private async Task LoadCardsForSelectedEnvelopeAsync(
+        CancellationToken cancellationToken,
+        Guid? selectedCardId = null)
+    {
+        if (_financialIntegrationDataService is null || SelectedCardProvisioningEnvelope is null)
+        {
+            OnboardingIssuedCards = [];
+            SelectedOnboardingIssuedCard = null;
+            OnboardingIssuanceSummary = "No physical issuance selected.";
+            return;
+        }
+
+        var cards = await _financialIntegrationDataService.ListEnvelopeCardsAsync(
+            SelectedCardProvisioningEnvelope.EnvelopeId,
+            cancellationToken);
+        OnboardingIssuedCards = new ObservableCollection<PaymentCardItemViewModel>(
+            cards
+                .OrderByDescending(static card => card.CreatedAtUtc)
+                .Select(MapOnboardingCard));
+
+        SelectedOnboardingIssuedCard = selectedCardId.HasValue
+            ? OnboardingIssuedCards.FirstOrDefault(card => card.Id == selectedCardId.Value)
+            : OnboardingIssuedCards.FirstOrDefault();
+
+        if (SelectedOnboardingIssuedCard is null)
+        {
+            OnboardingIssuanceSummary = "No cards issued for the selected envelope yet.";
+            OnboardingCardControlDailyLimit = string.Empty;
+            OnboardingCardControlCategories = string.Empty;
+            OnboardingCardControlMerchants = string.Empty;
+            return;
+        }
+
+        if (SelectedOnboardingIssuedCard.IsPhysical)
+        {
+            var issuance = await _financialIntegrationDataService.GetPhysicalCardIssuanceAsync(
+                SelectedCardProvisioningEnvelope.EnvelopeId,
+                SelectedOnboardingIssuedCard.Id,
+                cancellationToken);
+            OnboardingIssuanceSummary = issuance is null
+                ? "No issuance status was returned for this physical card."
+                : $"Shipment {issuance.Shipment.Status} via {issuance.Shipment.Carrier ?? "pending carrier"}.";
+        }
+        else
+        {
+            OnboardingIssuanceSummary = "Selected card is virtual.";
+        }
+
+        var controls = await _financialIntegrationDataService.GetCardControlsAsync(
+            SelectedCardProvisioningEnvelope.EnvelopeId,
+            SelectedOnboardingIssuedCard.Id,
+            cancellationToken);
+        if (controls is null)
+        {
+            OnboardingCardControlDailyLimit = string.Empty;
+            OnboardingCardControlCategories = string.Empty;
+            OnboardingCardControlMerchants = string.Empty;
+            return;
+        }
+
+        OnboardingCardControlDailyLimit = controls.DailyLimitAmount?.ToString("0.##") ?? string.Empty;
+        OnboardingCardControlCategories = string.Join(", ", controls.AllowedMerchantCategories);
+        OnboardingCardControlMerchants = string.Join(", ", controls.AllowedMerchantNames);
     }
 
     private async Task RefreshPlaidAccountLinksAsync(CancellationToken cancellationToken)
@@ -1577,6 +1928,11 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         StatusMessage = "Onboarding canceled for now. You can resume later.";
     }
 
+    partial void OnSelectedCardProvisioningEnvelopeChanged(OnboardingStripeProvisioningItemViewModel? value)
+    {
+        _ = RefreshCardProvisioningCommand.ExecuteAsync(null);
+    }
+
     partial void OnCurrentStepIndexChanged(int value)
     {
         OnPropertyChanged(nameof(CurrentStepTitle));
@@ -1591,6 +1947,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         OnPropertyChanged(nameof(IsBudgetStep));
         OnPropertyChanged(nameof(IsPlaidStep));
         OnPropertyChanged(nameof(IsStripeStep));
+        OnPropertyChanged(nameof(IsCardsStep));
         RefreshStepItems();
     }
 
@@ -1862,6 +2219,74 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
                 .Select(static segment => segment.Length == 1
                     ? segment.ToUpperInvariant()
                     : char.ToUpperInvariant(segment[0]) + segment[1..].ToLowerInvariant()));
+    }
+
+    private string? ValidatePhysicalCardShippingDraft()
+    {
+        if (string.IsNullOrWhiteSpace(OnboardingShipmentRecipientName))
+        {
+            return "Physical card recipient name is required.";
+        }
+
+        if (string.IsNullOrWhiteSpace(OnboardingShipmentAddressLine1))
+        {
+            return "Physical card address line 1 is required.";
+        }
+
+        if (string.IsNullOrWhiteSpace(OnboardingShipmentCity))
+        {
+            return "Physical card city is required.";
+        }
+
+        if (string.IsNullOrWhiteSpace(OnboardingShipmentStateOrProvince))
+        {
+            return "Physical card state/province is required.";
+        }
+
+        if (string.IsNullOrWhiteSpace(OnboardingShipmentPostalCode))
+        {
+            return "Physical card postal code is required.";
+        }
+
+        if (string.IsNullOrWhiteSpace(OnboardingShipmentCountryCode) || OnboardingShipmentCountryCode.Trim().Length != 2)
+        {
+            return "Physical card country code must be a 2-letter value.";
+        }
+
+        return null;
+    }
+
+    private static IReadOnlyList<string> ParseDelimitedValues(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return [];
+        }
+
+        return input
+            .Split([',', ';', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static PaymentCardItemViewModel MapOnboardingCard(DragonEnvelopes.Contracts.Financial.EnvelopePaymentCardResponse card)
+    {
+        return new PaymentCardItemViewModel(
+            card.Id,
+            card.EnvelopeId,
+            card.Provider,
+            SensitiveValueMasker.MaskIdentifier(card.ProviderCardId),
+            card.Type,
+            card.Status,
+            string.IsNullOrWhiteSpace(card.Brand) ? "-" : card.Brand,
+            string.IsNullOrWhiteSpace(card.Last4) ? "-" : card.Last4,
+            card.CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+            card.UpdatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"));
+    }
+
+    private bool ComputeCardsCompletedFromState()
+    {
+        return OnboardingIssuedCards.Count > 0;
     }
 
     partial void OnFamilyProfileCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));

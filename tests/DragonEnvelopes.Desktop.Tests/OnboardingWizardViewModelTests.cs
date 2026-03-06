@@ -65,7 +65,7 @@ public sealed class OnboardingWizardViewModelTests
                 BudgetCompleted: true,
                 PlaidCompleted: true,
                 StripeAccountsCompleted: true,
-                CardsCompleted: false,
+                CardsCompleted: true,
                 AutomationCompleted: false,
                 IsCompleted: false,
                 CreatedAtUtc: now,
@@ -79,21 +79,21 @@ public sealed class OnboardingWizardViewModelTests
         var viewModel = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
         await EnsureLoadedAsync(viewModel);
 
-        Assert.Equal(7, viewModel.CurrentStepIndex);
-        Assert.Equal("Cards", viewModel.CurrentStepTitle);
+        Assert.Equal(8, viewModel.CurrentStepIndex);
+        Assert.Equal("Automation Rules", viewModel.CurrentStepTitle);
 
         await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null);
         await WaitForIdleAsync(viewModel);
 
         Assert.False(viewModel.HasError);
         Assert.Equal(1, onboardingDataService.UpdateProfileCallCount);
-        Assert.True(viewModel.CardsCompleted);
-        Assert.Equal(8, viewModel.CurrentStepIndex);
-        Assert.Equal("Progress saved.", viewModel.StatusMessage);
-        Assert.Equal(89, viewModel.ProgressPercent);
-        Assert.True(viewModel.StepItems[7].IsCompleted);
-        Assert.False(viewModel.StepItems[7].IsCurrent);
-        Assert.True(viewModel.StepItems[8].IsCurrent);
+        Assert.True(viewModel.AutomationCompleted);
+        Assert.Equal(9, viewModel.CurrentStepIndex);
+        Assert.Equal("Onboarding marked complete.", viewModel.StatusMessage);
+        Assert.Equal(100, viewModel.ProgressPercent);
+        Assert.True(viewModel.StepItems[8].IsCompleted);
+        Assert.False(viewModel.StepItems[8].IsCurrent);
+        Assert.True(viewModel.StepItems[9].IsCurrent);
     }
 
     [Fact]
@@ -327,6 +327,48 @@ public sealed class OnboardingWizardViewModelTests
 
         Assert.True(viewModel.HasError);
         Assert.Equal("Provision at least one Stripe financial account before completing this step.", viewModel.ErrorMessage);
+        Assert.Equal(0, onboardingDataService.UpdateProfileCallCount);
+    }
+
+    [Fact]
+    public async Task MarkCurrentStepComplete_CardsStep_Requires_Issued_Card()
+    {
+        var familyId = Guid.Parse("10000000-0000-0000-0000-000000000009");
+        var now = DateTimeOffset.UtcNow;
+        var onboardingDataService = new FakeOnboardingDataService(familyId)
+        {
+            Profile = new OnboardingProfileData(
+                Guid.NewGuid(),
+                familyId,
+                MembersCompleted: true,
+                AccountsCompleted: true,
+                EnvelopesCompleted: true,
+                BudgetCompleted: true,
+                PlaidCompleted: true,
+                StripeAccountsCompleted: true,
+                CardsCompleted: false,
+                AutomationCompleted: false,
+                IsCompleted: false,
+                CreatedAtUtc: now,
+                UpdatedAtUtc: now,
+                CompletedAtUtc: null)
+        };
+
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-1", "Owner One", "owner1@test.dev", "Parent"));
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-2", "Owner Two", "owner2@test.dev", "Adult"));
+
+        var viewModel = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
+        await EnsureLoadedAsync(viewModel);
+
+        Assert.Equal(7, viewModel.CurrentStepIndex);
+        Assert.Empty(viewModel.OnboardingIssuedCards);
+
+        await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.True(viewModel.HasError);
+        Assert.Equal("Issue at least one card before completing this step.", viewModel.ErrorMessage);
         Assert.Equal(0, onboardingDataService.UpdateProfileCallCount);
     }
 

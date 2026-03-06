@@ -3272,6 +3272,174 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Margin="0,12,0,0"
+                                Padding="10"
+                                CornerRadius="8"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCardsStep}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel>
+                                <TextBlock Text="Card Provisioning" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding CardProvisioningMessage}"
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CaptionTextStyle}" />
+
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1.6*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox Grid.Column="0"
+                                              ItemsSource="{Binding CardProvisioningEnvelopeOptions}"
+                                              SelectedItem="{Binding SelectedCardProvisioningEnvelope, Mode=TwoWay}"
+                                              DisplayMemberPath="EnvelopeName" />
+                                    <Button Grid.Column="2"
+                                            Content="Refresh Card State"
+                                            Command="{Binding RefreshCardProvisioningCommand}" />
+                                </Grid>
+
+                                <TextBlock Margin="0,10,0,0"
+                                           Text="Virtual Card"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding OnboardingVirtualCardholderName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Grid.Column="2"
+                                            Content="Issue Virtual Card"
+                                            Command="{Binding IssueOnboardingVirtualCardCommand}" />
+                                </Grid>
+
+                                <TextBlock Margin="0,10,0,0"
+                                           Text="Physical Card Shipping"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding OnboardingPhysicalCardholderName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Grid.Column="2"
+                                             Text="{Binding OnboardingShipmentRecipientName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Grid.Column="4"
+                                             Text="{Binding OnboardingShipmentAddressLine1, UpdateSourceTrigger=PropertyChanged}" />
+                                </Grid>
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding OnboardingShipmentAddressLine2, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Grid.Column="2"
+                                             Text="{Binding OnboardingShipmentCity, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Grid.Column="4"
+                                             Text="{Binding OnboardingShipmentStateOrProvince, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Grid.Column="6"
+                                             Text="{Binding OnboardingShipmentPostalCode, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Grid.Column="8"
+                                             Width="54"
+                                             Text="{Binding OnboardingShipmentCountryCode, UpdateSourceTrigger=PropertyChanged}" />
+                                </Grid>
+                                <Button Margin="0,8,0,0"
+                                        Width="180"
+                                        Content="Issue Physical Card"
+                                        Command="{Binding IssueOnboardingPhysicalCardCommand}" />
+
+                                <TextBlock Margin="0,10,0,0"
+                                           Text="Issued Cards"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <ListBox Margin="0,6,0,0"
+                                         ItemsSource="{Binding OnboardingIssuedCards}"
+                                         SelectedItem="{Binding SelectedOnboardingIssuedCard, Mode=TwoWay}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding ProviderCardId}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding Type}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding Status}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                                <TextBlock Grid.Column="3"
+                                                           Text="{Binding Last4}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+
+                                <TextBlock Margin="0,8,0,0"
+                                           Text="{Binding OnboardingIssuanceSummary}"
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <Button Margin="0,8,0,0"
+                                        Width="190"
+                                        Content="Refresh Issuance Status"
+                                        Command="{Binding RefreshOnboardingCardIssuanceCommand}" />
+
+                                <TextBlock Margin="0,10,0,0"
+                                           Text="Card Control Defaults"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding OnboardingCardControlDailyLimit, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Grid.Column="2"
+                                             Text="{Binding OnboardingCardControlCategories, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Grid.Column="4"
+                                             Text="{Binding OnboardingCardControlMerchants, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Grid.Column="6"
+                                            Content="Save Defaults"
+                                            Command="{Binding SaveOnboardingCardControlsCommand}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
                         <StackPanel Margin="0,18,0,0"
                                     Orientation="Horizontal">
                             <Button Margin="0,0,8,0"
