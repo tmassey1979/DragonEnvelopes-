@@ -93,6 +93,46 @@ public sealed class FinancialIntegrationService(
             setupIntent.ClientSecret);
     }
 
+    public async Task<ProviderSecretsRewrapDetails> RewrapProviderSecretsAsync(
+        Guid familyId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureFamilyExistsAsync(familyId, cancellationToken);
+
+        var profile = await financialProfileRepository.GetByFamilyIdForUpdateAsync(familyId, cancellationToken);
+        if (profile is null)
+        {
+            return new ProviderSecretsRewrapDetails(
+                familyId,
+                ProfileFound: false,
+                FieldsTouched: 0,
+                ExecutedAtUtc: clock.UtcNow);
+        }
+
+        var fieldsTouched = 0;
+        if (!string.IsNullOrWhiteSpace(profile.PlaidAccessToken))
+        {
+            fieldsTouched += 1;
+        }
+
+        if (!string.IsNullOrWhiteSpace(profile.StripeCustomerId))
+        {
+            fieldsTouched += 1;
+        }
+
+        if (!string.IsNullOrWhiteSpace(profile.StripeDefaultPaymentMethodId))
+        {
+            fieldsTouched += 1;
+        }
+
+        await financialProfileRepository.SaveChangesAsync(cancellationToken);
+        return new ProviderSecretsRewrapDetails(
+            familyId,
+            ProfileFound: true,
+            FieldsTouched: fieldsTouched,
+            ExecutedAtUtc: clock.UtcNow);
+    }
+
     private async Task EnsureFamilyExistsAsync(Guid familyId, CancellationToken cancellationToken)
     {
         if (!await financialProfileRepository.FamilyExistsAsync(familyId, cancellationToken))

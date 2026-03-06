@@ -414,6 +414,89 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Rewrap_Own_Family_Provider_Secrets()
+    {
+        var familyId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.Families.Add(new Family(familyId, "Secret Rewrap Family", now));
+            dbContext.FamilyMembers.Add(new FamilyMember(
+                Guid.NewGuid(),
+                familyId,
+                TestApiFactory.UserAId,
+                "User A Rewrap",
+                EmailAddress.Parse($"rewrap-{familyId:N}@test.dev"),
+                MemberRole.Parent));
+            dbContext.FamilyFinancialProfiles.Add(new FamilyFinancialProfile(
+                Guid.NewGuid(),
+                familyId,
+                plaidItemId: "item_legacy",
+                plaidAccessToken: "legacy_plaid_token",
+                stripeCustomerId: "legacy_cus",
+                stripeDefaultPaymentMethodId: "legacy_pm",
+                createdAtUtc: now,
+                updatedAtUtc: now));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsync(
+            $"/api/v1/families/{familyId}/financial/security/rewrap-provider-secrets",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<RewrapProviderSecretsResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(familyId, payload!.FamilyId);
+        Assert.True(payload.ProfileFound);
+        Assert.Equal(3, payload.FieldsTouched);
+
+        await using var verifyScope = _factory.Services.CreateAsyncScope();
+        var verifyDbContext = verifyScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var stored = await verifyDbContext.FamilyFinancialProfiles
+            .AsNoTracking()
+            .SingleAsync(x => x.FamilyId == familyId);
+        Assert.StartsWith("enc:v1:", stored.PlaidAccessToken, StringComparison.Ordinal);
+        Assert.StartsWith("enc:v1:", stored.StripeCustomerId, StringComparison.Ordinal);
+        Assert.StartsWith("enc:v1:", stored.StripeDefaultPaymentMethodId, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Rewrap_FamilyB_Provider_Secrets()
+    {
+        var familyId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.Families.Add(new Family(familyId, "Forbidden Rewrap Family", now));
+            dbContext.FamilyMembers.Add(new FamilyMember(
+                Guid.NewGuid(),
+                familyId,
+                TestApiFactory.UserBId,
+                "User B Rewrap",
+                EmailAddress.Parse($"rewrap-b-{familyId:N}@test.dev"),
+                MemberRole.Parent));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsync(
+            $"/api/v1/families/{familyId}/financial/security/rewrap-provider-secrets",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserA_Can_Get_Own_Provider_Activity_Health()
     {
         using var client = _factory.CreateClient();

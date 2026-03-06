@@ -24,4 +24,8 @@ public interface IFinancialIntegrationService
         string email,
         string? name,
         CancellationToken cancellationToken = default);
+
+    Task<ProviderSecretsRewrapDetails> RewrapProviderSecretsAsync(
+        Guid familyId,
+        CancellationToken cancellationToken = default);
 }

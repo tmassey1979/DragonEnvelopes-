@@ -215,6 +215,32 @@ internal static class FinancialIntegrationEndpoints
             .WithName("GetFamilyFinancialStatus")
             .WithOpenApi();
 
+        v1.MapPost("/families/{familyId:guid}/financial/security/rewrap-provider-secrets", async (
+                Guid familyId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IFinancialIntegrationService financialIntegrationService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var result = await financialIntegrationService.RewrapProviderSecretsAsync(
+                    familyId,
+                    cancellationToken);
+
+                return Results.Ok(new RewrapProviderSecretsResponse(
+                    result.FamilyId,
+                    result.ProfileFound,
+                    result.FieldsTouched,
+                    result.ExecutedAtUtc));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("RewrapProviderSecrets")
+            .WithOpenApi();
+
         v1.MapGet("/families/{familyId:guid}/financial/provider-activity", async (
                 Guid familyId,
                 ClaimsPrincipal user,

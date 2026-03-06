@@ -17,3 +17,9 @@ public sealed record StripeSetupIntentDetails(
     string CustomerId,
     string SetupIntentId,
     string ClientSecret);
+
+public sealed record ProviderSecretsRewrapDetails(
+    Guid FamilyId,
+    bool ProfileFound,
+    int FieldsTouched,
+    DateTimeOffset ExecutedAtUtc);

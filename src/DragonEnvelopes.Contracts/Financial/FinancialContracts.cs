@@ -28,6 +28,12 @@ public sealed record FamilyFinancialStatusResponse(
     string? StripeCustomerId,
     DateTimeOffset? UpdatedAtUtc);
 
+public sealed record RewrapProviderSecretsResponse(
+    Guid FamilyId,
+    bool ProfileFound,
+    int FieldsTouched,
+    DateTimeOffset ExecutedAtUtc);
+
 public sealed record StripeWebhookActivityResponse(
     string ProcessingStatus,
     string EventType,
