@@ -39,3 +39,20 @@ public sealed record EnvelopeFinancialAccountResponse(
     string ProviderFinancialAccountId,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc);
+
+public sealed record CreateVirtualEnvelopeCardRequest(
+    string? CardholderName);
+
+public sealed record EnvelopePaymentCardResponse(
+    Guid Id,
+    Guid FamilyId,
+    Guid EnvelopeId,
+    Guid EnvelopeFinancialAccountId,
+    string Provider,
+    string ProviderCardId,
+    string Type,
+    string Status,
+    string? Brand,
+    string? Last4,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc);

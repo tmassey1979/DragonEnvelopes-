@@ -210,6 +210,189 @@ internal static class FinancialIntegrationEndpoints
             .WithName("ListFamilyFinancialAccounts")
             .WithOpenApi();
 
+        v1.MapPost("/families/{familyId:guid}/envelopes/{envelopeId:guid}/cards/virtual", async (
+                Guid familyId,
+                Guid envelopeId,
+                CreateVirtualEnvelopeCardRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopePaymentCardService envelopePaymentCardService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var card = await envelopePaymentCardService.IssueVirtualCardAsync(
+                    familyId,
+                    envelopeId,
+                    request.CardholderName,
+                    cancellationToken);
+                return Results.Ok(new EnvelopePaymentCardResponse(
+                    card.Id,
+                    card.FamilyId,
+                    card.EnvelopeId,
+                    card.EnvelopeFinancialAccountId,
+                    card.Provider,
+                    card.ProviderCardId,
+                    card.Type,
+                    card.Status,
+                    card.Brand,
+                    card.Last4,
+                    card.CreatedAtUtc,
+                    card.UpdatedAtUtc));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("IssueVirtualEnvelopeCard")
+            .WithOpenApi();
+
+        v1.MapGet("/families/{familyId:guid}/envelopes/{envelopeId:guid}/cards", async (
+                Guid familyId,
+                Guid envelopeId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopePaymentCardService envelopePaymentCardService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var cards = await envelopePaymentCardService.ListByEnvelopeAsync(
+                    familyId,
+                    envelopeId,
+                    cancellationToken);
+                return Results.Ok(cards.Select(card => new EnvelopePaymentCardResponse(
+                    card.Id,
+                    card.FamilyId,
+                    card.EnvelopeId,
+                    card.EnvelopeFinancialAccountId,
+                    card.Provider,
+                    card.ProviderCardId,
+                    card.Type,
+                    card.Status,
+                    card.Brand,
+                    card.Last4,
+                    card.CreatedAtUtc,
+                    card.UpdatedAtUtc)).ToArray());
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("ListEnvelopeCards")
+            .WithOpenApi();
+
+        v1.MapPost("/families/{familyId:guid}/envelopes/{envelopeId:guid}/cards/{cardId:guid}/freeze", async (
+                Guid familyId,
+                Guid envelopeId,
+                Guid cardId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopePaymentCardService envelopePaymentCardService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var card = await envelopePaymentCardService.FreezeCardAsync(
+                    familyId,
+                    envelopeId,
+                    cardId,
+                    cancellationToken);
+                return Results.Ok(new EnvelopePaymentCardResponse(
+                    card.Id,
+                    card.FamilyId,
+                    card.EnvelopeId,
+                    card.EnvelopeFinancialAccountId,
+                    card.Provider,
+                    card.ProviderCardId,
+                    card.Type,
+                    card.Status,
+                    card.Brand,
+                    card.Last4,
+                    card.CreatedAtUtc,
+                    card.UpdatedAtUtc));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("FreezeEnvelopeCard")
+            .WithOpenApi();
+
+        v1.MapPost("/families/{familyId:guid}/envelopes/{envelopeId:guid}/cards/{cardId:guid}/unfreeze", async (
+                Guid familyId,
+                Guid envelopeId,
+                Guid cardId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopePaymentCardService envelopePaymentCardService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var card = await envelopePaymentCardService.UnfreezeCardAsync(
+                    familyId,
+                    envelopeId,
+                    cardId,
+                    cancellationToken);
+                return Results.Ok(new EnvelopePaymentCardResponse(
+                    card.Id,
+                    card.FamilyId,
+                    card.EnvelopeId,
+                    card.EnvelopeFinancialAccountId,
+                    card.Provider,
+                    card.ProviderCardId,
+                    card.Type,
+                    card.Status,
+                    card.Brand,
+                    card.Last4,
+                    card.CreatedAtUtc,
+                    card.UpdatedAtUtc));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("UnfreezeEnvelopeCard")
+            .WithOpenApi();
+
+        v1.MapPost("/families/{familyId:guid}/envelopes/{envelopeId:guid}/cards/{cardId:guid}/cancel", async (
+                Guid familyId,
+                Guid envelopeId,
+                Guid cardId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopePaymentCardService envelopePaymentCardService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var card = await envelopePaymentCardService.CancelCardAsync(
+                    familyId,
+                    envelopeId,
+                    cardId,
+                    cancellationToken);
+                return Results.Ok(new EnvelopePaymentCardResponse(
+                    card.Id,
+                    card.FamilyId,
+                    card.EnvelopeId,
+                    card.EnvelopeFinancialAccountId,
+                    card.Provider,
+                    card.ProviderCardId,
+                    card.Type,
+                    card.Status,
+                    card.Brand,
+                    card.Last4,
+                    card.CreatedAtUtc,
+                    card.UpdatedAtUtc));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("CancelEnvelopeCard")
+            .WithOpenApi();
+
         return v1;
     }
 }

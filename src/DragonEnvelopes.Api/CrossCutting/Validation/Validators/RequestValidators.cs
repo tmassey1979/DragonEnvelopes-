@@ -153,6 +153,15 @@ public sealed class CreateStripeEnvelopeFinancialAccountRequestValidator : Abstr
     }
 }
 
+public sealed class CreateVirtualEnvelopeCardRequestValidator : AbstractValidator<CreateVirtualEnvelopeCardRequest>
+{
+    public CreateVirtualEnvelopeCardRequestValidator()
+    {
+        RuleFor(static request => request.CardholderName)
+            .MaximumLength(128);
+    }
+}
+
 public sealed class OnboardingBootstrapRequestValidator : AbstractValidator<OnboardingBootstrapRequest>
 {
     public OnboardingBootstrapRequestValidator()

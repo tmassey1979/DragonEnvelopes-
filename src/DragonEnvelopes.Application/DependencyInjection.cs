@@ -16,6 +16,7 @@ public static class DependencyInjection
         services.AddScoped<IOnboardingBootstrapService, OnboardingBootstrapService>();
         services.AddScoped<IFinancialIntegrationService, FinancialIntegrationService>();
         services.AddScoped<IEnvelopeFinancialAccountService, EnvelopeFinancialAccountService>();
+        services.AddScoped<IEnvelopePaymentCardService, EnvelopePaymentCardService>();
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IAutomationRuleService, AutomationRuleService>();
         services.AddScoped<ICategorizationRuleEngine, CategorizationRuleEngine>();

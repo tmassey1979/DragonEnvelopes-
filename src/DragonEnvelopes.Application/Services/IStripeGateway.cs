@@ -18,4 +18,16 @@ public interface IStripeGateway
         Guid envelopeId,
         string displayName,
         CancellationToken cancellationToken = default);
+
+    Task<(string ProviderCardId, string Status, string? Brand, string? Last4)> CreateVirtualCardAsync(
+        string financialAccountId,
+        Guid familyId,
+        Guid envelopeId,
+        string cardholderName,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateCardStatusAsync(
+        string providerCardId,
+        string status,
+        CancellationToken cancellationToken = default);
 }

@@ -158,6 +158,115 @@ public sealed class StripeGateway(
         return accountId;
     }
 
+    public async Task<(string ProviderCardId, string Status, string? Brand, string? Last4)> CreateVirtualCardAsync(
+        string financialAccountId,
+        Guid familyId,
+        Guid envelopeId,
+        string cardholderName,
+        CancellationToken cancellationToken = default)
+    {
+        var configured = options.Value;
+        EnsureConfigured(configured);
+
+        if (string.IsNullOrWhiteSpace(financialAccountId))
+        {
+            throw new DomainValidationException("Stripe financial account id is required.");
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(configured.ApiBaseUrl, "/v1/issuing/cards"));
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", configured.SecretKey);
+        request.Content = new FormUrlEncodedContent(
+        [
+            new KeyValuePair<string, string>("type", "virtual"),
+            new KeyValuePair<string, string>("currency", "usd"),
+            new KeyValuePair<string, string>("metadata[family_id]", familyId.ToString()),
+            new KeyValuePair<string, string>("metadata[envelope_id]", envelopeId.ToString()),
+            new KeyValuePair<string, string>("metadata[financial_account_id]", financialAccountId.Trim()),
+            new KeyValuePair<string, string>("metadata[cardholder_name]", string.IsNullOrWhiteSpace(cardholderName) ? envelopeId.ToString() : cardholderName.Trim())
+        ]);
+
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogError(
+                "Stripe virtual card issuance failed. Status={StatusCode}, Body={Body}",
+                (int)response.StatusCode,
+                payload);
+            throw new DomainValidationException("Stripe virtual card issuance failed.");
+        }
+
+        using var doc = JsonDocument.Parse(payload);
+        var cardId = doc.RootElement.TryGetProperty("id", out var cardIdElement)
+            ? cardIdElement.GetString()
+            : null;
+        var status = doc.RootElement.TryGetProperty("status", out var statusElement)
+            ? statusElement.GetString()
+            : "active";
+        string? brand = null;
+        string? last4 = null;
+
+        if (doc.RootElement.TryGetProperty("last4", out var last4Element))
+        {
+            last4 = last4Element.GetString();
+        }
+
+        if (doc.RootElement.TryGetProperty("brand", out var brandElement))
+        {
+            brand = brandElement.GetString();
+        }
+
+        if (string.IsNullOrWhiteSpace(cardId))
+        {
+            throw new DomainValidationException("Stripe virtual card response was invalid.");
+        }
+
+        return (
+            cardId,
+            string.IsNullOrWhiteSpace(status) ? "active" : status,
+            brand,
+            last4);
+    }
+
+    public async Task UpdateCardStatusAsync(
+        string providerCardId,
+        string status,
+        CancellationToken cancellationToken = default)
+    {
+        var configured = options.Value;
+        EnsureConfigured(configured);
+
+        if (string.IsNullOrWhiteSpace(providerCardId))
+        {
+            throw new DomainValidationException("Provider card id is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            throw new DomainValidationException("Card status is required.");
+        }
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            BuildUri(configured.ApiBaseUrl, $"/v1/issuing/cards/{Uri.EscapeDataString(providerCardId.Trim())}"));
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", configured.SecretKey);
+        request.Content = new FormUrlEncodedContent(
+        [
+            new KeyValuePair<string, string>("status", status.Trim().ToLowerInvariant())
+        ]);
+
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogError(
+                "Stripe card status update failed. Status={StatusCode}, Body={Body}",
+                (int)response.StatusCode,
+                payload);
+            throw new DomainValidationException("Stripe card status update failed.");
+        }
+    }
+
     private static void EnsureConfigured(StripeGatewayOptions options)
     {
         if (!options.Enabled)
