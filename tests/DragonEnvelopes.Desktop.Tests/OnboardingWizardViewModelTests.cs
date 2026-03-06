@@ -37,6 +37,12 @@ public sealed class OnboardingWizardViewModelTests
         Assert.Equal(2, viewModel.CurrentStepIndex);
         Assert.Equal("Envelopes", viewModel.CurrentStepTitle);
         Assert.Equal(25, viewModel.ProgressPercent);
+        Assert.Equal(9, viewModel.StepItems.Count);
+        Assert.True(viewModel.StepItems[0].IsCompleted);
+        Assert.True(viewModel.StepItems[1].IsCompleted);
+        Assert.False(viewModel.StepItems[2].IsCompleted);
+        Assert.True(viewModel.StepItems[2].IsCurrent);
+        Assert.Equal("Current", viewModel.StepItems[2].StatusLabel);
     }
 
     [Fact]
@@ -78,6 +84,9 @@ public sealed class OnboardingWizardViewModelTests
         Assert.Equal(6, viewModel.CurrentStepIndex);
         Assert.Equal("Progress saved.", viewModel.StatusMessage);
         Assert.Equal(63, viewModel.ProgressPercent);
+        Assert.True(viewModel.StepItems[4].IsCompleted);
+        Assert.False(viewModel.StepItems[4].IsCurrent);
+        Assert.True(viewModel.StepItems[6].IsCurrent);
     }
 
     [Fact]

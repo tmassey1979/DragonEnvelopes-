@@ -38,10 +38,15 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         RemoveEnvelopeRowCommand = new RelayCommand<OnboardingEnvelopeDraftViewModel?>(RemoveEnvelopeRow);
         SubmitBootstrapCommand = new AsyncRelayCommand(SubmitBootstrapAsync);
         CancelCommand = new RelayCommand(Cancel);
+        foreach (var (title, index) in StepTitles.Select(static (title, index) => (title, index)))
+        {
+            StepItems.Add(new OnboardingStepItemViewModel(index, title));
+        }
         AddAccountRow();
         AddEnvelopeRow();
         BudgetMonth = DateTime.UtcNow.ToString("yyyy-MM");
         BudgetIncome = "0";
+        RefreshStepItems();
         _ = LoadCommand.ExecuteAsync(null);
     }
 
@@ -62,6 +67,9 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
 
     [ObservableProperty]
     private int currentStepIndex;
+
+    [ObservableProperty]
+    private ObservableCollection<OnboardingStepItemViewModel> stepItems = [];
 
     [ObservableProperty]
     private bool membersCompleted;
@@ -382,6 +390,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         OnPropertyChanged(nameof(IsLastStep));
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(CanGoNext));
+        RefreshStepItems();
     }
 
     private static int DetermineCurrentStepIndex(OnboardingProfileData profile)
@@ -440,6 +449,32 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         CardsCompleted = profile.CardsCompleted;
         AutomationCompleted = profile.AutomationCompleted;
         CurrentStepIndex = DetermineCurrentStepIndex(profile);
+        RefreshStepItems();
+    }
+
+    private void RefreshStepItems()
+    {
+        foreach (var step in StepItems)
+        {
+            step.IsCompleted = IsStepCompleted(step.Index);
+            step.IsCurrent = step.Index == CurrentStepIndex;
+        }
+    }
+
+    private bool IsStepCompleted(int stepIndex)
+    {
+        return stepIndex switch
+        {
+            0 => MembersCompleted,
+            1 => AccountsCompleted,
+            2 => EnvelopesCompleted,
+            3 => BudgetCompleted,
+            4 => PlaidCompleted,
+            5 => StripeAccountsCompleted,
+            6 => CardsCompleted,
+            7 => AutomationCompleted,
+            _ => CountCompletedMilestones() == MilestoneCount
+        };
     }
 
     private int CountCompletedMilestones()

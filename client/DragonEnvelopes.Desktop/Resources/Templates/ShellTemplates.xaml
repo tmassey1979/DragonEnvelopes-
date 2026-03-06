@@ -2614,16 +2614,43 @@
                                    Style="{StaticResource CaptionTextStyle}" />
 
                         <ItemsControl Margin="0,10,0,0"
-                                      ItemsSource="{Binding Steps}">
+                                      ItemsSource="{Binding StepItems}">
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate>
+                                <DataTemplate DataType="{x:Type viewModels:OnboardingStepItemViewModel}">
                                     <Border Margin="0,0,0,8"
                                             Padding="8"
                                             CornerRadius="8"
                                             Background="{StaticResource PanelMutedBackgroundBrush}"
                                             BorderBrush="{StaticResource PanelOutlineBrush}"
                                             BorderThickness="1">
-                                        <TextBlock Text="{Binding}" Style="{StaticResource CaptionTextStyle}" />
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="{StaticResource PanelMutedBackgroundBrush}" />
+                                                <Setter Property="BorderBrush" Value="{StaticResource PanelOutlineBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                        <Setter Property="Background" Value="#213427" />
+                                                        <Setter Property="BorderBrush" Value="#4A8C63" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                        <Setter Property="Background" Value="#4B311B" />
+                                                        <Setter Property="BorderBrush" Value="#A35D2F" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding Title}"
+                                                       Style="{StaticResource CaptionTextStyle}" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding StatusLabel}"
+                                                       Style="{StaticResource CaptionTextStyle}" />
+                                        </Grid>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
