@@ -60,12 +60,12 @@ public sealed class OnboardingWizardViewModelTests
                 Guid.NewGuid(),
                 familyId,
                 MembersCompleted: true,
-                AccountsCompleted: true,
-                EnvelopesCompleted: true,
-                BudgetCompleted: true,
-                PlaidCompleted: true,
-                StripeAccountsCompleted: true,
-                CardsCompleted: true,
+                AccountsCompleted: false,
+                EnvelopesCompleted: false,
+                BudgetCompleted: false,
+                PlaidCompleted: false,
+                StripeAccountsCompleted: false,
+                CardsCompleted: false,
                 AutomationCompleted: false,
                 IsCompleted: false,
                 CreatedAtUtc: now,
@@ -79,21 +79,21 @@ public sealed class OnboardingWizardViewModelTests
         var viewModel = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
         await EnsureLoadedAsync(viewModel);
 
-        Assert.Equal(8, viewModel.CurrentStepIndex);
-        Assert.Equal("Automation Rules", viewModel.CurrentStepTitle);
+        Assert.Equal(2, viewModel.CurrentStepIndex);
+        Assert.Equal("Accounts", viewModel.CurrentStepTitle);
 
         await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null);
         await WaitForIdleAsync(viewModel);
 
         Assert.False(viewModel.HasError);
         Assert.Equal(1, onboardingDataService.UpdateProfileCallCount);
-        Assert.True(viewModel.AutomationCompleted);
-        Assert.Equal(9, viewModel.CurrentStepIndex);
-        Assert.Equal("Onboarding marked complete.", viewModel.StatusMessage);
-        Assert.Equal(100, viewModel.ProgressPercent);
-        Assert.True(viewModel.StepItems[8].IsCompleted);
-        Assert.False(viewModel.StepItems[8].IsCurrent);
-        Assert.True(viewModel.StepItems[9].IsCurrent);
+        Assert.True(viewModel.AccountsCompleted);
+        Assert.Equal(3, viewModel.CurrentStepIndex);
+        Assert.Equal("Progress saved.", viewModel.StatusMessage);
+        Assert.Equal(33, viewModel.ProgressPercent);
+        Assert.True(viewModel.StepItems[2].IsCompleted);
+        Assert.False(viewModel.StepItems[2].IsCurrent);
+        Assert.True(viewModel.StepItems[3].IsCurrent);
     }
 
     [Fact]
@@ -369,6 +369,48 @@ public sealed class OnboardingWizardViewModelTests
 
         Assert.True(viewModel.HasError);
         Assert.Equal("Issue at least one card before completing this step.", viewModel.ErrorMessage);
+        Assert.Equal(0, onboardingDataService.UpdateProfileCallCount);
+    }
+
+    [Fact]
+    public async Task MarkCurrentStepComplete_AutomationStep_Requires_At_Least_One_Rule()
+    {
+        var familyId = Guid.Parse("10000000-0000-0000-0000-000000000010");
+        var now = DateTimeOffset.UtcNow;
+        var onboardingDataService = new FakeOnboardingDataService(familyId)
+        {
+            Profile = new OnboardingProfileData(
+                Guid.NewGuid(),
+                familyId,
+                MembersCompleted: true,
+                AccountsCompleted: true,
+                EnvelopesCompleted: true,
+                BudgetCompleted: true,
+                PlaidCompleted: true,
+                StripeAccountsCompleted: true,
+                CardsCompleted: true,
+                AutomationCompleted: false,
+                IsCompleted: false,
+                CreatedAtUtc: now,
+                UpdatedAtUtc: now,
+                CompletedAtUtc: null)
+        };
+
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-1", "Owner One", "owner1@test.dev", "Parent"));
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-2", "Owner Two", "owner2@test.dev", "Adult"));
+
+        var viewModel = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
+        await EnsureLoadedAsync(viewModel);
+
+        Assert.Equal(8, viewModel.CurrentStepIndex);
+        Assert.Empty(viewModel.OnboardingAutomationRules);
+
+        await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.True(viewModel.HasError);
+        Assert.Equal("Create at least one automation rule before completing this step.", viewModel.ErrorMessage);
         Assert.Equal(0, onboardingDataService.UpdateProfileCallCount);
     }
 

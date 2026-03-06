@@ -97,7 +97,8 @@ public sealed class RouteRegistry : IRouteRegistry
                     new AccountsDataService(apiClient, familyContext),
                     new DesktopPlaidLinkService(),
                     new ReportsDataService(apiClient, familyContext),
-                    new EnvelopesDataService(apiClient, familyContext)),
+                    new EnvelopesDataService(apiClient, familyContext),
+                    new AutomationRulesDataService(apiClient, familyContext)),
                 RequiredRole: "Parent"),
             new RouteDefinition(
                 Key: "/settings",

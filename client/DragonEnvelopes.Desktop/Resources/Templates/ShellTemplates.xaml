@@ -3440,6 +3440,128 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Margin="0,12,0,0"
+                                Padding="10"
+                                CornerRadius="8"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsAutomationStep}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel>
+                                <TextBlock Text="Automation Setup" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding AutomationStepMessage}"
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CaptionTextStyle}" />
+
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1.6*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox Grid.Column="0"
+                                              ItemsSource="{Binding AutomationAllocationEnvelopeOptions}"
+                                              SelectedItem="{Binding SelectedAutomationAllocationEnvelope, Mode=TwoWay}"
+                                              DisplayMemberPath="Name" />
+                                    <Button Grid.Column="2"
+                                            Content="Create Selected Templates"
+                                            Command="{Binding CreateSelectedAutomationTemplatesCommand}" />
+                                    <Button Grid.Column="4"
+                                            Content="Refresh Rules"
+                                            Command="{Binding RefreshOnboardingAutomationRulesCommand}" />
+                                    <Button Grid.Column="6"
+                                            Content="Toggle Selected"
+                                            Command="{Binding ToggleSelectedAutomationRuleCommand}" />
+                                </Grid>
+
+                                <ItemsControl Margin="0,10,0,0"
+                                              ItemsSource="{Binding OnboardingAutomationTemplates}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,6"
+                                                    Padding="8"
+                                                    CornerRadius="8"
+                                                    Background="{StaticResource SidebarBackgroundBrush}"
+                                                    BorderBrush="{StaticResource PanelOutlineBrush}"
+                                                    BorderThickness="1">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="8" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="8" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <CheckBox Grid.Column="0"
+                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="{Binding Name}" Style="{StaticResource CaptionTextStyle}" />
+                                                        <TextBlock Margin="0,2,0,0"
+                                                                   Text="{Binding Summary}"
+                                                                   TextWrapping="Wrap"
+                                                                   Style="{StaticResource CaptionTextStyle}" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="4"
+                                                               Text="{Binding RuleType}"
+                                                               VerticalAlignment="Center"
+                                                               Style="{StaticResource CaptionTextStyle}" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <ListBox Margin="0,10,0,0"
+                                         ItemsSource="{Binding OnboardingAutomationRules}"
+                                         SelectedItem="{Binding SelectedOnboardingAutomationRule, Mode=TwoWay}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="1.4*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding Name}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding RuleType}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                                <TextBlock Grid.Column="2"
+                                                           Margin="8,0,8,0"
+                                                           Text="{Binding Priority}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                                <TextBlock Grid.Column="3"
+                                                           Margin="8,0,8,0"
+                                                           Text="{Binding IsEnabled}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                                <TextBlock Grid.Column="4"
+                                                           Text="{Binding UpdatedAtDisplay}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
+                        </Border>
+
                         <StackPanel Margin="0,18,0,0"
                                     Orientation="Horizontal">
                             <Button Margin="0,0,8,0"

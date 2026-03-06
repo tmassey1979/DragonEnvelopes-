@@ -49,6 +49,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     private readonly IDesktopPlaidLinkService? _desktopPlaidLinkService;
     private readonly IReportsDataService? _reportsDataService;
     private readonly IEnvelopesDataService? _envelopesDataService;
+    private readonly IAutomationRulesDataService? _automationRulesDataService;
 
     public OnboardingWizardViewModel(
         IOnboardingDataService onboardingDataService,
@@ -57,7 +58,8 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         IAccountsDataService? accountsDataService = null,
         IDesktopPlaidLinkService? desktopPlaidLinkService = null,
         IReportsDataService? reportsDataService = null,
-        IEnvelopesDataService? envelopesDataService = null)
+        IEnvelopesDataService? envelopesDataService = null,
+        IAutomationRulesDataService? automationRulesDataService = null)
     {
         _onboardingDataService = onboardingDataService;
         _familyMembersDataService = familyMembersDataService;
@@ -66,6 +68,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         _desktopPlaidLinkService = desktopPlaidLinkService;
         _reportsDataService = reportsDataService;
         _envelopesDataService = envelopesDataService;
+        _automationRulesDataService = automationRulesDataService;
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         NextStepCommand = new RelayCommand(NextStep);
@@ -88,6 +91,9 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         IssueOnboardingPhysicalCardCommand = new AsyncRelayCommand(IssueOnboardingPhysicalCardAsync);
         RefreshOnboardingCardIssuanceCommand = new AsyncRelayCommand(RefreshOnboardingCardIssuanceAsync);
         SaveOnboardingCardControlsCommand = new AsyncRelayCommand(SaveOnboardingCardControlsAsync);
+        RefreshOnboardingAutomationRulesCommand = new AsyncRelayCommand(RefreshOnboardingAutomationRulesAsync);
+        CreateSelectedAutomationTemplatesCommand = new AsyncRelayCommand(CreateSelectedAutomationTemplatesAsync);
+        ToggleSelectedAutomationRuleCommand = new AsyncRelayCommand(ToggleSelectedAutomationRuleAsync);
         CreateInviteCommand = new AsyncRelayCommand(CreateFamilyInviteAsync);
         CancelInviteCommand = new AsyncRelayCommand(CancelFamilyInviteAsync);
         AddAccountRowCommand = new RelayCommand(AddAccountRow);
@@ -138,6 +144,9 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public IAsyncRelayCommand IssueOnboardingPhysicalCardCommand { get; }
     public IAsyncRelayCommand RefreshOnboardingCardIssuanceCommand { get; }
     public IAsyncRelayCommand SaveOnboardingCardControlsCommand { get; }
+    public IAsyncRelayCommand RefreshOnboardingAutomationRulesCommand { get; }
+    public IAsyncRelayCommand CreateSelectedAutomationTemplatesCommand { get; }
+    public IAsyncRelayCommand ToggleSelectedAutomationRuleCommand { get; }
     public IAsyncRelayCommand CreateInviteCommand { get; }
     public IAsyncRelayCommand CancelInviteCommand { get; }
     public IRelayCommand AddAccountRowCommand { get; }
@@ -366,6 +375,24 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     [ObservableProperty]
     private string onboardingCardControlMerchants = string.Empty;
 
+    [ObservableProperty]
+    private ObservableCollection<OnboardingAutomationTemplateViewModel> onboardingAutomationTemplates = [];
+
+    [ObservableProperty]
+    private ObservableCollection<AutomationRuleListItemViewModel> onboardingAutomationRules = [];
+
+    [ObservableProperty]
+    private AutomationRuleListItemViewModel? selectedOnboardingAutomationRule;
+
+    [ObservableProperty]
+    private EnvelopeOptionViewModel? selectedAutomationAllocationEnvelope;
+
+    [ObservableProperty]
+    private ObservableCollection<EnvelopeOptionViewModel> automationAllocationEnvelopeOptions = [];
+
+    [ObservableProperty]
+    private string automationStepMessage = "Select starter templates and create rules.";
+
     public string CurrentStepTitle => Steps[Math.Clamp(CurrentStepIndex, 0, Steps.Count - 1)];
 
     public bool IsFirstStep => CurrentStepIndex == 0;
@@ -380,6 +407,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public bool IsPlaidStep => CurrentStepIndex == 5;
     public bool IsStripeStep => CurrentStepIndex == 6;
     public bool IsCardsStep => CurrentStepIndex == 7;
+    public bool IsAutomationStep => CurrentStepIndex == 8;
 
     public int ProgressPercent
     {
@@ -419,6 +447,8 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
             ApplyBudgetPreferences(await budgetPreferencesTask);
             await LoadPlaidStepStateAsync(cancellationToken);
             await LoadStripeProvisioningStateAsync(cancellationToken);
+            InitializeAutomationTemplates();
+            await LoadOnboardingAutomationRulesAsync(cancellationToken);
 
             var profile = await profileTask;
             profile = await SyncMembersMilestoneFromRealStateAsync(profile, cancellationToken);
@@ -561,6 +591,13 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
                 nextCards = true;
                 break;
             case 8:
+                if (!ComputeAutomationCompletedFromState())
+                {
+                    HasError = true;
+                    ErrorMessage = "Create at least one automation rule before completing this step.";
+                    return;
+                }
+
                 nextAutomation = true;
                 break;
         }
@@ -970,6 +1007,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         StripeProvisioningMessage = $"Provisioned {provisioned} envelope account(s); failed {failed}. Retry failed rows as needed.";
         StatusMessage = StripeProvisioningMessage;
         RefreshCardProvisioningEnvelopeOptions();
+        RefreshAutomationAllocationEnvelopeOptions();
         await LoadCardsForSelectedEnvelopeAsync(cancellationToken);
     }
 
@@ -1171,6 +1209,175 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         }
     }
 
+    private void InitializeAutomationTemplates()
+    {
+        if (OnboardingAutomationTemplates.Count > 0)
+        {
+            RefreshAutomationAllocationEnvelopeOptions();
+            return;
+        }
+
+        OnboardingAutomationTemplates = new ObservableCollection<OnboardingAutomationTemplateViewModel>(
+        [
+            new OnboardingAutomationTemplateViewModel(
+                "Auto Categorize Groceries",
+                "Categorization",
+                10,
+                true,
+                false,
+                "{\"merchantContains\":\"ALDI\"}",
+                "{\"setCategory\":\"Groceries\"}",
+                "Categorize grocery merchants automatically."),
+            new OnboardingAutomationTemplateViewModel(
+                "Auto Categorize Utilities",
+                "Categorization",
+                20,
+                true,
+                false,
+                "{\"descriptionContains\":\"UTILITY\"}",
+                "{\"setCategory\":\"Utilities\"}",
+                "Categorize utility-related transactions."),
+            new OnboardingAutomationTemplateViewModel(
+                "Allocate 10 Percent to Selected Envelope",
+                "Allocation",
+                30,
+                false,
+                true,
+                "{\"descriptionContains\":\"PAYROLL\",\"amountMin\":1}",
+                "{\"targetEnvelopeId\":\"{ENVELOPE_ID}\",\"allocationType\":\"Percent\",\"value\":10}",
+                "Allocate a percentage of payroll income automatically.")
+        ]);
+
+        RefreshAutomationAllocationEnvelopeOptions();
+    }
+
+    private async Task RefreshOnboardingAutomationRulesAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        try
+        {
+            await LoadOnboardingAutomationRulesAsync(cancellationToken);
+            StatusMessage = "Automation rule list refreshed.";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to refresh automation rules: {ex.Message}";
+        }
+    }
+
+    private async Task CreateSelectedAutomationTemplatesAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_automationRulesDataService is null)
+        {
+            HasError = true;
+            ErrorMessage = "Automation rule service is not configured for onboarding.";
+            return;
+        }
+
+        var selectedTemplates = OnboardingAutomationTemplates
+            .Where(static template => template.IsSelected)
+            .ToArray();
+        if (selectedTemplates.Length == 0)
+        {
+            HasError = true;
+            ErrorMessage = "Select at least one automation template to create.";
+            return;
+        }
+
+        var created = 0;
+        var skipped = 0;
+        var existingNames = new HashSet<string>(
+            OnboardingAutomationRules.Select(static rule => rule.Name),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var template in selectedTemplates)
+        {
+            if (existingNames.Contains(template.Name))
+            {
+                skipped += 1;
+                continue;
+            }
+
+            var actionJson = template.ActionJsonTemplate;
+            if (template.RequiresEnvelopeSelection)
+            {
+                if (SelectedAutomationAllocationEnvelope is null)
+                {
+                    HasError = true;
+                    ErrorMessage = "Select an allocation envelope before creating allocation templates.";
+                    return;
+                }
+
+                actionJson = actionJson.Replace(
+                    "{ENVELOPE_ID}",
+                    SelectedAutomationAllocationEnvelope.Id.ToString("D"),
+                    StringComparison.Ordinal);
+            }
+
+            await _automationRulesDataService.CreateRuleAsync(
+                template.Name,
+                template.RuleType,
+                template.Priority,
+                isEnabled: true,
+                template.ConditionsJsonTemplate,
+                actionJson,
+                cancellationToken);
+
+            existingNames.Add(template.Name);
+            created += 1;
+        }
+
+        await LoadOnboardingAutomationRulesAsync(cancellationToken);
+        AutomationStepMessage = $"Created {created} automation rule(s); skipped {skipped} duplicate template(s).";
+        StatusMessage = AutomationStepMessage;
+    }
+
+    private async Task ToggleSelectedAutomationRuleAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_automationRulesDataService is null)
+        {
+            HasError = true;
+            ErrorMessage = "Automation rule service is not configured for onboarding.";
+            return;
+        }
+
+        if (SelectedOnboardingAutomationRule is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select an automation rule to enable or disable.";
+            return;
+        }
+
+        var nextEnabled = !SelectedOnboardingAutomationRule.IsEnabled;
+        try
+        {
+            await _automationRulesDataService.SetRuleEnabledAsync(
+                SelectedOnboardingAutomationRule.Id,
+                nextEnabled,
+                cancellationToken);
+            await LoadOnboardingAutomationRulesAsync(cancellationToken);
+
+            AutomationStepMessage = nextEnabled
+                ? "Automation rule enabled."
+                : "Automation rule disabled.";
+            StatusMessage = AutomationStepMessage;
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to update automation rule state: {ex.Message}";
+        }
+    }
+
     private async Task CreateFamilyInviteAsync(CancellationToken cancellationToken)
     {
         HasError = false;
@@ -1369,6 +1576,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
             : $"Loaded {items.Count} envelope(s) for Stripe provisioning.";
 
         RefreshCardProvisioningEnvelopeOptions();
+        RefreshAutomationAllocationEnvelopeOptions();
         await LoadCardsForSelectedEnvelopeAsync(cancellationToken);
     }
 
@@ -1456,6 +1664,40 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         OnboardingCardControlDailyLimit = controls.DailyLimitAmount?.ToString("0.##") ?? string.Empty;
         OnboardingCardControlCategories = string.Join(", ", controls.AllowedMerchantCategories);
         OnboardingCardControlMerchants = string.Join(", ", controls.AllowedMerchantNames);
+    }
+
+    private async Task LoadOnboardingAutomationRulesAsync(CancellationToken cancellationToken)
+    {
+        if (_automationRulesDataService is null)
+        {
+            OnboardingAutomationRules = [];
+            AutomationStepMessage = "Automation onboarding step is unavailable in this desktop configuration.";
+            return;
+        }
+
+        var rules = await _automationRulesDataService.GetRulesAsync(typeFilter: null, enabledFilter: null, cancellationToken);
+        OnboardingAutomationRules = new ObservableCollection<AutomationRuleListItemViewModel>(
+            rules.OrderBy(static rule => rule.Priority));
+
+        SelectedOnboardingAutomationRule = OnboardingAutomationRules.FirstOrDefault();
+        AutomationStepMessage = OnboardingAutomationRules.Count == 0
+            ? "No automation rules created yet."
+            : $"Loaded {OnboardingAutomationRules.Count} automation rule(s).";
+    }
+
+    private void RefreshAutomationAllocationEnvelopeOptions()
+    {
+        var options = StripeProvisioningItems
+            .Where(static item => item.IsProvisioned)
+            .OrderBy(static item => item.EnvelopeName, StringComparer.OrdinalIgnoreCase)
+            .Select(static item => new EnvelopeOptionViewModel(item.EnvelopeId, item.EnvelopeName))
+            .ToArray();
+
+        var previousSelection = SelectedAutomationAllocationEnvelope?.Id;
+        AutomationAllocationEnvelopeOptions = new ObservableCollection<EnvelopeOptionViewModel>(options);
+        SelectedAutomationAllocationEnvelope = previousSelection.HasValue
+            ? AutomationAllocationEnvelopeOptions.FirstOrDefault(option => option.Id == previousSelection.Value)
+            : AutomationAllocationEnvelopeOptions.FirstOrDefault();
     }
 
     private async Task RefreshPlaidAccountLinksAsync(CancellationToken cancellationToken)
@@ -1948,6 +2190,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         OnPropertyChanged(nameof(IsPlaidStep));
         OnPropertyChanged(nameof(IsStripeStep));
         OnPropertyChanged(nameof(IsCardsStep));
+        OnPropertyChanged(nameof(IsAutomationStep));
         RefreshStepItems();
     }
 
@@ -2287,6 +2530,11 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     private bool ComputeCardsCompletedFromState()
     {
         return OnboardingIssuedCards.Count > 0;
+    }
+
+    private bool ComputeAutomationCompletedFromState()
+    {
+        return OnboardingAutomationRules.Count > 0;
     }
 
     partial void OnFamilyProfileCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
