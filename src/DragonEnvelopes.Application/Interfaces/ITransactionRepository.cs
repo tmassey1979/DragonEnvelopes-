@@ -26,6 +26,16 @@ public interface ITransactionRepository
         IReadOnlyCollection<Guid> transactionIds,
         CancellationToken cancellationToken = default);
 
+    Task<Transaction?> GetTransactionByIdForUpdateAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default);
+
+    Task<Guid?> GetTransactionFamilyIdAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default);
+
+    Task SaveChangesAsync(CancellationToken cancellationToken = default);
+
     Task AddTransactionsAsync(
         IReadOnlyList<Transaction> transactions,
         CancellationToken cancellationToken = default);

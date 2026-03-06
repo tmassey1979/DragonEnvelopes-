@@ -16,6 +16,13 @@ public interface ITransactionService
         IReadOnlyList<TransactionSplitCreateDetails>? splits,
         CancellationToken cancellationToken = default);
 
+    Task<TransactionDetails> UpdateAsync(
+        Guid transactionId,
+        string description,
+        string merchant,
+        string? category,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<TransactionDetails>> ListAsync(
         Guid? accountId,
         CancellationToken cancellationToken = default);

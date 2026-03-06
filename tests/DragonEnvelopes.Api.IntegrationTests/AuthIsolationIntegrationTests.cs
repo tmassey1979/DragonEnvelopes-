@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using DragonEnvelopes.Contracts.Runtime;
+using DragonEnvelopes.Contracts.Transactions;
 using DragonEnvelopes.Domain.Entities;
 using DragonEnvelopes.Domain.ValueObjects;
 using DragonEnvelopes.Infrastructure.Persistence;
@@ -81,6 +82,44 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Cannot_Update_FamilyB_Transaction()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PutAsJsonAsync($"/api/v1/transactions/{TestApiFactory.TransactionBId}", new
+        {
+            description = "Updated",
+            merchant = "Updated Merchant",
+            category = "Updated Category"
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserA_Can_Update_Own_Transaction_Metadata()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PutAsJsonAsync($"/api/v1/transactions/{TestApiFactory.TransactionAId}", new
+        {
+            description = "Updated Groceries",
+            merchant = "Updated Market",
+            category = "Food"
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<TransactionResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("Updated Groceries", payload!.Description);
+        Assert.Equal("Updated Market", payload.Merchant);
+        Assert.Equal("Food", payload.Category);
+    }
+
+    [Fact]
     public async Task System_Health_Is_Available_Anonymously()
     {
         using var client = _factory.CreateClient();
@@ -114,6 +153,8 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
     public static readonly Guid FamilyBId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     public static readonly Guid AccountAId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
     public static readonly Guid AccountBId = Guid.Parse("bbbbbbbb-cccc-dddd-eeee-ffffffffffff");
+    public static readonly Guid TransactionAId = Guid.Parse("11111111-2222-3333-4444-555555555555");
+    public static readonly Guid TransactionBId = Guid.Parse("66666666-7777-8888-9999-aaaaaaaaaaaa");
     public const string UserAId = "user-a";
     public const string UserBId = "user-b";
 
@@ -173,6 +214,24 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
         dbContext.Envelopes.AddRange(
             new Envelope(Guid.NewGuid(), FamilyAId, "Groceries A", Money.FromDecimal(200m), Money.FromDecimal(100m)),
             new Envelope(Guid.NewGuid(), FamilyBId, "Groceries B", Money.FromDecimal(200m), Money.FromDecimal(100m)));
+
+        dbContext.Transactions.AddRange(
+            new Transaction(
+                TransactionAId,
+                AccountAId,
+                Money.FromDecimal(-42.50m),
+                "Groceries",
+                "Market A",
+                DateTimeOffset.UtcNow,
+                "Food"),
+            new Transaction(
+                TransactionBId,
+                AccountBId,
+                Money.FromDecimal(-11.00m),
+                "Coffee",
+                "Cafe B",
+                DateTimeOffset.UtcNow,
+                "Dining"));
 
         dbContext.SaveChanges();
     }

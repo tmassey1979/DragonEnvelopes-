@@ -729,6 +729,40 @@ v1.MapPost("/transactions", async (
     .WithName("CreateTransaction")
     .WithOpenApi();
 
+v1.MapPut("/transactions/{transactionId:guid}", async (
+        Guid transactionId,
+        UpdateTransactionRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
+        ITransactionService transactionService,
+        CancellationToken cancellationToken) =>
+    {
+        var transactionFamilyId = await dbContext.Transactions
+            .AsNoTracking()
+            .Where(x => x.Id == transactionId)
+            .Join(
+                dbContext.Accounts.AsNoTracking(),
+                transaction => transaction.AccountId,
+                account => account.Id,
+                (_, account) => (Guid?)account.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!transactionFamilyId.HasValue || !await UserHasFamilyAccessAsync(user, transactionFamilyId.Value, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
+        var transaction = await transactionService.UpdateAsync(
+            transactionId,
+            request.Description,
+            request.Merchant,
+            request.Category,
+            cancellationToken);
+        return Results.Ok(MapTransactionResponse(transaction));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("UpdateTransaction")
+    .WithOpenApi();
+
 v1.MapGet("/transactions", async (
         Guid? accountId,
         ClaimsPrincipal user,

@@ -81,6 +81,13 @@ public sealed class Transaction
         Category = NormalizeOptional(category);
     }
 
+    public void UpdateMetadata(string description, string merchant, string? category)
+    {
+        Description = ValidateText(description, "Transaction description");
+        Merchant = ValidateText(merchant, "Transaction merchant");
+        Category = NormalizeOptional(category);
+    }
+
     public void AssignEnvelope(Guid? envelopeId)
     {
         if (_splits.Count > 0 && envelopeId.HasValue)

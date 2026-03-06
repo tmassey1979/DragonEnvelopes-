@@ -80,6 +80,34 @@ public sealed class TransactionRepository(DragonEnvelopesDbContext dbContext) : 
             .ToArrayAsync(cancellationToken);
     }
 
+    public Task<Transaction?> GetTransactionByIdForUpdateAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default)
+    {
+        return dbContext.Transactions
+            .FirstOrDefaultAsync(x => x.Id == transactionId, cancellationToken);
+    }
+
+    public Task<Guid?> GetTransactionFamilyIdAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default)
+    {
+        return dbContext.Transactions
+            .AsNoTracking()
+            .Where(x => x.Id == transactionId)
+            .Join(
+                dbContext.Accounts.AsNoTracking(),
+                transaction => transaction.AccountId,
+                account => account.Id,
+                (_, account) => (Guid?)account.FamilyId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        return dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task AddTransactionsAsync(
         IReadOnlyList<Transaction> transactions,
         CancellationToken cancellationToken = default)

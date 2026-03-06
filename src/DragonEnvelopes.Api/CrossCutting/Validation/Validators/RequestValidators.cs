@@ -193,6 +193,23 @@ public sealed class TransactionSplitRequestValidator : AbstractValidator<Transac
     }
 }
 
+public sealed class UpdateTransactionRequestValidator : AbstractValidator<UpdateTransactionRequest>
+{
+    public UpdateTransactionRequestValidator()
+    {
+        RuleFor(static request => request.Description)
+            .NotEmpty()
+            .MaximumLength(256);
+
+        RuleFor(static request => request.Merchant)
+            .NotEmpty()
+            .MaximumLength(256);
+
+        RuleFor(static request => request.Category)
+            .MaximumLength(100);
+    }
+}
+
 public sealed class CreateBudgetRequestValidator : AbstractValidator<CreateBudgetRequest>
 {
     public CreateBudgetRequestValidator()

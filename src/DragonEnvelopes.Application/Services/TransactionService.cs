@@ -184,6 +184,26 @@ public sealed class TransactionService(
             .ToArray();
     }
 
+    public async Task<TransactionDetails> UpdateAsync(
+        Guid transactionId,
+        string description,
+        string merchant,
+        string? category,
+        CancellationToken cancellationToken = default)
+    {
+        var transaction = await transactionRepository.GetTransactionByIdForUpdateAsync(transactionId, cancellationToken);
+        if (transaction is null)
+        {
+            throw new DomainValidationException("Transaction was not found.");
+        }
+
+        transaction.UpdateMetadata(description, merchant, category);
+        await transactionRepository.SaveChangesAsync(cancellationToken);
+
+        var splits = await transactionRepository.ListTransactionSplitsAsync([transactionId], cancellationToken);
+        return Map(transaction, splits);
+    }
+
     private static TransactionDetails Map(
         Transaction transaction,
         IReadOnlyList<TransactionSplitEntry> splitEntries)
