@@ -63,7 +63,7 @@ public sealed class OnboardingWizardViewModelTests
                 AccountsCompleted: true,
                 EnvelopesCompleted: true,
                 BudgetCompleted: true,
-                PlaidCompleted: false,
+                PlaidCompleted: true,
                 StripeAccountsCompleted: false,
                 CardsCompleted: false,
                 AutomationCompleted: false,
@@ -79,21 +79,21 @@ public sealed class OnboardingWizardViewModelTests
         var viewModel = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
         await EnsureLoadedAsync(viewModel);
 
-        Assert.Equal(5, viewModel.CurrentStepIndex);
-        Assert.Equal("Plaid Connection", viewModel.CurrentStepTitle);
+        Assert.Equal(6, viewModel.CurrentStepIndex);
+        Assert.Equal("Stripe Accounts", viewModel.CurrentStepTitle);
 
         await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null);
         await WaitForIdleAsync(viewModel);
 
         Assert.False(viewModel.HasError);
         Assert.Equal(1, onboardingDataService.UpdateProfileCallCount);
-        Assert.True(viewModel.PlaidCompleted);
-        Assert.Equal(6, viewModel.CurrentStepIndex);
+        Assert.True(viewModel.StripeAccountsCompleted);
+        Assert.Equal(7, viewModel.CurrentStepIndex);
         Assert.Equal("Progress saved.", viewModel.StatusMessage);
-        Assert.Equal(67, viewModel.ProgressPercent);
-        Assert.True(viewModel.StepItems[5].IsCompleted);
-        Assert.False(viewModel.StepItems[5].IsCurrent);
-        Assert.True(viewModel.StepItems[6].IsCurrent);
+        Assert.Equal(78, viewModel.ProgressPercent);
+        Assert.True(viewModel.StepItems[6].IsCompleted);
+        Assert.False(viewModel.StepItems[6].IsCurrent);
+        Assert.True(viewModel.StepItems[7].IsCurrent);
     }
 
     [Fact]
@@ -244,6 +244,48 @@ public sealed class OnboardingWizardViewModelTests
         Assert.Equal(5, viewModel.CurrentStepIndex);
         Assert.Contains("BiWeekly", viewModel.BudgetPreferenceSummary);
         Assert.Contains("EnvelopePriority", viewModel.BudgetPreferenceSummary);
+    }
+
+    [Fact]
+    public async Task MarkCurrentStepComplete_PlaidStep_Requires_At_Least_One_Linked_Account()
+    {
+        var familyId = Guid.Parse("10000000-0000-0000-0000-000000000007");
+        var now = DateTimeOffset.UtcNow;
+        var onboardingDataService = new FakeOnboardingDataService(familyId)
+        {
+            Profile = new OnboardingProfileData(
+                Guid.NewGuid(),
+                familyId,
+                MembersCompleted: true,
+                AccountsCompleted: true,
+                EnvelopesCompleted: true,
+                BudgetCompleted: true,
+                PlaidCompleted: false,
+                StripeAccountsCompleted: false,
+                CardsCompleted: false,
+                AutomationCompleted: false,
+                IsCompleted: false,
+                CreatedAtUtc: now,
+                UpdatedAtUtc: now,
+                CompletedAtUtc: null)
+        };
+
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-1", "Owner One", "owner1@test.dev", "Parent"));
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-2", "Owner Two", "owner2@test.dev", "Adult"));
+
+        var viewModel = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
+        await EnsureLoadedAsync(viewModel);
+
+        Assert.Equal(5, viewModel.CurrentStepIndex);
+        Assert.Empty(viewModel.PlaidAccountLinks);
+
+        await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.True(viewModel.HasError);
+        Assert.Equal("Complete Plaid account linking before marking this step done.", viewModel.ErrorMessage);
+        Assert.Equal(0, onboardingDataService.UpdateProfileCallCount);
     }
 
     private static async Task EnsureLoadedAsync(OnboardingWizardViewModel viewModel)

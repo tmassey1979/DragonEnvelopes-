@@ -44,13 +44,22 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
 
     private readonly IOnboardingDataService _onboardingDataService;
     private readonly IFamilyMembersDataService _familyMembersDataService;
+    private readonly IFinancialIntegrationDataService? _financialIntegrationDataService;
+    private readonly IAccountsDataService? _accountsDataService;
+    private readonly IDesktopPlaidLinkService? _desktopPlaidLinkService;
 
     public OnboardingWizardViewModel(
         IOnboardingDataService onboardingDataService,
-        IFamilyMembersDataService familyMembersDataService)
+        IFamilyMembersDataService familyMembersDataService,
+        IFinancialIntegrationDataService? financialIntegrationDataService = null,
+        IAccountsDataService? accountsDataService = null,
+        IDesktopPlaidLinkService? desktopPlaidLinkService = null)
     {
         _onboardingDataService = onboardingDataService;
         _familyMembersDataService = familyMembersDataService;
+        _financialIntegrationDataService = financialIntegrationDataService;
+        _accountsDataService = accountsDataService;
+        _desktopPlaidLinkService = desktopPlaidLinkService;
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         NextStepCommand = new RelayCommand(NextStep);
@@ -59,6 +68,12 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         ReconcileProgressCommand = new AsyncRelayCommand(ReconcileProgressAsync);
         SaveFamilyProfileCommand = new AsyncRelayCommand(SaveFamilyProfileAsync);
         SaveBudgetPreferencesCommand = new AsyncRelayCommand(SaveBudgetPreferencesAsync);
+        CreatePlaidLinkTokenCommand = new AsyncRelayCommand(CreatePlaidLinkTokenAsync);
+        LaunchNativePlaidLinkCommand = new AsyncRelayCommand(LaunchNativePlaidLinkAsync);
+        ExchangePlaidPublicTokenCommand = new AsyncRelayCommand(ExchangePlaidPublicTokenAsync);
+        LinkPlaidAccountCommand = new AsyncRelayCommand(LinkPlaidAccountAsync);
+        RemovePlaidAccountLinkCommand = new AsyncRelayCommand(RemovePlaidAccountLinkAsync);
+        SyncPlaidTransactionsCommand = new AsyncRelayCommand(SyncPlaidTransactionsAsync);
         CreateInviteCommand = new AsyncRelayCommand(CreateFamilyInviteAsync);
         CancelInviteCommand = new AsyncRelayCommand(CancelFamilyInviteAsync);
         AddAccountRowCommand = new RelayCommand(AddAccountRow);
@@ -91,6 +106,12 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public IAsyncRelayCommand ReconcileProgressCommand { get; }
     public IAsyncRelayCommand SaveFamilyProfileCommand { get; }
     public IAsyncRelayCommand SaveBudgetPreferencesCommand { get; }
+    public IAsyncRelayCommand CreatePlaidLinkTokenCommand { get; }
+    public IAsyncRelayCommand LaunchNativePlaidLinkCommand { get; }
+    public IAsyncRelayCommand ExchangePlaidPublicTokenCommand { get; }
+    public IAsyncRelayCommand LinkPlaidAccountCommand { get; }
+    public IAsyncRelayCommand RemovePlaidAccountLinkCommand { get; }
+    public IAsyncRelayCommand SyncPlaidTransactionsCommand { get; }
     public IAsyncRelayCommand CreateInviteCommand { get; }
     public IAsyncRelayCommand CancelInviteCommand { get; }
     public IRelayCommand AddAccountRowCommand { get; }
@@ -207,6 +228,39 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     [ObservableProperty]
     private string budgetPreferenceSummary = "No budget preferences saved yet.";
 
+    [ObservableProperty]
+    private string plaidClientName = "DragonEnvelopes Desktop";
+
+    [ObservableProperty]
+    private string plaidLinkToken = string.Empty;
+
+    [ObservableProperty]
+    private string plaidLinkTokenExpiresAt = "-";
+
+    [ObservableProperty]
+    private string plaidPublicToken = string.Empty;
+
+    [ObservableProperty]
+    private ObservableCollection<AccountListItemViewModel> plaidAvailableAccounts = [];
+
+    [ObservableProperty]
+    private AccountListItemViewModel? selectedPlaidAccount;
+
+    [ObservableProperty]
+    private string plaidAccountId = string.Empty;
+
+    [ObservableProperty]
+    private ObservableCollection<PlaidAccountLinkItemViewModel> plaidAccountLinks = [];
+
+    [ObservableProperty]
+    private PlaidAccountLinkItemViewModel? selectedPlaidAccountLink;
+
+    [ObservableProperty]
+    private string plaidStepMessage = "Connect Plaid and link at least one account.";
+
+    [ObservableProperty]
+    private string plaidSyncSummary = "No Plaid transaction sync has been run.";
+
     public string CurrentStepTitle => Steps[Math.Clamp(CurrentStepIndex, 0, Steps.Count - 1)];
 
     public bool IsFirstStep => CurrentStepIndex == 0;
@@ -218,6 +272,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public bool IsAccountsStep => CurrentStepIndex == 2;
     public bool IsEnvelopesStep => CurrentStepIndex == 3;
     public bool IsBudgetStep => CurrentStepIndex == 4;
+    public bool IsPlaidStep => CurrentStepIndex == 5;
 
     public int ProgressPercent
     {
@@ -255,6 +310,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
 
             ApplyFamilyProfile(await familyProfileTask);
             ApplyBudgetPreferences(await budgetPreferencesTask);
+            await LoadPlaidStepStateAsync(cancellationToken);
 
             var profile = await profileTask;
             profile = await SyncMembersMilestoneFromRealStateAsync(profile, cancellationToken);
@@ -367,6 +423,13 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
                 nextBudget = true;
                 break;
             case 5:
+                if (!ComputePlaidCompletedFromState())
+                {
+                    HasError = true;
+                    ErrorMessage = "Complete Plaid account linking before marking this step done.";
+                    return;
+                }
+
                 nextPlaid = true;
                 break;
             case 6:
@@ -508,6 +571,214 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         }
     }
 
+    private async Task CreatePlaidLinkTokenAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_financialIntegrationDataService is null)
+        {
+            HasError = true;
+            ErrorMessage = "Plaid integration service is not configured for onboarding.";
+            return;
+        }
+
+        try
+        {
+            var token = await _financialIntegrationDataService.CreatePlaidLinkTokenAsync(PlaidClientName, cancellationToken);
+            PlaidLinkToken = token.LinkToken;
+            PlaidLinkTokenExpiresAt = token.ExpiresAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+            PlaidStepMessage = "Plaid link token generated. Launch native Plaid Link to continue.";
+            StatusMessage = PlaidStepMessage;
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to create Plaid link token: {ex.Message}";
+        }
+    }
+
+    private async Task LaunchNativePlaidLinkAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_desktopPlaidLinkService is null)
+        {
+            HasError = true;
+            ErrorMessage = "Native Plaid link service is not configured for onboarding.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(PlaidLinkToken))
+        {
+            HasError = true;
+            ErrorMessage = "Generate a Plaid link token before launching native Plaid Link.";
+            return;
+        }
+
+        var result = await _desktopPlaidLinkService.LaunchAsync(PlaidLinkToken.Trim(), cancellationToken);
+        if (result.Succeeded)
+        {
+            PlaidPublicToken = result.PublicToken ?? string.Empty;
+            PlaidStepMessage = "Plaid Link completed. Exchange the public token next.";
+            StatusMessage = PlaidStepMessage;
+            return;
+        }
+
+        if (result.IsCanceled)
+        {
+            PlaidStepMessage = result.Message;
+            StatusMessage = result.Message;
+            return;
+        }
+
+        HasError = true;
+        ErrorMessage = result.Message;
+    }
+
+    private async Task ExchangePlaidPublicTokenAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_financialIntegrationDataService is null)
+        {
+            HasError = true;
+            ErrorMessage = "Plaid integration service is not configured for onboarding.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(PlaidPublicToken))
+        {
+            HasError = true;
+            ErrorMessage = "Plaid public token is required.";
+            return;
+        }
+
+        try
+        {
+            var status = await _financialIntegrationDataService.ExchangePlaidPublicTokenAsync(
+                PlaidPublicToken.Trim(),
+                cancellationToken);
+
+            PlaidStepMessage = status.PlaidConnected
+                ? "Plaid public token exchanged successfully. Link account mappings below."
+                : "Plaid token exchange completed, but provider did not report a connected status.";
+            StatusMessage = PlaidStepMessage;
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to exchange Plaid public token: {ex.Message}";
+        }
+    }
+
+    private async Task LinkPlaidAccountAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_financialIntegrationDataService is null || _accountsDataService is null)
+        {
+            HasError = true;
+            ErrorMessage = "Plaid account linking services are not configured for onboarding.";
+            return;
+        }
+
+        if (SelectedPlaidAccount is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select an internal account to map.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(PlaidAccountId))
+        {
+            HasError = true;
+            ErrorMessage = "Plaid account id is required.";
+            return;
+        }
+
+        try
+        {
+            await _financialIntegrationDataService.UpsertPlaidAccountLinkAsync(
+                SelectedPlaidAccount.Id,
+                PlaidAccountId.Trim(),
+                cancellationToken);
+            PlaidAccountId = string.Empty;
+
+            await RefreshPlaidAccountLinksAsync(cancellationToken);
+            PlaidStepMessage = "Plaid account mapping saved.";
+            StatusMessage = PlaidStepMessage;
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to save Plaid account mapping: {ex.Message}";
+        }
+    }
+
+    private async Task RemovePlaidAccountLinkAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_financialIntegrationDataService is null)
+        {
+            HasError = true;
+            ErrorMessage = "Plaid integration service is not configured for onboarding.";
+            return;
+        }
+
+        if (SelectedPlaidAccountLink is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select a Plaid account link to remove.";
+            return;
+        }
+
+        try
+        {
+            await _financialIntegrationDataService.DeletePlaidAccountLinkAsync(SelectedPlaidAccountLink.Id, cancellationToken);
+            await RefreshPlaidAccountLinksAsync(cancellationToken);
+            PlaidStepMessage = "Plaid account link removed.";
+            StatusMessage = PlaidStepMessage;
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to remove Plaid account link: {ex.Message}";
+        }
+    }
+
+    private async Task SyncPlaidTransactionsAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (_financialIntegrationDataService is null)
+        {
+            HasError = true;
+            ErrorMessage = "Plaid integration service is not configured for onboarding.";
+            return;
+        }
+
+        try
+        {
+            var summary = await _financialIntegrationDataService.SyncPlaidTransactionsAsync(cancellationToken);
+            PlaidSyncSummary =
+                $"Pulled {summary.PulledCount}, inserted {summary.InsertedCount}, deduped {summary.DedupedCount}, unmapped {summary.UnmappedCount}.";
+            PlaidStepMessage = "Plaid transactions synced.";
+            StatusMessage = PlaidStepMessage;
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to sync Plaid transactions: {ex.Message}";
+        }
+    }
+
     private async Task CreateFamilyInviteAsync(CancellationToken cancellationToken)
     {
         HasError = false;
@@ -613,6 +884,75 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
             ?? FamilyInvites.FirstOrDefault();
     }
 
+    private async Task LoadPlaidStepStateAsync(CancellationToken cancellationToken)
+    {
+        if (_financialIntegrationDataService is null || _accountsDataService is null)
+        {
+            PlaidStepMessage = "Plaid onboarding step is unavailable in this desktop configuration.";
+            PlaidAvailableAccounts = [];
+            PlaidAccountLinks = [];
+            SelectedPlaidAccount = null;
+            SelectedPlaidAccountLink = null;
+            return;
+        }
+
+        var accountsTask = _accountsDataService.GetAccountsAsync(cancellationToken);
+        var linksTask = _financialIntegrationDataService.ListPlaidAccountLinksAsync(cancellationToken);
+        await Task.WhenAll(accountsTask, linksTask);
+
+        PlaidAvailableAccounts = new ObservableCollection<AccountListItemViewModel>(
+            (await accountsTask)
+            .OrderBy(static account => account.Name, StringComparer.OrdinalIgnoreCase));
+
+        if (SelectedPlaidAccount is null || PlaidAvailableAccounts.All(account => account.Id != SelectedPlaidAccount.Id))
+        {
+            SelectedPlaidAccount = PlaidAvailableAccounts.FirstOrDefault();
+        }
+
+        var linkResponses = await linksTask;
+        var accountNames = PlaidAvailableAccounts.ToDictionary(static account => account.Id, static account => account.Name);
+        PlaidAccountLinks = new ObservableCollection<PlaidAccountLinkItemViewModel>(
+            linkResponses
+                .OrderByDescending(static link => link.UpdatedAtUtc)
+                .Select(link => new PlaidAccountLinkItemViewModel(
+                    link.Id,
+                    link.AccountId,
+                    accountNames.TryGetValue(link.AccountId, out var accountName) ? accountName : link.AccountId.ToString("D"),
+                    SensitiveValueMasker.MaskIdentifier(link.PlaidAccountId),
+                    link.UpdatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"))));
+
+        if (SelectedPlaidAccountLink is null || PlaidAccountLinks.All(link => link.Id != SelectedPlaidAccountLink.Id))
+        {
+            SelectedPlaidAccountLink = PlaidAccountLinks.FirstOrDefault();
+        }
+
+        PlaidStepMessage = PlaidAccountLinks.Count == 0
+            ? "No Plaid account mappings yet. Complete token exchange and add at least one mapping."
+            : $"Plaid mappings ready: {PlaidAccountLinks.Count} linked account(s).";
+    }
+
+    private async Task RefreshPlaidAccountLinksAsync(CancellationToken cancellationToken)
+    {
+        if (_financialIntegrationDataService is null)
+        {
+            return;
+        }
+
+        var links = await _financialIntegrationDataService.ListPlaidAccountLinksAsync(cancellationToken);
+        var accountNames = PlaidAvailableAccounts.ToDictionary(static account => account.Id, static account => account.Name);
+        PlaidAccountLinks = new ObservableCollection<PlaidAccountLinkItemViewModel>(
+            links
+                .OrderByDescending(static link => link.UpdatedAtUtc)
+                .Select(link => new PlaidAccountLinkItemViewModel(
+                    link.Id,
+                    link.AccountId,
+                    accountNames.TryGetValue(link.AccountId, out var name) ? name : link.AccountId.ToString("D"),
+                    SensitiveValueMasker.MaskIdentifier(link.PlaidAccountId),
+                    link.UpdatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"))));
+
+        SelectedPlaidAccountLink = PlaidAccountLinks.FirstOrDefault();
+    }
+
     private async Task<OnboardingProfileData> SyncMembersMilestoneFromRealStateAsync(
         OnboardingProfileData profile,
         CancellationToken cancellationToken)
@@ -645,6 +985,11 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         return FamilyInvites.Any(static invite =>
             invite.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)
             || invite.Status.Equals("Accepted", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool ComputePlaidCompletedFromState()
+    {
+        return PlaidAccountLinks.Count > 0;
     }
 
     private OnboardingProfileData CurrentProfileSnapshot()
@@ -874,6 +1219,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         OnPropertyChanged(nameof(IsAccountsStep));
         OnPropertyChanged(nameof(IsEnvelopesStep));
         OnPropertyChanged(nameof(IsBudgetStep));
+        OnPropertyChanged(nameof(IsPlaidStep));
         RefreshStepItems();
     }
 

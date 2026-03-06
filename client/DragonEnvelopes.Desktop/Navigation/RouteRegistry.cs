@@ -92,7 +92,10 @@ public sealed class RouteRegistry : IRouteRegistry
                 TopBarSubtitle: "Guided initial financial setup",
                 Content: new OnboardingWizardViewModel(
                     new OnboardingDataService(apiClient, familyContext),
-                    new FamilyMembersDataService(apiClient, familyContext)),
+                    new FamilyMembersDataService(apiClient, familyContext),
+                    new FinancialIntegrationDataService(apiClient, familyContext),
+                    new AccountsDataService(apiClient, familyContext),
+                    new DesktopPlaidLinkService()),
                 RequiredRole: "Parent"),
             new RouteDefinition(
                 Key: "/settings",
