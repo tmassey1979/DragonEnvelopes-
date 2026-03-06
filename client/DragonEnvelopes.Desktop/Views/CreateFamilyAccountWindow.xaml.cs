@@ -1,4 +1,3 @@
-using System.Net.Mail;
 using System.Windows;
 using DragonEnvelopes.Desktop.Services;
 
@@ -7,12 +6,15 @@ namespace DragonEnvelopes.Desktop.Views;
 public partial class CreateFamilyAccountWindow : Window
 {
     private readonly IFamilyAccountService _familyAccountService;
+    private bool _isAccountStep = true;
+
     public string? CreatedEmail { get; private set; }
 
     public CreateFamilyAccountWindow(IFamilyAccountService familyAccountService)
     {
         _familyAccountService = familyAccountService;
         InitializeComponent();
+        ShowAccountStep();
     }
 
     private void OnCancelClicked(object sender, RoutedEventArgs e)
@@ -21,9 +23,33 @@ public partial class CreateFamilyAccountWindow : Window
         Close();
     }
 
+    private void OnBackClicked(object sender, RoutedEventArgs e)
+    {
+        ShowAccountStep();
+    }
+
+    private void OnNextClicked(object sender, RoutedEventArgs e)
+    {
+        var validationError = OnboardingRegistrationValidator.ValidateAccountStep(
+            GuardianFirstNameBox.Text,
+            GuardianLastNameBox.Text,
+            EmailBox.Text,
+            PasswordBox.Password,
+            ConfirmPasswordBox.Password);
+        if (!string.IsNullOrWhiteSpace(validationError))
+        {
+            ValidationText.Text = validationError;
+            ValidationText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        ValidationText.Visibility = Visibility.Collapsed;
+        ShowFamilyStep();
+    }
+
     private async void OnCreateClicked(object sender, RoutedEventArgs e)
     {
-        var validationError = ValidateInputs();
+        var validationError = ValidateFinalStep();
         if (!string.IsNullOrWhiteSpace(validationError))
         {
             ValidationText.Text = validationError;
@@ -61,52 +87,46 @@ public partial class CreateFamilyAccountWindow : Window
         Close();
     }
 
-    private string? ValidateInputs()
+    private string? ValidateFinalStep()
     {
-        if (string.IsNullOrWhiteSpace(FamilyNameBox.Text))
+        if (_isAccountStep)
         {
-            return "Family name is required.";
+            return "Complete account registration before creating the family.";
         }
 
-        if (string.IsNullOrWhiteSpace(GuardianFirstNameBox.Text))
+        var accountValidationError = OnboardingRegistrationValidator.ValidateAccountStep(
+            GuardianFirstNameBox.Text,
+            GuardianLastNameBox.Text,
+            EmailBox.Text,
+            PasswordBox.Password,
+            ConfirmPasswordBox.Password);
+        if (!string.IsNullOrWhiteSpace(accountValidationError))
         {
-            return "Primary guardian first name is required.";
+            return accountValidationError;
         }
 
-        if (string.IsNullOrWhiteSpace(GuardianLastNameBox.Text))
-        {
-            return "Primary guardian last name is required.";
-        }
+        return OnboardingRegistrationValidator.ValidateFamilyStep(FamilyNameBox.Text);
+    }
 
-        if (string.IsNullOrWhiteSpace(EmailBox.Text))
-        {
-            return "Email is required.";
-        }
+    private void ShowAccountStep()
+    {
+        _isAccountStep = true;
+        AccountStepPanel.Visibility = Visibility.Visible;
+        FamilyStepPanel.Visibility = Visibility.Collapsed;
+        BackButton.Visibility = Visibility.Collapsed;
+        NextButton.Visibility = Visibility.Visible;
+        CreateButton.Visibility = Visibility.Collapsed;
+        StepDescriptionText.Text = "Step 1 of 2: create your account credentials.";
+    }
 
-        try
-        {
-            _ = new MailAddress(EmailBox.Text.Trim());
-        }
-        catch (FormatException)
-        {
-            return "Enter a valid email address.";
-        }
-
-        if (string.IsNullOrWhiteSpace(PasswordBox.Password))
-        {
-            return "Password is required.";
-        }
-
-        if (PasswordBox.Password.Length < 8)
-        {
-            return "Password must be at least 8 characters.";
-        }
-
-        if (!string.Equals(PasswordBox.Password, ConfirmPasswordBox.Password, StringComparison.Ordinal))
-        {
-            return "Password confirmation does not match.";
-        }
-
-        return null;
+    private void ShowFamilyStep()
+    {
+        _isAccountStep = false;
+        AccountStepPanel.Visibility = Visibility.Collapsed;
+        FamilyStepPanel.Visibility = Visibility.Visible;
+        BackButton.Visibility = Visibility.Visible;
+        NextButton.Visibility = Visibility.Collapsed;
+        CreateButton.Visibility = Visibility.Visible;
+        StepDescriptionText.Text = "Step 2 of 2: configure your family workspace.";
     }
 }

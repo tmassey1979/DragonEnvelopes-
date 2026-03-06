@@ -33,51 +33,57 @@
                                FontWeight="Bold"
                                Foreground="{StaticResource PrimaryTextBrush}" />
                     <TextBlock Margin="0,6,0,16"
+                               x:Name="StepDescriptionText"
                                Style="{StaticResource CaptionTextStyle}"
-                               Text="Set up your household workspace in DragonEnvelopes." />
+                               Text="Step 1 of 2: create your account credentials." />
                 </StackPanel>
 
                 <StackPanel Grid.Row="1" KeyboardNavigation.TabNavigation="Cycle">
-                    <Label Content="_Family Name"
-                           Target="{Binding ElementName=FamilyNameBox}" />
-                    <TextBox x:Name="FamilyNameBox"
-                             Margin="0,8,0,12"
-                             AutomationProperties.Name="Family Name" />
+                    <StackPanel x:Name="AccountStepPanel">
+                        <TextBlock Text="Primary Guardian Name" />
+                        <Grid Margin="0,8,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="GuardianFirstNameBox"
+                                     Grid.Column="0"
+                                     ToolTip="First Name"
+                                     AutomationProperties.Name="Primary Guardian First Name" />
+                            <TextBox x:Name="GuardianLastNameBox"
+                                     Grid.Column="2"
+                                     ToolTip="Last Name"
+                                     AutomationProperties.Name="Primary Guardian Last Name" />
+                        </Grid>
 
-                    <TextBlock Text="Primary Guardian Name" />
-                    <Grid Margin="0,8,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="10" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="GuardianFirstNameBox"
-                                 Grid.Column="0"
-                                 ToolTip="First Name"
-                                 AutomationProperties.Name="Primary Guardian First Name" />
-                        <TextBox x:Name="GuardianLastNameBox"
-                                 Grid.Column="2"
-                                 ToolTip="Last Name"
-                                 AutomationProperties.Name="Primary Guardian Last Name" />
-                    </Grid>
-
-                    <Label Content="_Email"
-                           Target="{Binding ElementName=EmailBox}" />
-                    <TextBox x:Name="EmailBox"
-                             Margin="0,8,0,12"
-                             AutomationProperties.Name="Email" />
-
-                    <Label Content="_Password"
-                           Target="{Binding ElementName=PasswordBox}" />
-                    <PasswordBox x:Name="PasswordBox"
+                        <Label Content="_Email"
+                               Target="{Binding ElementName=EmailBox}" />
+                        <TextBox x:Name="EmailBox"
                                  Margin="0,8,0,12"
-                                 AutomationProperties.Name="Password" />
+                                 AutomationProperties.Name="Email" />
 
-                    <Label Content="_Confirm Password"
-                           Target="{Binding ElementName=ConfirmPasswordBox}" />
-                    <PasswordBox x:Name="ConfirmPasswordBox"
-                                 Margin="0,8,0,0"
-                                 AutomationProperties.Name="Confirm Password" />
+                        <Label Content="_Password"
+                               Target="{Binding ElementName=PasswordBox}" />
+                        <PasswordBox x:Name="PasswordBox"
+                                     Margin="0,8,0,12"
+                                     AutomationProperties.Name="Password" />
+
+                        <Label Content="_Confirm Password"
+                               Target="{Binding ElementName=ConfirmPasswordBox}" />
+                        <PasswordBox x:Name="ConfirmPasswordBox"
+                                     Margin="0,8,0,0"
+                                     AutomationProperties.Name="Confirm Password" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="FamilyStepPanel"
+                                Visibility="Collapsed">
+                        <Label Content="_Family Name"
+                               Target="{Binding ElementName=FamilyNameBox}" />
+                        <TextBox x:Name="FamilyNameBox"
+                                 Margin="0,8,0,12"
+                                 AutomationProperties.Name="Family Name" />
+                    </StackPanel>
 
                     <TextBlock x:Name="ValidationText"
                                Margin="0,10,0,0"
@@ -91,18 +97,33 @@
                             Margin="0,16,0,0"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right">
+                    <Button x:Name="BackButton"
+                            MinWidth="88"
+                            Margin="0,0,10,0"
+                            Content="Back"
+                            AutomationProperties.Name="Back to account step"
+                            Click="OnBackClicked"
+                            Visibility="Collapsed" />
                     <Button MinWidth="88"
                             Margin="0,0,10,0"
                             Content="Cancel"
                             IsCancel="True"
                             AutomationProperties.Name="Cancel create family account"
                             Click="OnCancelClicked" />
+                    <Button x:Name="NextButton"
+                            MinWidth="92"
+                            Margin="0,0,10,0"
+                            Content="Next"
+                            IsDefault="True"
+                            AutomationProperties.Name="Continue to family setup"
+                            Click="OnNextClicked" />
                     <Button x:Name="CreateButton"
                             MinWidth="124"
                             Content="Create Account"
                             IsDefault="True"
                             AutomationProperties.Name="Create family account"
-                            Click="OnCreateClicked" />
+                            Click="OnCreateClicked"
+                            Visibility="Collapsed" />
                 </StackPanel>
             </Grid>
         </Border>
