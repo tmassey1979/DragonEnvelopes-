@@ -756,6 +756,15 @@ v1.MapPut("/transactions/{transactionId:guid}", async (
             request.Description,
             request.Merchant,
             request.Category,
+            request.ReplaceAllocation,
+            request.EnvelopeId,
+            request.Splits?
+                .Select(static split => new TransactionSplitCreateDetails(
+                    split.EnvelopeId,
+                    split.Amount,
+                    split.Category,
+                    split.Notes))
+                .ToArray(),
             cancellationToken);
         return Results.Ok(MapTransactionResponse(transaction));
     })

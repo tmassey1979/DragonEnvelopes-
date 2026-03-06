@@ -26,6 +26,15 @@ public interface ITransactionRepository
         IReadOnlyCollection<Guid> transactionIds,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<TransactionSplitEntry>> ListTransactionSplitsByTransactionIdAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default);
+
+    Task ReplaceTransactionSplitsAsync(
+        Guid transactionId,
+        IReadOnlyList<TransactionSplitEntry> splitEntries,
+        CancellationToken cancellationToken = default);
+
     Task<Transaction?> GetTransactionByIdForUpdateAsync(
         Guid transactionId,
         CancellationToken cancellationToken = default);

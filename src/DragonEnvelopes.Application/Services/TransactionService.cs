@@ -189,6 +189,9 @@ public sealed class TransactionService(
         string description,
         string merchant,
         string? category,
+        bool replaceAllocation,
+        Guid? envelopeId,
+        IReadOnlyList<TransactionSplitCreateDetails>? splits,
         CancellationToken cancellationToken = default)
     {
         var transaction = await transactionRepository.GetTransactionByIdForUpdateAsync(transactionId, cancellationToken);
@@ -197,11 +200,138 @@ public sealed class TransactionService(
             throw new DomainValidationException("Transaction was not found.");
         }
 
+        if (replaceAllocation)
+        {
+            if (envelopeId.HasValue && splits is { Count: > 0 })
+            {
+                throw new DomainValidationException("EnvelopeId cannot be set when splits are provided.");
+            }
+
+            if (splits is { Count: > 0 })
+            {
+                var splitTotal = splits.Sum(static split => split.Amount);
+                if (splitTotal != transaction.Amount.Amount)
+                {
+                    throw new DomainValidationException("Split totals must equal transaction amount.");
+                }
+            }
+
+            var existingSplits = await transactionRepository.ListTransactionSplitsByTransactionIdAsync(transactionId, cancellationToken);
+            await RebalanceEnvelopesForAllocationChangeAsync(
+                transaction,
+                existingSplits,
+                envelopeId,
+                splits,
+                cancellationToken);
+
+            var updatedSplitEntries = splits is { Count: > 0 }
+                ? splits.Select(split => new TransactionSplitEntry(
+                        Guid.NewGuid(),
+                        transaction.Id,
+                        split.EnvelopeId,
+                        Money.FromDecimal(split.Amount),
+                        split.Category,
+                        split.Notes))
+                    .ToArray()
+                : [];
+            await transactionRepository.ReplaceTransactionSplitsAsync(
+                transaction.Id,
+                updatedSplitEntries,
+                cancellationToken);
+
+            transaction.AssignEnvelope(envelopeId);
+        }
+
         transaction.UpdateMetadata(description, merchant, category);
         await transactionRepository.SaveChangesAsync(cancellationToken);
 
-        var splits = await transactionRepository.ListTransactionSplitsAsync([transactionId], cancellationToken);
-        return Map(transaction, splits);
+        var refreshedSplits = await transactionRepository.ListTransactionSplitsAsync([transactionId], cancellationToken);
+        return Map(transaction, refreshedSplits);
+    }
+
+    private async Task RebalanceEnvelopesForAllocationChangeAsync(
+        Transaction transaction,
+        IReadOnlyList<TransactionSplitEntry> existingSplits,
+        Guid? updatedEnvelopeId,
+        IReadOnlyList<TransactionSplitCreateDetails>? updatedSplits,
+        CancellationToken cancellationToken)
+    {
+        if (existingSplits.Count > 0)
+        {
+            foreach (var split in existingSplits)
+            {
+                var envelope = await envelopeRepository.GetByIdForUpdateAsync(split.EnvelopeId, cancellationToken);
+                if (envelope is null)
+                {
+                    throw new DomainValidationException($"Envelope was not found for split id {split.EnvelopeId}.");
+                }
+
+                ApplyReverseAmountToEnvelope(envelope, split.Amount.Amount, transaction.OccurredAt);
+            }
+        }
+        else if (transaction.EnvelopeId.HasValue)
+        {
+            var currentEnvelope = await envelopeRepository.GetByIdForUpdateAsync(transaction.EnvelopeId.Value, cancellationToken);
+            if (currentEnvelope is null)
+            {
+                throw new DomainValidationException("Envelope was not found.");
+            }
+
+            ApplyReverseAmountToEnvelope(currentEnvelope, transaction.Amount.Amount, transaction.OccurredAt);
+        }
+
+        if (updatedSplits is { Count: > 0 })
+        {
+            foreach (var split in updatedSplits)
+            {
+                var envelope = await envelopeRepository.GetByIdForUpdateAsync(split.EnvelopeId, cancellationToken);
+                if (envelope is null)
+                {
+                    throw new DomainValidationException($"Envelope was not found for split id {split.EnvelopeId}.");
+                }
+
+                ApplyTransactionAmountToEnvelope(envelope, split.Amount, transaction.OccurredAt);
+            }
+
+            return;
+        }
+
+        if (updatedEnvelopeId.HasValue)
+        {
+            var updatedEnvelope = await envelopeRepository.GetByIdForUpdateAsync(updatedEnvelopeId.Value, cancellationToken);
+            if (updatedEnvelope is null)
+            {
+                throw new DomainValidationException("Envelope was not found.");
+            }
+
+            ApplyTransactionAmountToEnvelope(updatedEnvelope, transaction.Amount.Amount, transaction.OccurredAt);
+        }
+    }
+
+    private static void ApplyTransactionAmountToEnvelope(Envelope envelope, decimal amount, DateTimeOffset occurredAt)
+    {
+        var absoluteAmount = Money.FromDecimal(Math.Abs(amount));
+        if (amount < 0m)
+        {
+            envelope.Spend(absoluteAmount, occurredAt);
+        }
+        else
+        {
+            envelope.Allocate(absoluteAmount, occurredAt);
+        }
+    }
+
+    private static void ApplyReverseAmountToEnvelope(Envelope envelope, decimal amount, DateTimeOffset occurredAt)
+    {
+        var absoluteAmount = Money.FromDecimal(Math.Abs(amount));
+        if (amount < 0m)
+        {
+            envelope.Allocate(absoluteAmount, occurredAt);
+        }
+        else
+        {
+            envelope.Spend(absoluteAmount, occurredAt);
+        }
     }
 
     private static TransactionDetails Map(

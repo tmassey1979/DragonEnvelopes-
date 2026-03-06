@@ -21,6 +21,9 @@ public interface ITransactionService
         string description,
         string merchant,
         string? category,
+        bool replaceAllocation,
+        Guid? envelopeId,
+        IReadOnlyList<TransactionSplitCreateDetails>? splits,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<TransactionDetails>> ListAsync(

@@ -80,6 +80,37 @@ public sealed class TransactionRepository(DragonEnvelopesDbContext dbContext) : 
             .ToArrayAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<TransactionSplitEntry>> ListTransactionSplitsByTransactionIdAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.TransactionSplits
+            .AsNoTracking()
+            .Where(x => x.TransactionId == transactionId)
+            .OrderBy(x => x.Id)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task ReplaceTransactionSplitsAsync(
+        Guid transactionId,
+        IReadOnlyList<TransactionSplitEntry> splitEntries,
+        CancellationToken cancellationToken = default)
+    {
+        var existing = await dbContext.TransactionSplits
+            .Where(x => x.TransactionId == transactionId)
+            .ToArrayAsync(cancellationToken);
+
+        if (existing.Length > 0)
+        {
+            dbContext.TransactionSplits.RemoveRange(existing);
+        }
+
+        if (splitEntries.Count > 0)
+        {
+            dbContext.TransactionSplits.AddRange(splitEntries);
+        }
+    }
+
     public Task<Transaction?> GetTransactionByIdForUpdateAsync(
         Guid transactionId,
         CancellationToken cancellationToken = default)

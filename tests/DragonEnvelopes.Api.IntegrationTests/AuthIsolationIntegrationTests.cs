@@ -120,6 +120,54 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Replace_Single_Envelope_With_Splits_And_Rebalance()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PutAsJsonAsync($"/api/v1/transactions/{TestApiFactory.TransactionAId}", new
+        {
+            description = "Groceries Split",
+            merchant = "Market A",
+            category = "Food",
+            replaceAllocation = true,
+            envelopeId = (Guid?)null,
+            splits = new object[]
+            {
+                new
+                {
+                    envelopeId = TestApiFactory.EnvelopeAId,
+                    amount = -4.00m,
+                    category = "Food",
+                    notes = "Part A"
+                },
+                new
+                {
+                    envelopeId = TestApiFactory.EnvelopeA2Id,
+                    amount = -6.00m,
+                    category = "Food",
+                    notes = "Part B"
+                }
+            }
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+
+        var envelopeA = await dbContext.Envelopes.FirstAsync(x => x.Id == TestApiFactory.EnvelopeAId);
+        var envelopeA2 = await dbContext.Envelopes.FirstAsync(x => x.Id == TestApiFactory.EnvelopeA2Id);
+        var transaction = await dbContext.Transactions.FirstAsync(x => x.Id == TestApiFactory.TransactionAId);
+        var splitCount = await dbContext.TransactionSplits.CountAsync(x => x.TransactionId == TestApiFactory.TransactionAId);
+
+        Assert.Equal(106.00m, envelopeA.CurrentBalance.Amount);
+        Assert.Equal(94.00m, envelopeA2.CurrentBalance.Amount);
+        Assert.Null(transaction.EnvelopeId);
+        Assert.Equal(2, splitCount);
+    }
+
+    [Fact]
     public async Task System_Health_Is_Available_Anonymously()
     {
         using var client = _factory.CreateClient();
@@ -153,6 +201,9 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
     public static readonly Guid FamilyBId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     public static readonly Guid AccountAId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
     public static readonly Guid AccountBId = Guid.Parse("bbbbbbbb-cccc-dddd-eeee-ffffffffffff");
+    public static readonly Guid EnvelopeAId = Guid.Parse("aaaaaaaa-1111-1111-1111-111111111111");
+    public static readonly Guid EnvelopeA2Id = Guid.Parse("aaaaaaaa-2222-2222-2222-222222222222");
+    public static readonly Guid EnvelopeBId = Guid.Parse("bbbbbbbb-1111-1111-1111-111111111111");
     public static readonly Guid TransactionAId = Guid.Parse("11111111-2222-3333-4444-555555555555");
     public static readonly Guid TransactionBId = Guid.Parse("66666666-7777-8888-9999-aaaaaaaaaaaa");
     public const string UserAId = "user-a";
@@ -212,18 +263,20 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
             new Account(AccountBId, FamilyBId, "Checking B", AccountType.Checking, Money.FromDecimal(1000m)));
 
         dbContext.Envelopes.AddRange(
-            new Envelope(Guid.NewGuid(), FamilyAId, "Groceries A", Money.FromDecimal(200m), Money.FromDecimal(100m)),
-            new Envelope(Guid.NewGuid(), FamilyBId, "Groceries B", Money.FromDecimal(200m), Money.FromDecimal(100m)));
+            new Envelope(EnvelopeAId, FamilyAId, "Groceries A", Money.FromDecimal(200m), Money.FromDecimal(100m)),
+            new Envelope(EnvelopeA2Id, FamilyAId, "Groceries A2", Money.FromDecimal(200m), Money.FromDecimal(100m)),
+            new Envelope(EnvelopeBId, FamilyBId, "Groceries B", Money.FromDecimal(200m), Money.FromDecimal(100m)));
 
         dbContext.Transactions.AddRange(
             new Transaction(
                 TransactionAId,
                 AccountAId,
-                Money.FromDecimal(-42.50m),
+                Money.FromDecimal(-10.00m),
                 "Groceries",
                 "Market A",
                 DateTimeOffset.UtcNow,
-                "Food"),
+                "Food",
+                EnvelopeAId),
             new Transaction(
                 TransactionBId,
                 AccountBId,

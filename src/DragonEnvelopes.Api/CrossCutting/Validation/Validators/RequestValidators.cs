@@ -207,6 +207,17 @@ public sealed class UpdateTransactionRequestValidator : AbstractValidator<Update
 
         RuleFor(static request => request.Category)
             .MaximumLength(100);
+
+        RuleFor(static request => request)
+            .Must(static request => !request.ReplaceAllocation || request.EnvelopeId is null || request.Splits is not { Count: > 0 })
+            .WithMessage("EnvelopeId cannot be set when splits are provided.");
+
+        RuleFor(static request => request)
+            .Must(static request => !request.ReplaceAllocation || request.Splits is not { Count: > 0 } || request.Splits.Sum(static split => split.Amount) != 0m)
+            .WithMessage("Split totals cannot be zero when replacing allocation.");
+
+        RuleForEach(static request => request.Splits)
+            .SetValidator(new TransactionSplitRequestValidator());
     }
 }
 
