@@ -426,6 +426,9 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.NotNull(payload);
         Assert.Equal(TestApiFactory.FamilyAId, payload!.FamilyId);
         Assert.Equal("Degraded", payload.NotificationDispatch.Status);
+        Assert.True(payload.NotificationDispatch.FailedCount >= 1);
+        Assert.NotNull(payload.LastStripeWebhook);
+        Assert.Equal("webhook.family_a", payload.LastStripeWebhook!.EventType);
         Assert.False(string.IsNullOrWhiteSpace(payload.TraceId));
         Assert.True(response.Headers.TryGetValues("X-Trace-Id", out var traceHeaderValues));
         Assert.False(string.IsNullOrWhiteSpace(traceHeaderValues!.FirstOrDefault()));
@@ -455,6 +458,12 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.NotNull(payload);
         Assert.Equal(TestApiFactory.FamilyAId, payload!.FamilyId);
         Assert.Equal(20, payload.RequestedTake);
+        Assert.Contains(
+            payload.Events,
+            evt => evt.Source == "StripeWebhook" && evt.EventType == "webhook.family_a");
+        Assert.DoesNotContain(
+            payload.Events,
+            evt => evt.EventType == "webhook.family_b_marker");
         Assert.False(string.IsNullOrWhiteSpace(payload.TraceId));
         Assert.True(response.Headers.TryGetValues("X-Trace-Id", out var traceHeaderValues));
         Assert.False(string.IsNullOrWhiteSpace(traceHeaderValues!.FirstOrDefault()));
@@ -856,6 +865,8 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
     public static readonly Guid NotificationEventAId = Guid.Parse("31000000-0000-0000-0000-000000000001");
     public static readonly Guid NotificationEventA2Id = Guid.Parse("31000000-0000-0000-0000-000000000003");
     public static readonly Guid NotificationEventBId = Guid.Parse("31000000-0000-0000-0000-000000000002");
+    public static readonly Guid StripeWebhookRecordAId = Guid.Parse("41000000-0000-0000-0000-000000000001");
+    public static readonly Guid StripeWebhookRecordBId = Guid.Parse("41000000-0000-0000-0000-000000000002");
     public static readonly Guid PlaidLinkAId = Guid.Parse("21000000-0000-0000-0000-000000000001");
     public static readonly Guid PlaidLinkBId = Guid.Parse("21000000-0000-0000-0000-000000000002");
     public static readonly Guid TransactionAId = Guid.Parse("11111111-2222-3333-4444-555555555555");
@@ -957,6 +968,32 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
                 isActive: true));
 
         var now = DateTimeOffset.UtcNow;
+        dbContext.StripeWebhookEvents.AddRange(
+            new StripeWebhookEvent(
+                StripeWebhookRecordAId,
+                "evt_stripe_family_a",
+                "webhook.family_a",
+                FamilyAId,
+                EnvelopeAId,
+                cardId: null,
+                "Processed",
+                errorMessage: null,
+                "{\"family\":\"A\"}",
+                now.AddMinutes(-18),
+                now.AddMinutes(-17)),
+            new StripeWebhookEvent(
+                StripeWebhookRecordBId,
+                "evt_stripe_family_b",
+                "webhook.family_b_marker",
+                FamilyBId,
+                EnvelopeBId,
+                cardId: null,
+                "Processed",
+                errorMessage: "family_b_marker_error",
+                "{\"family\":\"B\"}",
+                now.AddMinutes(-16),
+                now.AddMinutes(-15)));
+
         dbContext.PlaidAccountLinks.AddRange(
             new PlaidAccountLink(
                 PlaidLinkAId,
