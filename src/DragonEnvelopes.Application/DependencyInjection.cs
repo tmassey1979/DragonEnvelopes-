@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.AddScoped<IFamilyService, FamilyService>();
         services.AddScoped<IFamilyInviteService, FamilyInviteService>();
         services.AddScoped<IOnboardingProfileService, OnboardingProfileService>();
+        services.AddScoped<IOnboardingBootstrapService, OnboardingBootstrapService>();
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IAutomationRuleService, AutomationRuleService>();
         services.AddScoped<ICategorizationRuleEngine, CategorizationRuleEngine>();

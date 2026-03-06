@@ -4,6 +4,7 @@ using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Contracts.Imports;
+using DragonEnvelopes.Contracts.Onboarding;
 using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Contracts.Transactions;
 using FluentValidation;
@@ -103,6 +104,72 @@ public sealed class AcceptFamilyInviteRequestValidator : AbstractValidator<Accep
         RuleFor(static request => request.InviteToken)
             .NotEmpty()
             .MaximumLength(256);
+    }
+}
+
+public sealed class OnboardingBootstrapRequestValidator : AbstractValidator<OnboardingBootstrapRequest>
+{
+    public OnboardingBootstrapRequestValidator()
+    {
+        RuleFor(static request => request)
+            .Must(static request => request.Accounts.Count > 0 || request.Envelopes.Count > 0 || request.Budget is not null)
+            .WithMessage("At least one onboarding bootstrap item is required.");
+
+        RuleForEach(static request => request.Accounts)
+            .SetValidator(new OnboardingBootstrapAccountRequestValidator());
+
+        RuleForEach(static request => request.Envelopes)
+            .SetValidator(new OnboardingBootstrapEnvelopeRequestValidator());
+
+        RuleFor(static request => request.Budget)
+            .SetValidator(new OnboardingBootstrapBudgetRequestValidator()!)
+            .When(static request => request.Budget is not null);
+    }
+}
+
+public sealed class OnboardingBootstrapAccountRequestValidator : AbstractValidator<OnboardingBootstrapAccountRequest>
+{
+    private static readonly string[] AllowedTypes = ["Checking", "Savings", "Cash", "Credit"];
+
+    public OnboardingBootstrapAccountRequestValidator()
+    {
+        RuleFor(static request => request.Name)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(static request => request.Type)
+            .NotEmpty()
+            .Must(static value => AllowedTypes.Contains(value, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"Type must be one of: {string.Join(", ", AllowedTypes)}.");
+
+        RuleFor(static request => request.OpeningBalance)
+            .GreaterThanOrEqualTo(0m);
+    }
+}
+
+public sealed class OnboardingBootstrapEnvelopeRequestValidator : AbstractValidator<OnboardingBootstrapEnvelopeRequest>
+{
+    public OnboardingBootstrapEnvelopeRequestValidator()
+    {
+        RuleFor(static request => request.Name)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(static request => request.MonthlyBudget)
+            .GreaterThanOrEqualTo(0m);
+    }
+}
+
+public sealed class OnboardingBootstrapBudgetRequestValidator : AbstractValidator<OnboardingBootstrapBudgetRequest>
+{
+    public OnboardingBootstrapBudgetRequestValidator()
+    {
+        RuleFor(static request => request.Month)
+            .NotEmpty()
+            .Matches(@"^\d{4}-(0[1-9]|1[0-2])$");
+
+        RuleFor(static request => request.TotalIncome)
+            .GreaterThanOrEqualTo(0m);
     }
 }
 

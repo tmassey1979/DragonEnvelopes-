@@ -759,6 +759,38 @@ v1.MapPut("/families/{familyId:guid}/onboarding", async (
     .WithName("UpdateFamilyOnboardingProfile")
     .WithOpenApi();
 
+v1.MapPost("/families/{familyId:guid}/onboarding/bootstrap", async (
+        Guid familyId,
+        OnboardingBootstrapRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
+        IOnboardingBootstrapService onboardingBootstrapService,
+        CancellationToken cancellationToken) =>
+    {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
+        var result = await onboardingBootstrapService.BootstrapAsync(
+            familyId,
+            request.Accounts.Select(static account => (account.Name, account.Type, account.OpeningBalance)).ToArray(),
+            request.Envelopes.Select(static envelope => (envelope.Name, envelope.MonthlyBudget)).ToArray(),
+            request.Budget is null
+                ? null
+                : (request.Budget.Month, request.Budget.TotalIncome),
+            cancellationToken);
+
+        return Results.Ok(new OnboardingBootstrapResponse(
+            result.FamilyId,
+            result.AccountsCreated,
+            result.EnvelopesCreated,
+            result.BudgetCreated));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("BootstrapFamilyOnboarding")
+    .WithOpenApi();
+
 v1.MapPost("/families/invites/accept", async (
         AcceptFamilyInviteRequest request,
         IFamilyInviteService familyInviteService,

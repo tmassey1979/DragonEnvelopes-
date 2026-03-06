@@ -323,6 +323,66 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Run_Onboarding_Bootstrap_For_Own_Family()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/onboarding/bootstrap", new
+        {
+            accounts = new[]
+            {
+                new
+                {
+                    name = "Starter Savings",
+                    type = "Savings",
+                    openingBalance = 250.00m
+                }
+            },
+            envelopes = new[]
+            {
+                new
+                {
+                    name = "Utilities",
+                    monthlyBudget = 180.00m
+                }
+            },
+            budget = new
+            {
+                month = "2027-01",
+                totalIncome = 5000.00m
+            }
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<OnboardingBootstrapResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(1, payload!.AccountsCreated);
+        Assert.Equal(1, payload.EnvelopesCreated);
+        Assert.True(payload.BudgetCreated);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Run_Onboarding_Bootstrap_For_FamilyB()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/onboarding/bootstrap", new
+        {
+            accounts = new object[] { },
+            envelopes = new object[] { },
+            budget = new
+            {
+                month = "2027-02",
+                totalIncome = 5000.00m
+            }
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task System_Health_Is_Available_Anonymously()
     {
         using var client = _factory.CreateClient();
