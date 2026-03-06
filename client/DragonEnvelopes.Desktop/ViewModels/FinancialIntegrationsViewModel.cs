@@ -11,17 +11,20 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     private readonly IFinancialIntegrationDataService _financialIntegrationDataService;
     private readonly IAccountsDataService _accountsDataService;
     private readonly IEnvelopesDataService _envelopesDataService;
+    private readonly IDesktopPlaidLinkService _desktopPlaidLinkService;
     private bool _isApplyingEnvelopeSelection;
     private bool _isApplyingCardSelection;
 
     public FinancialIntegrationsViewModel(
         IFinancialIntegrationDataService financialIntegrationDataService,
         IAccountsDataService accountsDataService,
-        IEnvelopesDataService envelopesDataService)
+        IEnvelopesDataService envelopesDataService,
+        IDesktopPlaidLinkService desktopPlaidLinkService)
     {
         _financialIntegrationDataService = financialIntegrationDataService;
         _accountsDataService = accountsDataService;
         _envelopesDataService = envelopesDataService;
+        _desktopPlaidLinkService = desktopPlaidLinkService;
 
         PlaidClientName = "DragonEnvelopes Desktop";
         ShipmentCountryCode = "US";
@@ -44,6 +47,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         RefreshStatusCommand = new AsyncRelayCommand(RefreshStatusAsync);
         SaveNotificationPreferenceCommand = new AsyncRelayCommand(SaveNotificationPreferenceAsync);
         CreatePlaidLinkTokenCommand = new AsyncRelayCommand(CreatePlaidLinkTokenAsync);
+        LaunchNativePlaidLinkCommand = new AsyncRelayCommand(LaunchNativePlaidLinkAsync);
         ExchangePlaidPublicTokenCommand = new AsyncRelayCommand(ExchangePlaidPublicTokenAsync);
         UpsertPlaidAccountLinkCommand = new AsyncRelayCommand(UpsertPlaidAccountLinkAsync);
         SyncPlaidTransactionsCommand = new AsyncRelayCommand(SyncPlaidTransactionsAsync);
@@ -69,6 +73,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public IAsyncRelayCommand RefreshStatusCommand { get; }
     public IAsyncRelayCommand SaveNotificationPreferenceCommand { get; }
     public IAsyncRelayCommand CreatePlaidLinkTokenCommand { get; }
+    public IAsyncRelayCommand LaunchNativePlaidLinkCommand { get; }
     public IAsyncRelayCommand ExchangePlaidPublicTokenCommand { get; }
     public IAsyncRelayCommand UpsertPlaidAccountLinkCommand { get; }
     public IAsyncRelayCommand SyncPlaidTransactionsCommand { get; }
@@ -334,6 +339,42 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             PlaidLinkToken = token.LinkToken;
             PlaidLinkTokenExpiresAt = FormatDate(token.ExpiresAtUtc);
             StatusMessage = "Plaid link token created.";
+        }, cancellationToken);
+    }
+
+    private Task LaunchNativePlaidLinkAsync(CancellationToken cancellationToken)
+    {
+        return RunOperationAsync("Launching native Plaid Link...", async ct =>
+        {
+            if (string.IsNullOrWhiteSpace(PlaidLinkToken))
+            {
+                var token = await _financialIntegrationDataService.CreatePlaidLinkTokenAsync(
+                    string.IsNullOrWhiteSpace(PlaidClientName) ? null : PlaidClientName.Trim(),
+                    ct);
+                PlaidLinkToken = token.LinkToken;
+                PlaidLinkTokenExpiresAt = FormatDate(token.ExpiresAtUtc);
+            }
+
+            var linkResult = await _desktopPlaidLinkService.LaunchAsync(PlaidLinkToken, ct);
+            if (linkResult.IsCanceled)
+            {
+                StatusMessage = linkResult.Message;
+                return;
+            }
+
+            if (!linkResult.Succeeded || string.IsNullOrWhiteSpace(linkResult.PublicToken))
+            {
+                throw new InvalidOperationException(linkResult.Message);
+            }
+
+            // Keep token visibility brief; exchange immediately then clear.
+            PlaidPublicToken = linkResult.PublicToken;
+            var status = await _financialIntegrationDataService.ExchangePlaidPublicTokenAsync(linkResult.PublicToken, ct);
+            ApplyFinancialStatus(status);
+            PlaidPublicToken = string.Empty;
+            PlaidLinkToken = string.Empty;
+            PlaidLinkTokenExpiresAt = "-";
+            StatusMessage = "Plaid Link completed and token exchanged.";
         }, cancellationToken);
     }
 

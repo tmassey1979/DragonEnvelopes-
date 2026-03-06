@@ -1983,6 +1983,7 @@
                             <StackPanel Grid.Column="0">
                                 <TextBox Text="{Binding PlaidClientName, UpdateSourceTrigger=PropertyChanged}" />
                                 <Button Margin="0,8,0,0" Content="Create Link Token" Command="{Binding CreatePlaidLinkTokenCommand}" />
+                                <Button Margin="0,8,0,0" Content="Launch Native Plaid Link" Command="{Binding LaunchNativePlaidLinkCommand}" />
                                 <TextBox Margin="0,8,0,0" Text="{Binding PlaidLinkToken}" IsReadOnly="True" />
                                 <TextBlock Margin="0,4,0,0" Text="{Binding PlaidLinkTokenExpiresAt, StringFormat=Expires: {0}}" Style="{StaticResource CaptionTextStyle}" />
                                 <TextBox Margin="0,8,0,0" Text="{Binding PlaidPublicToken, UpdateSourceTrigger=PropertyChanged}" />

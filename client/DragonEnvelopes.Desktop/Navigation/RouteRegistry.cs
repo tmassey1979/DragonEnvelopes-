@@ -51,7 +51,8 @@ public sealed class RouteRegistry : IRouteRegistry
                 Content: new FinancialIntegrationsViewModel(
                     new FinancialIntegrationDataService(apiClient, familyContext),
                     new AccountsDataService(apiClient, familyContext),
-                    new EnvelopesDataService(apiClient, familyContext)),
+                    new EnvelopesDataService(apiClient, familyContext),
+                    new DesktopPlaidLinkService()),
                 RequiredRole: "Parent"),
             new RouteDefinition(
                 Key: "/reports",
