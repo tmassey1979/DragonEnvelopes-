@@ -11,4 +11,11 @@ public interface IStripeGateway
     Task<(string SetupIntentId, string ClientSecret)> CreateSetupIntentAsync(
         string customerId,
         CancellationToken cancellationToken = default);
+
+    Task<string> CreateFinancialAccountAsync(
+        string customerId,
+        Guid familyId,
+        Guid envelopeId,
+        string displayName,
+        CancellationToken cancellationToken = default);
 }

@@ -107,6 +107,57 @@ public sealed class StripeGateway(
         return (setupIntentId, clientSecret);
     }
 
+    public async Task<string> CreateFinancialAccountAsync(
+        string customerId,
+        Guid familyId,
+        Guid envelopeId,
+        string displayName,
+        CancellationToken cancellationToken = default)
+    {
+        var configured = options.Value;
+        EnsureConfigured(configured);
+
+        if (string.IsNullOrWhiteSpace(customerId))
+        {
+            throw new DomainValidationException("Stripe customer id is required.");
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(configured.ApiBaseUrl, "/v1/treasury/financial_accounts"));
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", configured.SecretKey);
+        request.Content = new FormUrlEncodedContent(
+        [
+            new KeyValuePair<string, string>("supported_currencies[]", "usd"),
+            new KeyValuePair<string, string>("features[card_issuing][requested]", "true"),
+            new KeyValuePair<string, string>("metadata[customer_id]", customerId.Trim()),
+            new KeyValuePair<string, string>("metadata[family_id]", familyId.ToString()),
+            new KeyValuePair<string, string>("metadata[envelope_id]", envelopeId.ToString()),
+            new KeyValuePair<string, string>("metadata[display_name]", string.IsNullOrWhiteSpace(displayName) ? envelopeId.ToString() : displayName.Trim())
+        ]);
+
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogError(
+                "Stripe financial account creation failed. Status={StatusCode}, Body={Body}",
+                (int)response.StatusCode,
+                payload);
+            throw new DomainValidationException("Stripe financial account creation failed.");
+        }
+
+        using var doc = JsonDocument.Parse(payload);
+        var accountId = doc.RootElement.TryGetProperty("id", out var accountIdElement)
+            ? accountIdElement.GetString()
+            : null;
+
+        if (string.IsNullOrWhiteSpace(accountId))
+        {
+            throw new DomainValidationException("Stripe financial account response was invalid.");
+        }
+
+        return accountId;
+    }
+
     private static void EnsureConfigured(StripeGatewayOptions options)
     {
         if (!options.Enabled)

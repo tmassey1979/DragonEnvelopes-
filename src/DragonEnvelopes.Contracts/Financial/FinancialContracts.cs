@@ -27,3 +27,15 @@ public sealed record FamilyFinancialStatusResponse(
     bool StripeConnected,
     string? StripeCustomerId,
     DateTimeOffset? UpdatedAtUtc);
+
+public sealed record CreateStripeEnvelopeFinancialAccountRequest(
+    string? DisplayName);
+
+public sealed record EnvelopeFinancialAccountResponse(
+    Guid Id,
+    Guid FamilyId,
+    Guid EnvelopeId,
+    string Provider,
+    string ProviderFinancialAccountId,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc);

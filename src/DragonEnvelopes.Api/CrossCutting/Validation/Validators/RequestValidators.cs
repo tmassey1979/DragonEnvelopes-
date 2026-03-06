@@ -144,6 +144,15 @@ public sealed class CreateStripeSetupIntentRequestValidator : AbstractValidator<
     }
 }
 
+public sealed class CreateStripeEnvelopeFinancialAccountRequestValidator : AbstractValidator<CreateStripeEnvelopeFinancialAccountRequest>
+{
+    public CreateStripeEnvelopeFinancialAccountRequestValidator()
+    {
+        RuleFor(static request => request.DisplayName)
+            .MaximumLength(128);
+    }
+}
+
 public sealed class OnboardingBootstrapRequestValidator : AbstractValidator<OnboardingBootstrapRequest>
 {
     public OnboardingBootstrapRequestValidator()

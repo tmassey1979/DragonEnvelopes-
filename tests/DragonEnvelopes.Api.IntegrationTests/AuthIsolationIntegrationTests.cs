@@ -411,6 +411,46 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_List_Own_Family_Financial_Accounts()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/financial-accounts");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<List<EnvelopeFinancialAccountResponse>>();
+        Assert.NotNull(payload);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_List_FamilyB_Financial_Accounts()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/financial-accounts");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Link_Stripe_Envelope_Financial_Account_For_FamilyB()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/envelopes/{TestApiFactory.EnvelopeBId}/financial-accounts/stripe",
+            new
+            {
+                displayName = "Family B Envelope"
+            });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Onboarding_Bootstrap_Rejects_Duplicate_Account_Names_In_Request()
     {
         using var client = _factory.CreateClient();

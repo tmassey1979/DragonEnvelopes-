@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#134` Phase 2 backend Stripe + Plaid integration and family financial status.
+- Active task: `#141` Stripe financial account per envelope.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#133` checklist file creation.
+- Previous completed task: `#134` Phase 2 backend Stripe + Plaid integration and family financial status.
 - Last updated: `2026-03-06`.
