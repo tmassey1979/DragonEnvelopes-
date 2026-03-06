@@ -383,6 +383,26 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task Onboarding_Bootstrap_Rejects_Duplicate_Account_Names_In_Request()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/onboarding/bootstrap", new
+        {
+            accounts = new[]
+            {
+                new { name = "Duplicate Name", type = "Checking", openingBalance = 50m },
+                new { name = "Duplicate Name", type = "Savings", openingBalance = 10m }
+            },
+            envelopes = Array.Empty<object>(),
+            budget = (object?)null
+        });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+    }
+
+    [Fact]
     public async Task System_Health_Is_Available_Anonymously()
     {
         using var client = _factory.CreateClient();
