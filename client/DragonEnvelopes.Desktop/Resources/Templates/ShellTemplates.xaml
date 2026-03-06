@@ -1878,6 +1878,375 @@
         </Grid>
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type viewModels:FinancialIntegrationsViewModel}">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Financial Integrations" Style="{StaticResource DisplayTextStyle}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Text="Plaid and Stripe onboarding, card management, and controls."
+                               Style="{StaticResource BodyTextStyle}" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Margin="0,0,8,0"
+                        VerticalAlignment="Center"
+                        Content="Reload"
+                        Command="{Binding LoadCommand}" />
+                <Button Grid.Column="2"
+                        VerticalAlignment="Center"
+                        Content="Refresh Status"
+                        Command="{Binding RefreshStatusCommand}" />
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Padding="12"
+                    CornerRadius="10"
+                    Background="#4B311B"
+                    BorderBrush="#A35D2F"
+                    BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource CaptionTextStyle}" Foreground="#FFD2A8" />
+            </Border>
+
+            <ScrollViewer Grid.Row="2"
+                          Margin="0,12,0,0"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel x:Name="FinancialIntegrationsTemplateRoot">
+                    <controls:CardControl Header="Status"
+                                          Subheader="{Binding StatusMessage}"
+                                          EmptyMessage="Status unavailable."
+                                          IsLoading="{Binding IsLoading}"
+                                          IsEmpty="False">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="14" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="{Binding PlaidConnected, StringFormat=Plaid Connected: {0}}" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0" Text="{Binding PlaidItemIdentifier, StringFormat=Plaid Item: {0}}" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0" Text="{Binding StripeConnected, StringFormat=Stripe Connected: {0}}" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0" Text="{Binding StripeCustomerIdentifier, StringFormat=Stripe Customer: {0}}" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0" Text="{Binding FinancialStatusUpdatedAt, StringFormat=Updated: {0}}" Style="{StaticResource CaptionTextStyle}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <CheckBox Content="Email Alerts" IsChecked="{Binding NotificationEmailEnabled, Mode=TwoWay}" />
+                                <CheckBox Margin="0,4,0,0" Content="In-App Alerts" IsChecked="{Binding NotificationInAppEnabled, Mode=TwoWay}" />
+                                <CheckBox Margin="0,4,0,0" Content="SMS Alerts" IsChecked="{Binding NotificationSmsEnabled, Mode=TwoWay}" />
+                                <Button Margin="0,8,0,0"
+                                        Width="150"
+                                        Content="Save Alerts"
+                                        Command="{Binding SaveNotificationPreferenceCommand}" />
+                            </StackPanel>
+                        </Grid>
+                    </controls:CardControl>
+
+                    <controls:CardControl Margin="0,12,0,0"
+                                          Header="Plaid"
+                                          Subheader="Onboarding, account links, sync, and reconciliation"
+                                          EmptyMessage="Plaid unavailable."
+                                          IsLoading="{Binding IsLoading}"
+                                          IsEmpty="False">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.2*" />
+                                <ColumnDefinition Width="14" />
+                                <ColumnDefinition Width="1.4*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBox Text="{Binding PlaidClientName, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Margin="0,8,0,0" Content="Create Link Token" Command="{Binding CreatePlaidLinkTokenCommand}" />
+                                <TextBox Margin="0,8,0,0" Text="{Binding PlaidLinkToken}" IsReadOnly="True" />
+                                <TextBlock Margin="0,4,0,0" Text="{Binding PlaidLinkTokenExpiresAt, StringFormat=Expires: {0}}" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Margin="0,8,0,0" Text="{Binding PlaidPublicToken, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Margin="0,8,0,0" Content="Exchange Public Token" Command="{Binding ExchangePlaidPublicTokenCommand}" />
+                                <ComboBox Margin="0,10,0,0"
+                                          ItemsSource="{Binding AvailableAccounts}"
+                                          SelectedItem="{Binding SelectedAccount, Mode=TwoWay}"
+                                          DisplayMemberPath="Name" />
+                                <TextBox Margin="0,8,0,0" Text="{Binding PlaidAccountId, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Margin="0,8,0,0" Content="Save Plaid Link" Command="{Binding UpsertPlaidAccountLinkCommand}" />
+                                <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                                    <Button Margin="0,0,8,0" Content="Sync" Command="{Binding SyncPlaidTransactionsCommand}" />
+                                    <Button Margin="0,0,8,0" Content="Refresh Balances" Command="{Binding RefreshPlaidBalancesCommand}" />
+                                    <Button Content="Reconciliation" Command="{Binding LoadPlaidReconciliationCommand}" />
+                                </StackPanel>
+                                <TextBlock Margin="0,8,0,0" Text="{Binding PlaidSyncSummary}" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0" Text="{Binding PlaidBalanceRefreshSummary}" Style="{StaticResource CaptionTextStyle}" />
+                            </StackPanel>
+
+                            <Grid Grid.Column="2">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="150" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="200" />
+                                </Grid.RowDefinitions>
+
+                                <DataGrid Grid.Row="0"
+                                          ItemsSource="{Binding PlaidAccountLinks}"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          IsReadOnly="True"
+                                          RowHeight="32"
+                                          GridLinesVisibility="Horizontal"
+                                          Background="{StaticResource PanelMutedBackgroundBrush}"
+                                          BorderBrush="{StaticResource PanelOutlineBrush}"
+                                          BorderThickness="1">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Account" Binding="{Binding AccountName}" Width="*" />
+                                        <DataGridTextColumn Header="Plaid Id" Binding="{Binding PlaidAccountId}" Width="180" />
+                                        <DataGridTextColumn Header="Updated" Binding="{Binding UpdatedAt}" Width="120" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <TextBlock Grid.Row="1"
+                                           Margin="0,8,0,8"
+                                           Text="{Binding PlaidReconciliationGeneratedAt, StringFormat=Generated: {0}}"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <DataGrid Grid.Row="2"
+                                          ItemsSource="{Binding PlaidReconciliationAccounts}"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          IsReadOnly="True"
+                                          RowHeight="32"
+                                          GridLinesVisibility="Horizontal"
+                                          Background="{StaticResource PanelMutedBackgroundBrush}"
+                                          BorderBrush="{StaticResource PanelOutlineBrush}"
+                                          BorderThickness="1">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Account" Binding="{Binding AccountName}" Width="*" />
+                                        <DataGridTextColumn Header="Internal" Binding="{Binding InternalBalance}" Width="100" />
+                                        <DataGridTextColumn Header="Provider" Binding="{Binding ProviderBalance}" Width="100" />
+                                        <DataGridTextColumn Header="Drift" Binding="{Binding DriftAmount}" Width="100" />
+                                        <DataGridCheckBoxColumn Header="Flag" Binding="{Binding IsDrifted}" Width="55" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Grid>
+                    </controls:CardControl>
+
+                    <controls:CardControl Margin="0,12,0,0"
+                                          Header="Stripe and Card Management"
+                                          Subheader="{Binding SelectedEnvelopeSummary}"
+                                          EmptyMessage="Card management unavailable."
+                                          IsLoading="{Binding IsLoading}"
+                                          IsEmpty="False">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox Grid.Column="0" Text="{Binding StripeSetupEmail, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBox Grid.Column="2" Text="{Binding StripeSetupName, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Grid.Column="4"
+                                        Content="Create Setup Intent"
+                                        Command="{Binding CreateStripeSetupIntentCommand}" />
+                            </Grid>
+
+                            <TextBlock Margin="0,8,0,0"
+                                       Text="{Binding StripeSetupIntentId, StringFormat=Setup Intent: {0}}"
+                                       Style="{StaticResource CaptionTextStyle}" />
+                            <TextBlock Margin="0,4,0,0"
+                                       Text="{Binding StripeSetupCustomerId, StringFormat=Stripe Customer: {0}}"
+                                       Style="{StaticResource CaptionTextStyle}" />
+
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox Grid.Column="0"
+                                          ItemsSource="{Binding AvailableEnvelopes}"
+                                          SelectedItem="{Binding SelectedEnvelope, Mode=TwoWay}"
+                                          DisplayMemberPath="Name" />
+                                <TextBox Grid.Column="2"
+                                         Text="{Binding StripeFinancialAccountDisplayName, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Grid.Column="4"
+                                        Content="Link Account"
+                                        Command="{Binding LinkStripeFinancialAccountCommand}" />
+                            </Grid>
+
+                            <TextBlock Margin="0,8,0,0"
+                                       Text="{Binding EnvelopeFinancialAccountSummary}"
+                                       Style="{StaticResource CaptionTextStyle}" />
+
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBox Text="{Binding VirtualCardholderName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Margin="0,8,0,0" Content="Issue Virtual Card" Command="{Binding IssueVirtualCardCommand}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBox Text="{Binding PhysicalCardholderName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Margin="0,6,0,0" Text="{Binding ShipmentRecipientName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Margin="0,6,0,0" Text="{Binding ShipmentAddressLine1, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Margin="0,6,0,0" Text="{Binding ShipmentCity, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Text="{Binding ShipmentStateOrProvince, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBox Grid.Column="2" Text="{Binding ShipmentPostalCode, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBox Grid.Column="4" Text="{Binding ShipmentCountryCode, UpdateSourceTrigger=PropertyChanged}" />
+                                    </Grid>
+                                    <Button Margin="0,8,0,0" Content="Issue Physical Card" Command="{Binding IssuePhysicalCardCommand}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <DataGrid Margin="0,10,0,0"
+                                      Height="170"
+                                      ItemsSource="{Binding Cards}"
+                                      SelectedItem="{Binding SelectedCard, Mode=TwoWay}"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      IsReadOnly="True"
+                                      RowHeight="32"
+                                      GridLinesVisibility="Horizontal"
+                                      Background="{StaticResource PanelMutedBackgroundBrush}"
+                                      BorderBrush="{StaticResource PanelOutlineBrush}"
+                                      BorderThickness="1">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="80" />
+                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100" />
+                                    <DataGridTextColumn Header="Brand" Binding="{Binding Brand}" Width="90" />
+                                    <DataGridTextColumn Header="Last4" Binding="{Binding Last4}" Width="70" />
+                                    <DataGridTextColumn Header="Provider Card Id" Binding="{Binding ProviderCardId}" Width="220" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                                <Button Margin="0,0,8,0" Content="Freeze" Command="{Binding FreezeSelectedCardCommand}" />
+                                <Button Margin="0,0,8,0" Content="Unfreeze" Command="{Binding UnfreezeSelectedCardCommand}" />
+                                <Button Margin="0,0,8,0" Content="Cancel" Command="{Binding CancelSelectedCardCommand}" />
+                                <Button Content="Refresh Issuance" Command="{Binding RefreshCardIssuanceCommand}" />
+                            </StackPanel>
+                            <TextBlock Margin="0,8,0,0"
+                                       Text="{Binding IssuanceSummary}"
+                                       Style="{StaticResource CaptionTextStyle}" />
+                        </StackPanel>
+                    </controls:CardControl>
+
+                    <controls:CardControl Margin="0,12,0,0"
+                                          Header="Card Controls and Evaluation"
+                                          Subheader="{Binding CardControlSummary}"
+                                          EmptyMessage="Select a card to manage controls."
+                                          IsLoading="{Binding IsLoading}"
+                                          IsEmpty="False">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="170" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBox Text="{Binding CardControlDailyLimit, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Margin="0,6,0,0" Text="{Binding CardControlAllowedCategories, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Margin="0,6,0,0" Text="{Binding CardControlAllowedMerchants, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Margin="0,8,0,0" Content="Save Controls" Command="{Binding SaveCardControlsCommand}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBox Text="{Binding CardSpendMerchantName, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Margin="0,6,0,0" Text="{Binding CardSpendMerchantCategory, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" Text="{Binding CardSpendAmount, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBox Grid.Column="2" Text="{Binding CardSpendTodayAmount, UpdateSourceTrigger=PropertyChanged}" />
+                                    </Grid>
+                                    <Button Margin="0,8,0,0" Content="Evaluate Spend" Command="{Binding EvaluateCardSpendCommand}" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Text="{Binding CardSpendEvaluationResult}"
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource CaptionTextStyle}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <DataGrid Grid.Row="1"
+                                      Margin="0,10,0,0"
+                                      ItemsSource="{Binding CardControlAuditEntries}"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      IsReadOnly="True"
+                                      RowHeight="32"
+                                      GridLinesVisibility="Horizontal"
+                                      Background="{StaticResource PanelMutedBackgroundBrush}"
+                                      BorderBrush="{StaticResource PanelOutlineBrush}"
+                                      BorderThickness="1">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="120" />
+                                    <DataGridTextColumn Header="Changed By" Binding="{Binding ChangedBy}" Width="170" />
+                                    <DataGridTextColumn Header="Changed At" Binding="{Binding ChangedAt}" Width="130" />
+                                    <DataGridTextColumn Header="Previous" Binding="{Binding PreviousStateJson}" Width="*" />
+                                    <DataGridTextColumn Header="New" Binding="{Binding NewStateJson}" Width="*" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </controls:CardControl>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type viewModels:SettingsViewModel}">
         <Grid Margin="8">
             <Grid.RowDefinitions>

@@ -433,6 +433,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 case AutomationRulesViewModel automation:
                     await automation.LoadCommand.ExecuteAsync(null);
                     break;
+                case FinancialIntegrationsViewModel integrations:
+                    await integrations.LoadCommand.ExecuteAsync(null);
+                    break;
             }
         }
     }

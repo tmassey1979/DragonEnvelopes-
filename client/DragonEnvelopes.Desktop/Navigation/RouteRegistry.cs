@@ -44,6 +44,16 @@ public sealed class RouteRegistry : IRouteRegistry
                 TopBarSubtitle: "Account balances and sources",
                 Content: new AccountsViewModel(new AccountsDataService(apiClient, familyContext))),
             new RouteDefinition(
+                Key: "/financial-integrations",
+                Label: "Integrations",
+                Glyph: "\uE9CA",
+                TopBarSubtitle: "Plaid and Stripe onboarding + card controls",
+                Content: new FinancialIntegrationsViewModel(
+                    new FinancialIntegrationDataService(apiClient, familyContext),
+                    new AccountsDataService(apiClient, familyContext),
+                    new EnvelopesDataService(apiClient, familyContext)),
+                RequiredRole: "Parent"),
+            new RouteDefinition(
                 Key: "/reports",
                 Label: "Reports",
                 Glyph: "\uE9D2",
