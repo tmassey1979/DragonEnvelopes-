@@ -132,3 +132,16 @@ public sealed record StripeWebhookProcessResponse(
     string? EventId,
     string? EventType,
     string? Message);
+
+public sealed record UpdateNotificationPreferenceRequest(
+    bool EmailEnabled,
+    bool InAppEnabled,
+    bool SmsEnabled);
+
+public sealed record NotificationPreferenceResponse(
+    Guid FamilyId,
+    string UserId,
+    bool EmailEnabled,
+    bool InAppEnabled,
+    bool SmsEnabled,
+    DateTimeOffset UpdatedAtUtc);

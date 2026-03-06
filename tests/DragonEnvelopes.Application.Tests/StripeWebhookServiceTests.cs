@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Domain.Entities;
@@ -18,6 +19,7 @@ public sealed class StripeWebhookServiceTests
         var cardRepository = new Mock<IEnvelopePaymentCardRepository>(MockBehavior.Strict);
         var envelopeRepository = new Mock<IEnvelopeRepository>(MockBehavior.Strict);
         var eventRepository = new Mock<IStripeWebhookEventRepository>(MockBehavior.Strict);
+        var parentSpendNotificationService = new Mock<IParentSpendNotificationService>(MockBehavior.Strict);
         var clock = new Mock<IClock>();
         clock.SetupGet(x => x.UtcNow).Returns(DateTimeOffset.FromUnixTimeSeconds(1_700_000_000));
 
@@ -25,6 +27,7 @@ public sealed class StripeWebhookServiceTests
             cardRepository.Object,
             envelopeRepository.Object,
             eventRepository.Object,
+            parentSpendNotificationService.Object,
             clock.Object,
             Options.Create(new StripeWebhookOptions
             {
@@ -47,6 +50,7 @@ public sealed class StripeWebhookServiceTests
         var cardRepository = new Mock<IEnvelopePaymentCardRepository>(MockBehavior.Strict);
         var envelopeRepository = new Mock<IEnvelopeRepository>(MockBehavior.Strict);
         var eventRepository = new Mock<IStripeWebhookEventRepository>();
+        var parentSpendNotificationService = new Mock<IParentSpendNotificationService>(MockBehavior.Strict);
         eventRepository
             .Setup(x => x.GetByEventIdAsync("evt_1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new StripeWebhookEvent(
@@ -69,6 +73,7 @@ public sealed class StripeWebhookServiceTests
             cardRepository.Object,
             envelopeRepository.Object,
             eventRepository.Object,
+            parentSpendNotificationService.Object,
             clock.Object,
             Options.Create(new StripeWebhookOptions
             {
@@ -135,6 +140,19 @@ public sealed class StripeWebhookServiceTests
             .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        var parentSpendNotificationService = new Mock<IParentSpendNotificationService>();
+        parentSpendNotificationService
+            .Setup(x => x.QueueSpendNotificationsAsync(
+                familyId,
+                envelopeId,
+                cardId,
+                "evt_1",
+                5m,
+                It.IsAny<string>(),
+                95m,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SpendNotificationQueueResult(2));
+
         var clock = new Mock<IClock>();
         clock.SetupGet(x => x.UtcNow).Returns(now);
 
@@ -142,6 +160,7 @@ public sealed class StripeWebhookServiceTests
             cardRepository.Object,
             envelopeRepository.Object,
             eventRepository.Object,
+            parentSpendNotificationService.Object,
             clock.Object,
             Options.Create(new StripeWebhookOptions
             {
@@ -159,6 +178,7 @@ public sealed class StripeWebhookServiceTests
         Assert.Equal(95m, envelope.CurrentBalance.Amount);
         Assert.NotNull(persistedEvent);
         Assert.Equal("Processed", persistedEvent!.ProcessingStatus);
+        parentSpendNotificationService.VerifyAll();
     }
 
     [Fact]
@@ -210,6 +230,8 @@ public sealed class StripeWebhookServiceTests
             .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        var parentSpendNotificationService = new Mock<IParentSpendNotificationService>(MockBehavior.Strict);
+
         var clock = new Mock<IClock>();
         clock.SetupGet(x => x.UtcNow).Returns(now);
 
@@ -217,6 +239,7 @@ public sealed class StripeWebhookServiceTests
             cardRepository.Object,
             envelopeRepository.Object,
             eventRepository.Object,
+            parentSpendNotificationService.Object,
             clock.Object,
             Options.Create(new StripeWebhookOptions
             {

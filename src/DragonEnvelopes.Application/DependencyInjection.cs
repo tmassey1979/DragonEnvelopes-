@@ -19,6 +19,8 @@ public static class DependencyInjection
         services.AddScoped<IEnvelopePaymentCardService, EnvelopePaymentCardService>();
         services.AddScoped<IEnvelopePaymentCardControlService, EnvelopePaymentCardControlService>();
         services.AddScoped<IStripeWebhookService, StripeWebhookService>();
+        services.AddScoped<IParentSpendNotificationService, ParentSpendNotificationService>();
+        services.AddScoped<ISpendNotificationDispatchService, SpendNotificationDispatchService>();
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IAutomationRuleService, AutomationRuleService>();
         services.AddScoped<ICategorizationRuleEngine, CategorizationRuleEngine>();

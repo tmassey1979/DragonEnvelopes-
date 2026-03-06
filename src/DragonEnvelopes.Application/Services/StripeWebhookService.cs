@@ -15,6 +15,7 @@ public sealed class StripeWebhookService(
     IEnvelopePaymentCardRepository envelopePaymentCardRepository,
     IEnvelopeRepository envelopeRepository,
     IStripeWebhookEventRepository stripeWebhookEventRepository,
+    IParentSpendNotificationService parentSpendNotificationService,
     IClock clock,
     IOptions<StripeWebhookOptions> stripeWebhookOptions,
     ILogger<StripeWebhookService> logger) : IStripeWebhookService
@@ -66,6 +67,7 @@ public sealed class StripeWebhookService(
         try
         {
             var processed = await ProcessEventCoreAsync(
+                eventId,
                 eventType,
                 doc.RootElement,
                 cancellationToken);
@@ -115,6 +117,7 @@ public sealed class StripeWebhookService(
     }
 
     private async Task<(StripeWebhookProcessResult Result, Guid? FamilyId, Guid? EnvelopeId, Guid? CardId)> ProcessEventCoreAsync(
+        string eventId,
         string eventType,
         JsonElement root,
         CancellationToken cancellationToken)
@@ -171,6 +174,16 @@ public sealed class StripeWebhookService(
             else
             {
                 envelope.Spend(Money.FromDecimal(absoluteAmount), clock.UtcNow);
+                var merchant = ResolveMerchant(eventObject);
+                await parentSpendNotificationService.QueueSpendNotificationsAsync(
+                    card.FamilyId,
+                    card.EnvelopeId,
+                    card.Id,
+                    eventId,
+                    absoluteAmount,
+                    merchant,
+                    envelope.CurrentBalance.Amount,
+                    cancellationToken);
             }
 
             return (
@@ -348,5 +361,26 @@ public sealed class StripeWebhookService(
                && property.ValueKind == JsonValueKind.String
             ? property.GetString() ?? string.Empty
             : string.Empty;
+    }
+
+    private static string ResolveMerchant(JsonElement eventObject)
+    {
+        var merchant = TryGetString(eventObject, "merchant");
+        if (!string.IsNullOrWhiteSpace(merchant))
+        {
+            return merchant;
+        }
+
+        if (eventObject.TryGetProperty("merchant_data", out var merchantData)
+            && merchantData.ValueKind == JsonValueKind.Object)
+        {
+            var name = TryGetString(merchantData, "name");
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                return name;
+            }
+        }
+
+        return "Unknown Merchant";
     }
 }

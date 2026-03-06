@@ -164,6 +164,7 @@ builder.Services.AddHttpClient<IKeycloakProvisioningService, KeycloakProvisionin
 if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddHostedService<RecurringBillAutoPostWorker>();
+    builder.Services.AddHostedService<SpendNotificationDispatchWorker>();
 }
 
 var defaultConnection = builder.Configuration.GetConnectionString("Default");

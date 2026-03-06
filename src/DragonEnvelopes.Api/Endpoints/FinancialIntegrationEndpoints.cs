@@ -45,6 +45,78 @@ internal static class FinancialIntegrationEndpoints
             .WithName("ProcessStripeWebhook")
             .WithOpenApi();
 
+        v1.MapGet("/families/{familyId:guid}/notifications/preferences", async (
+                Guid familyId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IParentSpendNotificationService parentSpendNotificationService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var userId = user.FindFirstValue("sub");
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Results.Unauthorized();
+                }
+
+                var preference = await parentSpendNotificationService.GetPreferenceAsync(
+                    familyId,
+                    userId,
+                    cancellationToken);
+                return Results.Ok(new NotificationPreferenceResponse(
+                    preference.FamilyId,
+                    preference.UserId,
+                    preference.EmailEnabled,
+                    preference.InAppEnabled,
+                    preference.SmsEnabled,
+                    preference.UpdatedAtUtc));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("GetNotificationPreference")
+            .WithOpenApi();
+
+        v1.MapPut("/families/{familyId:guid}/notifications/preferences", async (
+                Guid familyId,
+                UpdateNotificationPreferenceRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IParentSpendNotificationService parentSpendNotificationService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var userId = user.FindFirstValue("sub");
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Results.Unauthorized();
+                }
+
+                var preference = await parentSpendNotificationService.UpsertPreferenceAsync(
+                    familyId,
+                    userId,
+                    request.EmailEnabled,
+                    request.InAppEnabled,
+                    request.SmsEnabled,
+                    cancellationToken);
+                return Results.Ok(new NotificationPreferenceResponse(
+                    preference.FamilyId,
+                    preference.UserId,
+                    preference.EmailEnabled,
+                    preference.InAppEnabled,
+                    preference.SmsEnabled,
+                    preference.UpdatedAtUtc));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("UpsertNotificationPreference")
+            .WithOpenApi();
+
         v1.MapGet("/families/{familyId:guid}/financial/status", async (
                 Guid familyId,
                 ClaimsPrincipal user,
