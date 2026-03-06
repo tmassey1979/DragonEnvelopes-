@@ -94,6 +94,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         RefreshOnboardingAutomationRulesCommand = new AsyncRelayCommand(RefreshOnboardingAutomationRulesAsync);
         CreateSelectedAutomationTemplatesCommand = new AsyncRelayCommand(CreateSelectedAutomationTemplatesAsync);
         ToggleSelectedAutomationRuleCommand = new AsyncRelayCommand(ToggleSelectedAutomationRuleAsync);
+        LaunchDashboardCommand = new RelayCommand(LaunchDashboard);
         CreateInviteCommand = new AsyncRelayCommand(CreateFamilyInviteAsync);
         CancelInviteCommand = new AsyncRelayCommand(CancelFamilyInviteAsync);
         AddAccountRowCommand = new RelayCommand(AddAccountRow);
@@ -120,6 +121,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         DraftInviteRole = InviteRoles[0];
         DraftInviteExpiresInHours = "168";
         RefreshStepItems();
+        RefreshReviewSummary();
         _ = LoadCommand.ExecuteAsync(null);
     }
 
@@ -147,6 +149,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public IAsyncRelayCommand RefreshOnboardingAutomationRulesCommand { get; }
     public IAsyncRelayCommand CreateSelectedAutomationTemplatesCommand { get; }
     public IAsyncRelayCommand ToggleSelectedAutomationRuleCommand { get; }
+    public IRelayCommand LaunchDashboardCommand { get; }
     public IAsyncRelayCommand CreateInviteCommand { get; }
     public IAsyncRelayCommand CancelInviteCommand { get; }
     public IRelayCommand AddAccountRowCommand { get; }
@@ -159,6 +162,8 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public IAsyncRelayCommand ApplyEnvelopeSuggestionsCommand { get; }
     public IAsyncRelayCommand SubmitBootstrapCommand { get; }
     public IRelayCommand CancelCommand { get; }
+
+    public event Action? LaunchDashboardRequested;
 
     public IReadOnlyList<string> Steps { get; } = StepTitles;
     public IReadOnlyList<string> AccountTypeOptions { get; } = AccountTypes;
@@ -393,6 +398,18 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     [ObservableProperty]
     private string automationStepMessage = "Select starter templates and create rules.";
 
+    [ObservableProperty]
+    private ObservableCollection<string> reviewCompletedCapabilities = [];
+
+    [ObservableProperty]
+    private ObservableCollection<string> reviewOptionalIncompleteItems = [];
+
+    [ObservableProperty]
+    private string onboardingCompletionTimestampDisplay = "Not completed";
+
+    [ObservableProperty]
+    private string reviewSummaryMessage = "Complete onboarding steps to unlock full setup.";
+
     public string CurrentStepTitle => Steps[Math.Clamp(CurrentStepIndex, 0, Steps.Count - 1)];
 
     public bool IsFirstStep => CurrentStepIndex == 0;
@@ -408,6 +425,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public bool IsStripeStep => CurrentStepIndex == 6;
     public bool IsCardsStep => CurrentStepIndex == 7;
     public bool IsAutomationStep => CurrentStepIndex == 8;
+    public bool IsReviewStep => CurrentStepIndex == 9;
 
     public int ProgressPercent
     {
@@ -2191,6 +2209,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         OnPropertyChanged(nameof(IsStripeStep));
         OnPropertyChanged(nameof(IsCardsStep));
         OnPropertyChanged(nameof(IsAutomationStep));
+        OnPropertyChanged(nameof(IsReviewStep));
         RefreshStepItems();
     }
 
@@ -2250,6 +2269,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         SelectedCurrencyCode = NormalizeCurrency(profile.CurrencyCode);
         SelectedTimeZoneId = NormalizeTimeZone(profile.TimeZoneId);
         FamilyProfileCompleted = IsFamilyProfileComplete(FamilyNameDraft, SelectedCurrencyCode, SelectedTimeZoneId);
+        RefreshReviewSummary();
     }
 
     private void ApplyBudgetPreferences(FamilyBudgetPreferencesData preferences)
@@ -2272,8 +2292,12 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         StripeAccountsCompleted = profile.StripeAccountsCompleted;
         CardsCompleted = profile.CardsCompleted;
         AutomationCompleted = profile.AutomationCompleted;
+        OnboardingCompletionTimestampDisplay = profile.CompletedAtUtc.HasValue
+            ? profile.CompletedAtUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+            : "Not completed";
         CurrentStepIndex = DetermineCurrentStepIndex(FamilyProfileCompleted, profile);
         RefreshStepItems();
+        RefreshReviewSummary();
     }
 
     private void RefreshStepItems()
@@ -2537,13 +2561,140 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         return OnboardingAutomationRules.Count > 0;
     }
 
-    partial void OnFamilyProfileCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
-    partial void OnMembersCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
-    partial void OnAccountsCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
-    partial void OnEnvelopesCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
-    partial void OnBudgetCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
-    partial void OnPlaidCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
-    partial void OnStripeAccountsCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
-    partial void OnCardsCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
-    partial void OnAutomationCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
+    private void RefreshReviewSummary()
+    {
+        var completed = new List<string>();
+        if (FamilyProfileCompleted)
+        {
+            completed.Add("Family profile defaults configured");
+        }
+
+        if (MembersCompleted)
+        {
+            completed.Add("Household members/invites configured");
+        }
+
+        if (AccountsCompleted)
+        {
+            completed.Add("Accounts setup complete");
+        }
+
+        if (EnvelopesCompleted)
+        {
+            completed.Add("Envelopes created");
+        }
+
+        if (BudgetCompleted)
+        {
+            completed.Add("Budget preferences/baseline saved");
+        }
+
+        if (PlaidCompleted)
+        {
+            completed.Add("Plaid connected and mapped");
+        }
+
+        if (StripeAccountsCompleted)
+        {
+            completed.Add("Stripe financial accounts provisioned");
+        }
+
+        if (CardsCompleted)
+        {
+            completed.Add("Cards issued and configured");
+        }
+
+        if (AutomationCompleted)
+        {
+            completed.Add("Automation rules configured");
+        }
+
+        ReviewCompletedCapabilities = new ObservableCollection<string>(completed);
+
+        var optionalIncomplete = new List<string>();
+        if (!PlaidCompleted)
+        {
+            optionalIncomplete.Add("Plaid bank connection");
+        }
+
+        if (!StripeAccountsCompleted)
+        {
+            optionalIncomplete.Add("Stripe financial account provisioning");
+        }
+
+        if (!CardsCompleted)
+        {
+            optionalIncomplete.Add("Card issuance workflow");
+        }
+
+        if (!AutomationCompleted)
+        {
+            optionalIncomplete.Add("Automation starter rules");
+        }
+
+        ReviewOptionalIncompleteItems = new ObservableCollection<string>(optionalIncomplete);
+        ReviewSummaryMessage = optionalIncomplete.Count == 0
+            ? "All onboarding capabilities are configured."
+            : $"{optionalIncomplete.Count} optional capability areas are still incomplete.";
+    }
+
+    private void LaunchDashboard()
+    {
+        StatusMessage = "Launching dashboard...";
+        LaunchDashboardRequested?.Invoke();
+    }
+
+    partial void OnFamilyProfileCompletedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ProgressPercent));
+        RefreshReviewSummary();
+    }
+
+    partial void OnMembersCompletedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ProgressPercent));
+        RefreshReviewSummary();
+    }
+
+    partial void OnAccountsCompletedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ProgressPercent));
+        RefreshReviewSummary();
+    }
+
+    partial void OnEnvelopesCompletedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ProgressPercent));
+        RefreshReviewSummary();
+    }
+
+    partial void OnBudgetCompletedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ProgressPercent));
+        RefreshReviewSummary();
+    }
+
+    partial void OnPlaidCompletedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ProgressPercent));
+        RefreshReviewSummary();
+    }
+
+    partial void OnStripeAccountsCompletedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ProgressPercent));
+        RefreshReviewSummary();
+    }
+
+    partial void OnCardsCompletedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ProgressPercent));
+        RefreshReviewSummary();
+    }
+
+    partial void OnAutomationCompletedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ProgressPercent));
+        RefreshReviewSummary();
+    }
 }

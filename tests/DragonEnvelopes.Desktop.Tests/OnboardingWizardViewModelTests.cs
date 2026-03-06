@@ -414,6 +414,24 @@ public sealed class OnboardingWizardViewModelTests
         Assert.Equal(0, onboardingDataService.UpdateProfileCallCount);
     }
 
+    [Fact]
+    public async Task LaunchDashboardCommand_Raises_Launch_Request_Event()
+    {
+        var familyId = Guid.Parse("10000000-0000-0000-0000-000000000011");
+        var viewModel = new OnboardingWizardViewModel(
+            new FakeOnboardingDataService(familyId),
+            new FakeFamilyMembersDataService());
+        await EnsureLoadedAsync(viewModel);
+
+        var launchRequested = false;
+        viewModel.LaunchDashboardRequested += () => launchRequested = true;
+
+        viewModel.LaunchDashboardCommand.Execute(null);
+
+        Assert.True(launchRequested);
+        Assert.Equal("Launching dashboard...", viewModel.StatusMessage);
+    }
+
     private static async Task EnsureLoadedAsync(OnboardingWizardViewModel viewModel)
     {
         await WaitForIdleAsync(viewModel);

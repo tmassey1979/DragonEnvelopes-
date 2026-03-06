@@ -3562,6 +3562,75 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Margin="0,12,0,0"
+                                Padding="10"
+                                CornerRadius="8"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsReviewStep}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel>
+                                <TextBlock Text="Finish and Launch" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding ReviewSummaryMessage}"
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Text="{Binding OnboardingCompletionTimestampDisplay, StringFormat=Completion Timestamp: {0}}"
+                                           Style="{StaticResource CaptionTextStyle}" />
+
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1*" />
+                                        <ColumnDefinition Width="10" />
+                                        <ColumnDefinition Width="1*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Completed Capabilities" Style="{StaticResource CaptionTextStyle}" />
+                                        <ItemsControl Margin="0,6,0,0"
+                                                      ItemsSource="{Binding ReviewCompletedCapabilities}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding}"
+                                                               TextWrapping="Wrap"
+                                                               Style="{StaticResource CaptionTextStyle}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Incomplete Optional Items" Style="{StaticResource CaptionTextStyle}" />
+                                        <ItemsControl Margin="0,6,0,0"
+                                                      ItemsSource="{Binding ReviewOptionalIncompleteItems}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding}"
+                                                               TextWrapping="Wrap"
+                                                               Style="{StaticResource CaptionTextStyle}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Button Margin="0,12,0,0"
+                                        Width="170"
+                                        Content="Launch Dashboard"
+                                        Command="{Binding LaunchDashboardCommand}" />
+                            </StackPanel>
+                        </Border>
+
                         <StackPanel Margin="0,18,0,0"
                                     Orientation="Horizontal">
                             <Button Margin="0,0,8,0"

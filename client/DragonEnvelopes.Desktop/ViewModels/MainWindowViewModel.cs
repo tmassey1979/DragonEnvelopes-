@@ -50,6 +50,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
             navigationService.Routes.Select(static route =>
                 new NavigationItemViewModel(route.Key, route.Label, route.Glyph, route.Content, route.RequiredRole)));
 
+        foreach (var onboarding in NavigationItems
+                     .Select(static item => item.Content)
+                     .OfType<OnboardingWizardViewModel>())
+        {
+            onboarding.LaunchDashboardRequested += OnOnboardingLaunchDashboardRequested;
+        }
+
         NavigateCommand = new RelayCommand<NavigationItemViewModel?>(Navigate);
         ToggleAuthenticationCommand = new AsyncRelayCommand(ToggleAuthenticationAsync);
         PingApiCommand = new AsyncRelayCommand(PingApiAsync);
@@ -463,6 +470,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private void ClearOperationToasts()
     {
         _operationStatusCenter.ClearTransient();
+    }
+
+    private void OnOnboardingLaunchDashboardRequested()
+    {
+        _navigationService.Navigate("/dashboard");
+        SyncFromNavigationService();
+        _operationStatusCenter.ReportInfo("Navigated to dashboard from onboarding.");
     }
 
     private void AttachCurrentContentObserver(object? content)
