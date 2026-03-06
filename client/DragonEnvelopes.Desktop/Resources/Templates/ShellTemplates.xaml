@@ -2111,7 +2111,10 @@
                                           SelectedItem="{Binding SelectedAccount, Mode=TwoWay}"
                                           DisplayMemberPath="Name" />
                                 <TextBox Margin="0,8,0,0" Text="{Binding PlaidAccountId, UpdateSourceTrigger=PropertyChanged}" />
-                                <Button Margin="0,8,0,0" Content="Save Plaid Link" Command="{Binding UpsertPlaidAccountLinkCommand}" />
+                                <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                                    <Button Margin="0,0,8,0" Content="Save Plaid Link" Command="{Binding UpsertPlaidAccountLinkCommand}" />
+                                    <Button Content="Delete Selected Link" Command="{Binding DeleteSelectedPlaidAccountLinkCommand}" />
+                                </StackPanel>
                                 <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
                                     <Button Margin="0,0,8,0" Content="Sync" Command="{Binding SyncPlaidTransactionsCommand}" />
                                     <Button Margin="0,0,8,0" Content="Refresh Balances" Command="{Binding RefreshPlaidBalancesCommand}" />
@@ -2130,6 +2133,7 @@
 
                                 <DataGrid Grid.Row="0"
                                           ItemsSource="{Binding PlaidAccountLinks}"
+                                          SelectedItem="{Binding SelectedPlaidAccountLink, Mode=TwoWay}"
                                           AutoGenerateColumns="False"
                                           CanUserAddRows="False"
                                           CanUserDeleteRows="False"

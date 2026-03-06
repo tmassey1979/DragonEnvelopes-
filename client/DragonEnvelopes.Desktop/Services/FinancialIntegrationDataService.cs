@@ -126,6 +126,18 @@ public sealed class FinancialIntegrationDataService : IFinancialIntegrationDataS
             cancellationToken);
     }
 
+    public async Task DeletePlaidAccountLinkAsync(
+        Guid linkId,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Delete,
+            $"families/{familyId}/financial/plaid/account-links/{linkId}");
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "Deleting Plaid account link", cancellationToken);
+    }
+
     public Task<PlaidTransactionSyncResponse> SyncPlaidTransactionsAsync(CancellationToken cancellationToken = default)
     {
         var familyId = RequireFamilyId();

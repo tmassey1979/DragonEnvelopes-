@@ -35,6 +35,10 @@ public interface IFinancialIntegrationDataService
 
     Task<IReadOnlyList<PlaidAccountLinkResponse>> ListPlaidAccountLinksAsync(CancellationToken cancellationToken = default);
 
+    Task DeletePlaidAccountLinkAsync(
+        Guid linkId,
+        CancellationToken cancellationToken = default);
+
     Task<PlaidTransactionSyncResponse> SyncPlaidTransactionsAsync(CancellationToken cancellationToken = default);
 
     Task<PlaidBalanceRefreshResponse> RefreshPlaidBalancesAsync(CancellationToken cancellationToken = default);

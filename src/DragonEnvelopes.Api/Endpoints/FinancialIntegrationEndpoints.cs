@@ -411,6 +411,37 @@ internal static class FinancialIntegrationEndpoints
             .WithName("ListPlaidAccountLinks")
             .WithOpenApi();
 
+        v1.MapDelete("/families/{familyId:guid}/financial/plaid/account-links/{linkId:guid}", async (
+                Guid familyId,
+                Guid linkId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IPlaidTransactionSyncService plaidTransactionSyncService,
+                ILogger<Program> logger,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                await plaidTransactionSyncService.DeleteAccountLinkAsync(
+                    familyId,
+                    linkId,
+                    cancellationToken);
+
+                logger.LogInformation(
+                    "Plaid account link removed. FamilyId={FamilyId}, LinkId={LinkId}, UserId={UserId}",
+                    familyId,
+                    linkId,
+                    user.FindFirstValue("sub") ?? "unknown");
+
+                return Results.NoContent();
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("DeletePlaidAccountLink")
+            .WithOpenApi();
+
         v1.MapPost("/families/{familyId:guid}/financial/plaid/sync-transactions", async (
                 Guid familyId,
                 ClaimsPrincipal user,

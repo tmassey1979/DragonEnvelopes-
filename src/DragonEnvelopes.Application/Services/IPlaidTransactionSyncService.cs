@@ -14,6 +14,11 @@ public interface IPlaidTransactionSyncService
         Guid familyId,
         CancellationToken cancellationToken = default);
 
+    Task DeleteAccountLinkAsync(
+        Guid familyId,
+        Guid linkId,
+        CancellationToken cancellationToken = default);
+
     Task<PlaidTransactionSyncDetails> SyncFamilyAsync(
         Guid familyId,
         CancellationToken cancellationToken = default);

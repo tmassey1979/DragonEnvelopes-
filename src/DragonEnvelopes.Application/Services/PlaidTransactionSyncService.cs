@@ -60,6 +60,25 @@ public sealed class PlaidTransactionSyncService(
         return links.Select(Map).ToArray();
     }
 
+    public async Task DeleteAccountLinkAsync(
+        Guid familyId,
+        Guid linkId,
+        CancellationToken cancellationToken = default)
+    {
+        var link = await plaidAccountLinkRepository.GetByFamilyAndIdForUpdateAsync(
+            familyId,
+            linkId,
+            cancellationToken);
+
+        if (link is null)
+        {
+            throw new DomainValidationException("Plaid account link was not found for this family.");
+        }
+
+        await plaidAccountLinkRepository.DeleteAsync(link, cancellationToken);
+        await plaidAccountLinkRepository.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<PlaidTransactionSyncDetails> SyncFamilyAsync(
         Guid familyId,
         CancellationToken cancellationToken = default)

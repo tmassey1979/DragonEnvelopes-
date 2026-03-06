@@ -69,6 +69,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         ToggleProviderIdentifierVisibilityCommand = new RelayCommand(ToggleProviderIdentifierVisibility);
         ExchangePlaidPublicTokenCommand = new AsyncRelayCommand(ExchangePlaidPublicTokenAsync);
         UpsertPlaidAccountLinkCommand = new AsyncRelayCommand(UpsertPlaidAccountLinkAsync);
+        DeleteSelectedPlaidAccountLinkCommand = new AsyncRelayCommand(DeleteSelectedPlaidAccountLinkAsync);
         SyncPlaidTransactionsCommand = new AsyncRelayCommand(SyncPlaidTransactionsAsync);
         RefreshPlaidBalancesCommand = new AsyncRelayCommand(RefreshPlaidBalancesAsync);
         LoadPlaidReconciliationCommand = new AsyncRelayCommand(LoadPlaidReconciliationAsync);
@@ -103,6 +104,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public IRelayCommand ToggleProviderIdentifierVisibilityCommand { get; }
     public IAsyncRelayCommand ExchangePlaidPublicTokenCommand { get; }
     public IAsyncRelayCommand UpsertPlaidAccountLinkCommand { get; }
+    public IAsyncRelayCommand DeleteSelectedPlaidAccountLinkCommand { get; }
     public IAsyncRelayCommand SyncPlaidTransactionsCommand { get; }
     public IAsyncRelayCommand RefreshPlaidBalancesCommand { get; }
     public IAsyncRelayCommand LoadPlaidReconciliationCommand { get; }
@@ -196,6 +198,9 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
 
     [ObservableProperty]
     private ObservableCollection<PlaidAccountLinkItemViewModel> plaidAccountLinks = [];
+
+    [ObservableProperty]
+    private PlaidAccountLinkItemViewModel? selectedPlaidAccountLink;
 
     [ObservableProperty]
     private string stripeSetupEmail = string.Empty;
@@ -614,6 +619,34 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         }, cancellationToken);
     }
 
+    private async Task DeleteSelectedPlaidAccountLinkAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedPlaidAccountLink is null)
+        {
+            SetValidationError("Select a Plaid link to delete.");
+            return;
+        }
+
+        var confirmation = MessageBox.Show(
+            $"Delete Plaid link for account '{SelectedPlaidAccountLink.AccountName}'?",
+            "Delete Plaid Link",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            StatusMessage = "Plaid link deletion canceled.";
+            return;
+        }
+
+        await RunOperationAsync("Deleting Plaid account link...", async ct =>
+        {
+            await _financialIntegrationDataService.DeletePlaidAccountLinkAsync(SelectedPlaidAccountLink.Id, ct);
+            await LoadPlaidAccountLinksCoreAsync(ct);
+            StatusMessage = "Plaid account link deleted.";
+        }, cancellationToken);
+    }
+
     private Task SyncPlaidTransactionsAsync(CancellationToken cancellationToken)
     {
         return RunOperationAsync("Syncing Plaid transactions...", async ct =>
@@ -1002,6 +1035,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
 
     private async Task LoadPlaidAccountLinksCoreAsync(CancellationToken cancellationToken)
     {
+        var previouslySelectedLinkId = SelectedPlaidAccountLink?.Id;
         var accountLookup = AvailableAccounts.ToDictionary(static account => account.Id, static account => account.Name);
         var links = await _financialIntegrationDataService.ListPlaidAccountLinksAsync(cancellationToken);
 
@@ -1014,6 +1048,10 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
                     accountLookup.TryGetValue(link.AccountId, out var accountName) ? accountName : link.AccountId.ToString(),
                     SensitiveValueMasker.MaskIdentifier(link.PlaidAccountId),
                     FormatDate(link.UpdatedAtUtc))));
+
+        SelectedPlaidAccountLink = previouslySelectedLinkId.HasValue
+            ? PlaidAccountLinks.FirstOrDefault(link => link.Id == previouslySelectedLinkId.Value)
+            : PlaidAccountLinks.FirstOrDefault();
     }
 
     private async Task LoadFamilyFinancialAccountsCoreAsync(CancellationToken cancellationToken)

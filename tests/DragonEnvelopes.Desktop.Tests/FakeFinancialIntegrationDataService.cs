@@ -204,6 +204,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
 
     public int CreateStripeSetupIntentCallCount { get; private set; }
 
+    public int DeletePlaidAccountLinkCallCount { get; private set; }
+
     public int FreezeCardCallCount { get; private set; }
 
     public int UnfreezeCardCallCount { get; private set; }
@@ -295,6 +297,13 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
     public Task<IReadOnlyList<PlaidAccountLinkResponse>> ListPlaidAccountLinksAsync(CancellationToken cancellationToken = default)
     {
         return Task.FromResult(PlaidLinks);
+    }
+
+    public Task DeletePlaidAccountLinkAsync(Guid linkId, CancellationToken cancellationToken = default)
+    {
+        DeletePlaidAccountLinkCallCount += 1;
+        PlaidLinks = PlaidLinks.Where(link => link.Id != linkId).ToArray();
+        return Task.CompletedTask;
     }
 
     public Task<PlaidTransactionSyncResponse> SyncPlaidTransactionsAsync(CancellationToken cancellationToken = default)

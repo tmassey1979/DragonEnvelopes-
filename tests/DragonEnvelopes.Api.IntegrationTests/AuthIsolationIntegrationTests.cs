@@ -555,6 +555,38 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Delete_Own_Plaid_Account_Link()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.DeleteAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/financial/plaid/account-links/{TestApiFactory.PlaidLinkAId}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var listResponse = await client.GetAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/financial/plaid/account-links");
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+
+        var payload = await listResponse.Content.ReadFromJsonAsync<List<PlaidAccountLinkResponse>>();
+        Assert.NotNull(payload);
+        Assert.DoesNotContain(payload!, link => link.Id == TestApiFactory.PlaidLinkAId);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Delete_FamilyB_Plaid_Account_Link()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.DeleteAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/financial/plaid/account-links/{TestApiFactory.PlaidLinkBId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserA_Cannot_Sync_Plaid_Transactions_For_FamilyB()
     {
         using var client = _factory.CreateClient();
@@ -771,6 +803,8 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
     public static readonly Guid EnvelopeA2Id = Guid.Parse("aaaaaaaa-2222-2222-2222-222222222222");
     public static readonly Guid EnvelopeBId = Guid.Parse("bbbbbbbb-1111-1111-1111-111111111111");
     public static readonly Guid RecurringBillAId = Guid.Parse("12345678-90ab-cdef-1234-567890abcdef");
+    public static readonly Guid PlaidLinkAId = Guid.Parse("21000000-0000-0000-0000-000000000001");
+    public static readonly Guid PlaidLinkBId = Guid.Parse("21000000-0000-0000-0000-000000000002");
     public static readonly Guid TransactionAId = Guid.Parse("11111111-2222-3333-4444-555555555555");
     public static readonly Guid TransactionBId = Guid.Parse("66666666-7777-8888-9999-aaaaaaaaaaaa");
     public const string UserAId = "user-a";
@@ -868,6 +902,23 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
                 startDate: new DateOnly(2026, 1, 1),
                 endDate: null,
                 isActive: true));
+
+        var now = DateTimeOffset.UtcNow;
+        dbContext.PlaidAccountLinks.AddRange(
+            new PlaidAccountLink(
+                PlaidLinkAId,
+                FamilyAId,
+                AccountAId,
+                "plaid_account_a",
+                now,
+                now),
+            new PlaidAccountLink(
+                PlaidLinkBId,
+                FamilyBId,
+                AccountBId,
+                "plaid_account_b",
+                now,
+                now));
 
         dbContext.SaveChanges();
     }
