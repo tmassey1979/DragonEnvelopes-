@@ -2,6 +2,7 @@ using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Domain;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Globalization;
 using System.Text.Json;
 
 namespace DragonEnvelopes.ProviderClients.Providers;
@@ -264,6 +265,69 @@ public sealed class StripeGateway(
                 (int)response.StatusCode,
                 payload);
             throw new DomainValidationException("Stripe card status update failed.");
+        }
+    }
+
+    public async Task UpdateCardSpendingControlsAsync(
+        string providerCardId,
+        decimal? dailyLimitAmount,
+        IReadOnlyList<string> allowedMerchantCategories,
+        IReadOnlyList<string> allowedMerchantNames,
+        CancellationToken cancellationToken = default)
+    {
+        var configured = options.Value;
+        EnsureConfigured(configured);
+
+        if (string.IsNullOrWhiteSpace(providerCardId))
+        {
+            throw new DomainValidationException("Provider card id is required.");
+        }
+
+        if (dailyLimitAmount.HasValue && dailyLimitAmount.Value < 0m)
+        {
+            throw new DomainValidationException("Daily limit amount cannot be negative.");
+        }
+
+        var formValues = new List<KeyValuePair<string, string>>();
+
+        if (dailyLimitAmount.HasValue)
+        {
+            var amountInMinorUnits = decimal.Round(dailyLimitAmount.Value * 100m, 0, MidpointRounding.AwayFromZero);
+            formValues.Add(new KeyValuePair<string, string>(
+                "spending_controls[spending_limits][0][amount]",
+                Convert.ToInt64(amountInMinorUnits, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture)));
+            formValues.Add(new KeyValuePair<string, string>(
+                "spending_controls[spending_limits][0][interval]",
+                "daily"));
+        }
+
+        for (var i = 0; i < allowedMerchantCategories.Count; i++)
+        {
+            formValues.Add(new KeyValuePair<string, string>(
+                "spending_controls[allowed_categories][]",
+                allowedMerchantCategories[i]));
+        }
+
+        var merchantNamesJson = JsonSerializer.Serialize(allowedMerchantNames);
+        formValues.Add(new KeyValuePair<string, string>(
+            "metadata[allowed_merchant_names]",
+            merchantNamesJson));
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            BuildUri(configured.ApiBaseUrl, $"/v1/issuing/cards/{Uri.EscapeDataString(providerCardId.Trim())}"));
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", configured.SecretKey);
+        request.Content = new FormUrlEncodedContent(formValues);
+
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogError(
+                "Stripe card spending control update failed. Status={StatusCode}, Body={Body}",
+                (int)response.StatusCode,
+                payload);
+            throw new DomainValidationException("Stripe card spending controls update failed.");
         }
     }
 

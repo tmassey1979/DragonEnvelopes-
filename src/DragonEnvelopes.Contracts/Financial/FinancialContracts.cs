@@ -56,3 +56,41 @@ public sealed record EnvelopePaymentCardResponse(
     string? Last4,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc);
+
+public sealed record UpsertEnvelopePaymentCardControlRequest(
+    decimal? DailyLimitAmount,
+    IReadOnlyList<string>? AllowedMerchantCategories,
+    IReadOnlyList<string>? AllowedMerchantNames);
+
+public sealed record EnvelopePaymentCardControlResponse(
+    Guid Id,
+    Guid FamilyId,
+    Guid EnvelopeId,
+    Guid CardId,
+    decimal? DailyLimitAmount,
+    IReadOnlyList<string> AllowedMerchantCategories,
+    IReadOnlyList<string> AllowedMerchantNames,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc);
+
+public sealed record EnvelopePaymentCardControlAuditResponse(
+    Guid Id,
+    Guid FamilyId,
+    Guid EnvelopeId,
+    Guid CardId,
+    string Action,
+    string? PreviousStateJson,
+    string NewStateJson,
+    string ChangedBy,
+    DateTimeOffset ChangedAtUtc);
+
+public sealed record EvaluateEnvelopeCardSpendRequest(
+    string MerchantName,
+    string? MerchantCategory,
+    decimal Amount,
+    decimal SpentTodayAmount);
+
+public sealed record EvaluateEnvelopeCardSpendResponse(
+    bool IsAllowed,
+    string? DenialReason,
+    decimal? RemainingDailyLimit);

@@ -44,6 +44,7 @@ public static class DependencyInjection
         services.AddScoped<IFamilyFinancialProfileRepository, FamilyFinancialProfileRepository>();
         services.AddScoped<IEnvelopeFinancialAccountRepository, EnvelopeFinancialAccountRepository>();
         services.AddScoped<IEnvelopePaymentCardRepository, EnvelopePaymentCardRepository>();
+        services.AddScoped<IEnvelopePaymentCardControlRepository, EnvelopePaymentCardControlRepository>();
         services.AddScoped<IOnboardingProfileRepository, OnboardingProfileRepository>();
         services.AddScoped<IOnboardingBootstrapRepository, OnboardingBootstrapRepository>();
         services.AddScoped<IAutomationRuleRepository, AutomationRuleRepository>();

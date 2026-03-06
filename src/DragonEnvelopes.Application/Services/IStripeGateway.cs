@@ -30,4 +30,11 @@ public interface IStripeGateway
         string providerCardId,
         string status,
         CancellationToken cancellationToken = default);
+
+    Task UpdateCardSpendingControlsAsync(
+        string providerCardId,
+        decimal? dailyLimitAmount,
+        IReadOnlyList<string> allowedMerchantCategories,
+        IReadOnlyList<string> allowedMerchantNames,
+        CancellationToken cancellationToken = default);
 }

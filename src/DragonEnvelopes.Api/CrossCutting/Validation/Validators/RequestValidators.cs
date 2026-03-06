@@ -162,6 +162,90 @@ public sealed class CreateVirtualEnvelopeCardRequestValidator : AbstractValidato
     }
 }
 
+public sealed class UpsertEnvelopePaymentCardControlRequestValidator : AbstractValidator<UpsertEnvelopePaymentCardControlRequest>
+{
+    public UpsertEnvelopePaymentCardControlRequestValidator()
+    {
+        RuleFor(static request => request.DailyLimitAmount)
+            .GreaterThanOrEqualTo(0m)
+            .When(static request => request.DailyLimitAmount.HasValue);
+
+        RuleForEach(static request => request.AllowedMerchantCategories)
+            .NotEmpty()
+            .MaximumLength(64);
+
+        RuleForEach(static request => request.AllowedMerchantNames)
+            .NotEmpty()
+            .MaximumLength(128);
+
+        RuleFor(static request => request)
+            .Must(static request => HasAnyControl(request))
+            .WithMessage("At least one spending control must be provided.");
+
+        RuleFor(static request => request.AllowedMerchantCategories)
+            .Must(static categories => HasNoDuplicates(categories))
+            .WithMessage("AllowedMerchantCategories contains duplicates.");
+
+        RuleFor(static request => request.AllowedMerchantNames)
+            .Must(static merchants => HasNoDuplicates(merchants))
+            .WithMessage("AllowedMerchantNames contains duplicates.");
+
+        RuleFor(static request => request.AllowedMerchantCategories)
+            .Must(static categories => !HasWildcardConflict(categories))
+            .WithMessage("Wildcard category cannot be combined with specific categories.");
+
+        RuleFor(static request => request.AllowedMerchantNames)
+            .Must(static merchants => !HasWildcardConflict(merchants))
+            .WithMessage("Wildcard merchant cannot be combined with specific merchants.");
+    }
+
+    private static bool HasAnyControl(UpsertEnvelopePaymentCardControlRequest request)
+    {
+        return request.DailyLimitAmount.HasValue
+               || request.AllowedMerchantCategories is { Count: > 0 }
+               || request.AllowedMerchantNames is { Count: > 0 };
+    }
+
+    private static bool HasNoDuplicates(IReadOnlyList<string>? values)
+    {
+        if (values is null || values.Count <= 1)
+        {
+            return true;
+        }
+
+        return values.Distinct(StringComparer.OrdinalIgnoreCase).Count() == values.Count;
+    }
+
+    private static bool HasWildcardConflict(IReadOnlyList<string>? values)
+    {
+        if (values is null || values.Count <= 1)
+        {
+            return false;
+        }
+
+        return values.Any(static value => value.Equals("*", StringComparison.OrdinalIgnoreCase));
+    }
+}
+
+public sealed class EvaluateEnvelopeCardSpendRequestValidator : AbstractValidator<EvaluateEnvelopeCardSpendRequest>
+{
+    public EvaluateEnvelopeCardSpendRequestValidator()
+    {
+        RuleFor(static request => request.MerchantName)
+            .NotEmpty()
+            .MaximumLength(128);
+
+        RuleFor(static request => request.MerchantCategory)
+            .MaximumLength(64);
+
+        RuleFor(static request => request.Amount)
+            .GreaterThan(0m);
+
+        RuleFor(static request => request.SpentTodayAmount)
+            .GreaterThanOrEqualTo(0m);
+    }
+}
+
 public sealed class OnboardingBootstrapRequestValidator : AbstractValidator<OnboardingBootstrapRequest>
 {
     public OnboardingBootstrapRequestValidator()

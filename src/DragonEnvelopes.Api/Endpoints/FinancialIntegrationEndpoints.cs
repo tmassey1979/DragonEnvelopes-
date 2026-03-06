@@ -393,6 +393,151 @@ internal static class FinancialIntegrationEndpoints
             .WithName("CancelEnvelopeCard")
             .WithOpenApi();
 
+        v1.MapPut("/families/{familyId:guid}/envelopes/{envelopeId:guid}/cards/{cardId:guid}/controls", async (
+                Guid familyId,
+                Guid envelopeId,
+                Guid cardId,
+                UpsertEnvelopePaymentCardControlRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopePaymentCardControlService envelopePaymentCardControlService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var control = await envelopePaymentCardControlService.UpsertControlsAsync(
+                    familyId,
+                    envelopeId,
+                    cardId,
+                    request.DailyLimitAmount,
+                    request.AllowedMerchantCategories,
+                    request.AllowedMerchantNames,
+                    user.FindFirstValue("sub"),
+                    cancellationToken);
+                return Results.Ok(new EnvelopePaymentCardControlResponse(
+                    control.Id,
+                    control.FamilyId,
+                    control.EnvelopeId,
+                    control.CardId,
+                    control.DailyLimitAmount,
+                    control.AllowedMerchantCategories,
+                    control.AllowedMerchantNames,
+                    control.CreatedAtUtc,
+                    control.UpdatedAtUtc));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("UpsertEnvelopeCardControls")
+            .WithOpenApi();
+
+        v1.MapGet("/families/{familyId:guid}/envelopes/{envelopeId:guid}/cards/{cardId:guid}/controls", async (
+                Guid familyId,
+                Guid envelopeId,
+                Guid cardId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopePaymentCardControlService envelopePaymentCardControlService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var control = await envelopePaymentCardControlService.GetByCardAsync(
+                    familyId,
+                    envelopeId,
+                    cardId,
+                    cancellationToken);
+
+                return control is null
+                    ? Results.NotFound()
+                    : Results.Ok(new EnvelopePaymentCardControlResponse(
+                        control.Id,
+                        control.FamilyId,
+                        control.EnvelopeId,
+                        control.CardId,
+                        control.DailyLimitAmount,
+                        control.AllowedMerchantCategories,
+                        control.AllowedMerchantNames,
+                        control.CreatedAtUtc,
+                        control.UpdatedAtUtc));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("GetEnvelopeCardControls")
+            .WithOpenApi();
+
+        v1.MapGet("/families/{familyId:guid}/envelopes/{envelopeId:guid}/cards/{cardId:guid}/controls/audit", async (
+                Guid familyId,
+                Guid envelopeId,
+                Guid cardId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopePaymentCardControlService envelopePaymentCardControlService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var audit = await envelopePaymentCardControlService.ListAuditByCardAsync(
+                    familyId,
+                    envelopeId,
+                    cardId,
+                    cancellationToken);
+
+                return Results.Ok(audit.Select(entry => new EnvelopePaymentCardControlAuditResponse(
+                    entry.Id,
+                    entry.FamilyId,
+                    entry.EnvelopeId,
+                    entry.CardId,
+                    entry.Action,
+                    entry.PreviousStateJson,
+                    entry.NewStateJson,
+                    entry.ChangedBy,
+                    entry.ChangedAtUtc)).ToArray());
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("ListEnvelopeCardControlAudit")
+            .WithOpenApi();
+
+        v1.MapPost("/families/{familyId:guid}/envelopes/{envelopeId:guid}/cards/{cardId:guid}/controls/evaluate", async (
+                Guid familyId,
+                Guid envelopeId,
+                Guid cardId,
+                EvaluateEnvelopeCardSpendRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopePaymentCardControlService envelopePaymentCardControlService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var evaluation = await envelopePaymentCardControlService.EvaluateSpendAsync(
+                    familyId,
+                    envelopeId,
+                    cardId,
+                    request.MerchantName,
+                    request.MerchantCategory,
+                    request.Amount,
+                    request.SpentTodayAmount,
+                    cancellationToken);
+
+                return Results.Ok(new EvaluateEnvelopeCardSpendResponse(
+                    evaluation.IsAllowed,
+                    evaluation.DenialReason,
+                    evaluation.RemainingDailyLimit));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("EvaluateEnvelopeCardSpend")
+            .WithOpenApi();
+
         return v1;
     }
 }

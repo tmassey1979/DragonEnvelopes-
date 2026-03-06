@@ -491,6 +491,36 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Cannot_Upsert_FamilyB_Card_Controls()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/envelopes/{TestApiFactory.EnvelopeBId}/cards/{Guid.NewGuid()}/controls",
+            new
+            {
+                dailyLimitAmount = 25m,
+                allowedMerchantCategories = new[] { "grocery_stores" },
+                allowedMerchantNames = new[] { "Target" }
+            });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_List_FamilyB_Card_Control_Audit()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/envelopes/{TestApiFactory.EnvelopeBId}/cards/{Guid.NewGuid()}/controls/audit");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Onboarding_Bootstrap_Rejects_Duplicate_Account_Names_In_Request()
     {
         using var client = _factory.CreateClient();
