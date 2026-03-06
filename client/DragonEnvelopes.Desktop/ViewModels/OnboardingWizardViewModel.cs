@@ -1,7 +1,8 @@
+using System.Collections.ObjectModel;
+using System.Net.Mail;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DragonEnvelopes.Desktop.Services;
-using System.Collections.ObjectModel;
 
 namespace DragonEnvelopes.Desktop.ViewModels;
 
@@ -35,19 +36,27 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         "UTC"
     ];
 
+    private static readonly string[] InviteRoles = ["Parent", "Adult", "Teen", "Child"];
     private const int MilestoneCount = 9;
 
     private readonly IOnboardingDataService _onboardingDataService;
+    private readonly IFamilyMembersDataService _familyMembersDataService;
 
-    public OnboardingWizardViewModel(IOnboardingDataService onboardingDataService)
+    public OnboardingWizardViewModel(
+        IOnboardingDataService onboardingDataService,
+        IFamilyMembersDataService familyMembersDataService)
     {
         _onboardingDataService = onboardingDataService;
+        _familyMembersDataService = familyMembersDataService;
+
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         NextStepCommand = new RelayCommand(NextStep);
         PreviousStepCommand = new RelayCommand(PreviousStep);
         MarkCurrentStepCompleteCommand = new AsyncRelayCommand(MarkCurrentStepCompleteAsync);
         ReconcileProgressCommand = new AsyncRelayCommand(ReconcileProgressAsync);
         SaveFamilyProfileCommand = new AsyncRelayCommand(SaveFamilyProfileAsync);
+        CreateInviteCommand = new AsyncRelayCommand(CreateFamilyInviteAsync);
+        CancelInviteCommand = new AsyncRelayCommand(CancelFamilyInviteAsync);
         AddAccountRowCommand = new RelayCommand(AddAccountRow);
         RemoveAccountRowCommand = new RelayCommand<OnboardingAccountDraftViewModel?>(RemoveAccountRow);
         AddEnvelopeRowCommand = new RelayCommand(AddEnvelopeRow);
@@ -65,6 +74,8 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         BudgetIncome = "0";
         SelectedCurrencyCode = DefaultCurrencyCode;
         SelectedTimeZoneId = DefaultTimeZoneId;
+        DraftInviteRole = InviteRoles[0];
+        DraftInviteExpiresInHours = "168";
         RefreshStepItems();
         _ = LoadCommand.ExecuteAsync(null);
     }
@@ -75,6 +86,8 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public IAsyncRelayCommand MarkCurrentStepCompleteCommand { get; }
     public IAsyncRelayCommand ReconcileProgressCommand { get; }
     public IAsyncRelayCommand SaveFamilyProfileCommand { get; }
+    public IAsyncRelayCommand CreateInviteCommand { get; }
+    public IAsyncRelayCommand CancelInviteCommand { get; }
     public IRelayCommand AddAccountRowCommand { get; }
     public IRelayCommand<OnboardingAccountDraftViewModel?> RemoveAccountRowCommand { get; }
     public IRelayCommand AddEnvelopeRowCommand { get; }
@@ -86,6 +99,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public IReadOnlyList<string> AccountTypeOptions { get; } = AccountTypes;
     public IReadOnlyList<string> CurrencyOptions { get; } = CurrencyCodes;
     public IReadOnlyList<string> TimeZoneOptions { get; } = TimeZoneIds;
+    public IReadOnlyList<string> InviteRoleOptions { get; } = InviteRoles;
 
     [ObservableProperty]
     private int currentStepIndex;
@@ -133,6 +147,27 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     private string statusMessage = "Loading onboarding status...";
 
     [ObservableProperty]
+    private ObservableCollection<FamilyMemberItemViewModel> familyMembers = [];
+
+    [ObservableProperty]
+    private ObservableCollection<FamilyInviteItemViewModel> familyInvites = [];
+
+    [ObservableProperty]
+    private FamilyInviteItemViewModel? selectedFamilyInvite;
+
+    [ObservableProperty]
+    private string draftInviteEmail = string.Empty;
+
+    [ObservableProperty]
+    private string draftInviteRole = InviteRoles[0];
+
+    [ObservableProperty]
+    private string draftInviteExpiresInHours = "168";
+
+    [ObservableProperty]
+    private string memberStepMessage = "Invite household members to begin family setup.";
+
+    [ObservableProperty]
     private ObservableCollection<OnboardingAccountDraftViewModel> accountDrafts = [];
 
     [ObservableProperty]
@@ -160,6 +195,10 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public bool CanGoBack => !IsFirstStep;
     public bool CanGoNext => !IsLastStep;
     public bool IsFamilyProfileStep => CurrentStepIndex == 0;
+    public bool IsFamilyMembersStep => CurrentStepIndex == 1;
+    public bool IsAccountsStep => CurrentStepIndex == 2;
+    public bool IsEnvelopesStep => CurrentStepIndex == 3;
+    public bool IsBudgetStep => CurrentStepIndex == 4;
 
     public int ProgressPercent
     {
@@ -185,10 +224,19 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         {
             var profileTask = _onboardingDataService.GetProfileAsync(cancellationToken);
             var familyProfileTask = _onboardingDataService.GetFamilyProfileAsync(cancellationToken);
-            await Task.WhenAll(profileTask, familyProfileTask);
+            var membersTask = _familyMembersDataService.GetMembersAsync(cancellationToken);
+            var invitesTask = _familyMembersDataService.GetInvitesAsync(cancellationToken);
+
+            await Task.WhenAll(profileTask, familyProfileTask, membersTask, invitesTask);
+
+            FamilyMembers = new ObservableCollection<FamilyMemberItemViewModel>(await membersTask);
+            FamilyInvites = new ObservableCollection<FamilyInviteItemViewModel>(await invitesTask);
+            SelectedFamilyInvite = FamilyInvites.FirstOrDefault();
 
             ApplyFamilyProfile(await familyProfileTask);
+
             var profile = await profileTask;
+            profile = await SyncMembersMilestoneFromRealStateAsync(profile, cancellationToken);
             ApplyProfile(profile);
 
             StatusMessage = profile.IsCompleted
@@ -236,6 +284,41 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
             return;
         }
 
+        if (CurrentStepIndex == 1)
+        {
+            var membersCompletion = ComputeMembersCompletedFromState();
+            if (!membersCompletion)
+            {
+                HasError = true;
+                ErrorMessage = "Add at least one pending/accepted invite or two members to complete this step.";
+                return;
+            }
+
+            try
+            {
+                var updated = await _onboardingDataService.UpdateProfileAsync(
+                    membersCompletion,
+                    AccountsCompleted,
+                    EnvelopesCompleted,
+                    BudgetCompleted,
+                    PlaidCompleted,
+                    StripeAccountsCompleted,
+                    CardsCompleted,
+                    AutomationCompleted,
+                    cancellationToken);
+
+                ApplyProfile(updated);
+                StatusMessage = "Family members step saved.";
+            }
+            catch (Exception ex)
+            {
+                HasError = true;
+                ErrorMessage = $"Unable to save family members step: {ex.Message}";
+            }
+
+            return;
+        }
+
         var nextMembers = MembersCompleted;
         var nextAccounts = AccountsCompleted;
         var nextEnvelopes = EnvelopesCompleted;
@@ -247,9 +330,6 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
 
         switch (CurrentStepIndex)
         {
-            case 1:
-                nextMembers = true;
-                break;
             case 2:
                 nextAccounts = true;
                 break;
@@ -306,6 +386,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         try
         {
             var reconciled = await _onboardingDataService.ReconcileProfileAsync(cancellationToken);
+            reconciled = await SyncMembersMilestoneFromRealStateAsync(reconciled, cancellationToken);
             ApplyProfile(reconciled);
             StatusMessage = reconciled.IsCompleted
                 ? "Onboarding reconciled and complete."
@@ -358,6 +439,171 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
             ErrorMessage = $"Unable to save family profile: {ex.Message}";
             return false;
         }
+    }
+
+    private async Task CreateFamilyInviteAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(DraftInviteEmail))
+        {
+            HasError = true;
+            ErrorMessage = "Invite email is required.";
+            return;
+        }
+
+        try
+        {
+            _ = new MailAddress(DraftInviteEmail.Trim());
+        }
+        catch
+        {
+            HasError = true;
+            ErrorMessage = "Enter a valid invite email.";
+            return;
+        }
+
+        if (!InviteRoles.Contains(DraftInviteRole, StringComparer.OrdinalIgnoreCase))
+        {
+            HasError = true;
+            ErrorMessage = "Invite role is invalid.";
+            return;
+        }
+
+        if (!int.TryParse(DraftInviteExpiresInHours, out var expiresInHours) || expiresInHours < 1 || expiresInHours > 720)
+        {
+            HasError = true;
+            ErrorMessage = "Invite expiration must be between 1 and 720 hours.";
+            return;
+        }
+
+        try
+        {
+            var created = await _familyMembersDataService.CreateInviteAsync(
+                DraftInviteEmail.Trim(),
+                DraftInviteRole,
+                expiresInHours,
+                cancellationToken);
+
+            DraftInviteEmail = string.Empty;
+            DraftInviteRole = InviteRoles[0];
+            DraftInviteExpiresInHours = "168";
+
+            await RefreshFamilyMemberStateAsync(cancellationToken);
+            var updated = await SyncMembersMilestoneFromRealStateAsync(CurrentProfileSnapshot(), cancellationToken);
+            ApplyProfile(updated);
+
+            MemberStepMessage = $"Invite created for '{created.Invite.Email}'.";
+            StatusMessage = MemberStepMessage;
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to create invite: {ex.Message}";
+        }
+    }
+
+    private async Task CancelFamilyInviteAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedFamilyInvite is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select an invite to cancel.";
+            return;
+        }
+
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        try
+        {
+            var cancelled = await _familyMembersDataService.CancelInviteAsync(SelectedFamilyInvite.Id, cancellationToken);
+            await RefreshFamilyMemberStateAsync(cancellationToken);
+            var updated = await SyncMembersMilestoneFromRealStateAsync(CurrentProfileSnapshot(), cancellationToken);
+            ApplyProfile(updated);
+
+            MemberStepMessage = $"Invite for '{cancelled.Email}' cancelled.";
+            StatusMessage = MemberStepMessage;
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to cancel invite: {ex.Message}";
+        }
+    }
+
+    private async Task RefreshFamilyMemberStateAsync(CancellationToken cancellationToken)
+    {
+        var members = await _familyMembersDataService.GetMembersAsync(cancellationToken);
+        FamilyMembers = new ObservableCollection<FamilyMemberItemViewModel>(members);
+
+        var invites = await _familyMembersDataService.GetInvitesAsync(cancellationToken);
+        FamilyInvites = new ObservableCollection<FamilyInviteItemViewModel>(invites);
+
+        SelectedFamilyInvite = FamilyInvites.FirstOrDefault(static invite =>
+                invite.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase))
+            ?? FamilyInvites.FirstOrDefault();
+    }
+
+    private async Task<OnboardingProfileData> SyncMembersMilestoneFromRealStateAsync(
+        OnboardingProfileData profile,
+        CancellationToken cancellationToken)
+    {
+        var membersCompletedFromState = ComputeMembersCompletedFromState();
+        if (profile.MembersCompleted == membersCompletedFromState)
+        {
+            return profile;
+        }
+
+        return await _onboardingDataService.UpdateProfileAsync(
+            membersCompletedFromState,
+            profile.AccountsCompleted,
+            profile.EnvelopesCompleted,
+            profile.BudgetCompleted,
+            profile.PlaidCompleted,
+            profile.StripeAccountsCompleted,
+            profile.CardsCompleted,
+            profile.AutomationCompleted,
+            cancellationToken);
+    }
+
+    private bool ComputeMembersCompletedFromState()
+    {
+        if (FamilyMembers.Count >= 2)
+        {
+            return true;
+        }
+
+        return FamilyInvites.Any(static invite =>
+            invite.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase)
+            || invite.Status.Equals("Accepted", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private OnboardingProfileData CurrentProfileSnapshot()
+    {
+        return new OnboardingProfileData(
+            Guid.Empty,
+            Guid.Empty,
+            MembersCompleted,
+            AccountsCompleted,
+            EnvelopesCompleted,
+            BudgetCompleted,
+            PlaidCompleted,
+            StripeAccountsCompleted,
+            CardsCompleted,
+            AutomationCompleted,
+            IsCompleted: MembersCompleted
+                         && AccountsCompleted
+                         && EnvelopesCompleted
+                         && BudgetCompleted
+                         && PlaidCompleted
+                         && StripeAccountsCompleted
+                         && CardsCompleted
+                         && AutomationCompleted,
+            CreatedAtUtc: DateTimeOffset.UtcNow,
+            UpdatedAtUtc: DateTimeOffset.UtcNow,
+            CompletedAtUtc: null);
     }
 
     private string? ValidateFamilyProfileDraft()
@@ -500,6 +746,10 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(CanGoNext));
         OnPropertyChanged(nameof(IsFamilyProfileStep));
+        OnPropertyChanged(nameof(IsFamilyMembersStep));
+        OnPropertyChanged(nameof(IsAccountsStep));
+        OnPropertyChanged(nameof(IsEnvelopesStep));
+        OnPropertyChanged(nameof(IsBudgetStep));
         RefreshStepItems();
     }
 

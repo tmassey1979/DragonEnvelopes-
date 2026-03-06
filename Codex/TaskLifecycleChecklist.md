@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#172` Onboarding family profile setup step.
+- Active task: `#173` Onboarding family members invite step.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#171` Onboarding account registration step.
+- Previous completed task: `#172` Onboarding family profile setup step.
 - Last updated: `2026-03-06`.

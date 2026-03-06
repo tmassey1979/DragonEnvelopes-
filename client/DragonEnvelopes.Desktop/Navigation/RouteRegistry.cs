@@ -90,7 +90,9 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Onboarding",
                 Glyph: "\uE8FD",
                 TopBarSubtitle: "Guided initial financial setup",
-                Content: new OnboardingWizardViewModel(new OnboardingDataService(apiClient, familyContext)),
+                Content: new OnboardingWizardViewModel(
+                    new OnboardingDataService(apiClient, familyContext),
+                    new FamilyMembersDataService(apiClient, familyContext)),
                 RequiredRole: "Parent"),
             new RouteDefinition(
                 Key: "/settings",

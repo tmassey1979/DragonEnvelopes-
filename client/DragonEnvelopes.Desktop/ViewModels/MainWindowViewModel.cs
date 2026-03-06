@@ -436,6 +436,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 case FinancialIntegrationsViewModel integrations:
                     await integrations.LoadCommand.ExecuteAsync(null);
                     break;
+                case OnboardingWizardViewModel onboarding:
+                    await onboarding.LoadCommand.ExecuteAsync(null);
+                    break;
             }
         }
     }

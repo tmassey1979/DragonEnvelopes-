@@ -2723,6 +2723,132 @@
                                 Background="{StaticResource PanelMutedBackgroundBrush}"
                                 BorderBrush="{StaticResource PanelOutlineBrush}"
                                 BorderThickness="1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsFamilyMembersStep}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel>
+                                <TextBlock Text="Family Members and Invites" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding MemberStepMessage}"
+                                           Style="{StaticResource CaptionTextStyle}" />
+
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1.6*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding DraftInviteEmail, UpdateSourceTrigger=PropertyChanged}" />
+                                    <ComboBox Grid.Column="2"
+                                              ItemsSource="{Binding InviteRoleOptions}"
+                                              SelectedItem="{Binding DraftInviteRole, Mode=TwoWay}" />
+                                    <TextBox Grid.Column="4"
+                                             Text="{Binding DraftInviteExpiresInHours, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Grid.Column="6"
+                                            Content="Create Invite"
+                                            Command="{Binding CreateInviteCommand}" />
+                                </Grid>
+
+                                <TextBlock Margin="0,12,0,0"
+                                           Text="Current Members"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <ItemsControl Margin="0,6,0,0"
+                                              ItemsSource="{Binding FamilyMembers}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,6"
+                                                    Padding="8"
+                                                    CornerRadius="8"
+                                                    Background="{StaticResource SidebarBackgroundBrush}"
+                                                    BorderBrush="{StaticResource PanelOutlineBrush}"
+                                                    BorderThickness="1">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="1.2*" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{Binding Name}"
+                                                               Style="{StaticResource CaptionTextStyle}" />
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding Role}"
+                                                               Style="{StaticResource CaptionTextStyle}" />
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{Binding Email}"
+                                                               Style="{StaticResource CaptionTextStyle}" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock Margin="0,10,0,0"
+                                           Text="Invites"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <ListBox Margin="0,6,0,0"
+                                         ItemsSource="{Binding FamilyInvites}"
+                                         SelectedItem="{Binding SelectedFamilyInvite, Mode=TwoWay}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="1.4*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding Email}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding Role}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding Status}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                                <TextBlock Grid.Column="3"
+                                                           Text="{Binding ExpiresAtUtc}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <Button Margin="0,10,0,0"
+                                        Width="170"
+                                        Content="Cancel Selected Invite"
+                                        Command="{Binding CancelInviteCommand}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,12,0,0"
+                                Padding="10"
+                                CornerRadius="8"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsAccountsStep}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
                             <StackPanel>
                                 <TextBlock Text="Accounts" Style="{StaticResource CaptionTextStyle}" />
                                 <ItemsControl Margin="0,8,0,0"
@@ -2766,6 +2892,16 @@
                                 Background="{StaticResource PanelMutedBackgroundBrush}"
                                 BorderBrush="{StaticResource PanelOutlineBrush}"
                                 BorderThickness="1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsEnvelopesStep}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
                             <StackPanel>
                                 <TextBlock Text="Envelopes" Style="{StaticResource CaptionTextStyle}" />
                                 <ItemsControl Margin="0,8,0,0"
@@ -2804,6 +2940,16 @@
                                 Background="{StaticResource PanelMutedBackgroundBrush}"
                                 BorderBrush="{StaticResource PanelOutlineBrush}"
                                 BorderThickness="1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsBudgetStep}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
                             <StackPanel>
                                 <TextBlock Text="Starter Budget (optional)" Style="{StaticResource CaptionTextStyle}" />
                                 <Grid Margin="0,8,0,0">

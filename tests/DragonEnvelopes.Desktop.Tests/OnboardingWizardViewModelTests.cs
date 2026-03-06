@@ -29,8 +29,11 @@ public sealed class OnboardingWizardViewModelTests
                 UpdatedAtUtc: now,
                 CompletedAtUtc: null)
         };
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-1", "Owner One", "owner1@test.dev", "Parent"));
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-2", "Owner Two", "owner2@test.dev", "Adult"));
 
-        var viewModel = new OnboardingWizardViewModel(onboardingDataService);
+        var viewModel = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
         await EnsureLoadedAsync(viewModel);
 
         Assert.False(viewModel.HasError);
@@ -69,8 +72,11 @@ public sealed class OnboardingWizardViewModelTests
                 UpdatedAtUtc: now,
                 CompletedAtUtc: null)
         };
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-1", "Owner One", "owner1@test.dev", "Parent"));
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-2", "Owner Two", "owner2@test.dev", "Adult"));
 
-        var viewModel = new OnboardingWizardViewModel(onboardingDataService);
+        var viewModel = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
         await EnsureLoadedAsync(viewModel);
 
         Assert.Equal(5, viewModel.CurrentStepIndex);
@@ -113,8 +119,11 @@ public sealed class OnboardingWizardViewModelTests
                 UpdatedAtUtc: now,
                 CompletedAtUtc: null)
         };
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-1", "Owner One", "owner1@test.dev", "Parent"));
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-2", "Owner Two", "owner2@test.dev", "Adult"));
 
-        var viewModel = new OnboardingWizardViewModel(onboardingDataService);
+        var viewModel = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
         await EnsureLoadedAsync(viewModel);
 
         await viewModel.ReconcileProgressCommand.ExecuteAsync(null);
@@ -142,7 +151,7 @@ public sealed class OnboardingWizardViewModelTests
                 now)
         };
 
-        var viewModel = new OnboardingWizardViewModel(onboardingDataService);
+        var viewModel = new OnboardingWizardViewModel(onboardingDataService, new FakeFamilyMembersDataService());
         await EnsureLoadedAsync(viewModel);
 
         Assert.Equal(0, viewModel.CurrentStepIndex);
@@ -160,6 +169,32 @@ public sealed class OnboardingWizardViewModelTests
         Assert.Equal(1, onboardingDataService.UpdateFamilyProfileCallCount);
         Assert.Equal(1, viewModel.CurrentStepIndex);
         Assert.Equal("Family profile saved.", viewModel.StatusMessage);
+    }
+
+    [Fact]
+    public async Task CreateInviteCommand_Updates_Members_Step_From_Real_State()
+    {
+        var familyId = Guid.Parse("10000000-0000-0000-0000-000000000005");
+        var onboardingDataService = new FakeOnboardingDataService(familyId);
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        var viewModel = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
+        await EnsureLoadedAsync(viewModel);
+
+        Assert.Equal(1, viewModel.CurrentStepIndex);
+        Assert.False(viewModel.MembersCompleted);
+
+        viewModel.DraftInviteEmail = "invite@test.dev";
+        viewModel.DraftInviteRole = "Adult";
+        viewModel.DraftInviteExpiresInHours = "72";
+
+        await viewModel.CreateInviteCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.False(viewModel.HasError);
+        Assert.True(viewModel.MembersCompleted);
+        Assert.Equal(1, familyMembersDataService.CreateInviteCallCount);
+        Assert.Equal(1, onboardingDataService.UpdateProfileCallCount);
+        Assert.Equal("Invite created for 'invite@test.dev'.", viewModel.MemberStepMessage);
     }
 
     private static async Task EnsureLoadedAsync(OnboardingWizardViewModel viewModel)
