@@ -62,6 +62,12 @@ public sealed class RouteRegistry : IRouteRegistry
                 TopBarSubtitle: "Household membership management",
                 Content: new FamilyMembersViewModel(new FamilyMembersDataService(apiClient, familyContext))),
             new RouteDefinition(
+                Key: "/recurring-bills",
+                Label: "Recurring Bills",
+                Glyph: "\uE823",
+                TopBarSubtitle: "Recurring bills and upcoming projection",
+                Content: new RecurringBillsViewModel(new RecurringBillsDataService(apiClient, familyContext))),
+            new RouteDefinition(
                 Key: "/settings",
                 Label: "Settings",
                 Glyph: "\uE713",
