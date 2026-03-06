@@ -47,6 +47,41 @@ public sealed class OnboardingDataService(
         return Map(updated);
     }
 
+    public async Task<OnboardingBootstrapResultData> BootstrapAsync(
+        IReadOnlyList<(string Name, string Type, decimal OpeningBalance)> accounts,
+        IReadOnlyList<(string Name, decimal MonthlyBudget)> envelopes,
+        (string Month, decimal TotalIncome)? budget,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var payload = new OnboardingBootstrapRequest(
+            accounts.Select(static x => new OnboardingBootstrapAccountRequest(x.Name, x.Type, x.OpeningBalance)).ToArray(),
+            envelopes.Select(static x => new OnboardingBootstrapEnvelopeRequest(x.Name, x.MonthlyBudget)).ToArray(),
+            budget.HasValue
+                ? new OnboardingBootstrapBudgetRequest(budget.Value.Month, budget.Value.TotalIncome)
+                : null);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"families/{familyId}/onboarding/bootstrap")
+        {
+            Content = JsonContent.Create(payload)
+        };
+
+        using var response = await apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Onboarding bootstrap failed with status {(int)response.StatusCode}.");
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<OnboardingBootstrapResponse>(cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("Onboarding bootstrap response payload was invalid.");
+
+        return new OnboardingBootstrapResultData(
+            result.FamilyId,
+            result.AccountsCreated,
+            result.EnvelopesCreated,
+            result.BudgetCreated);
+    }
+
     private Guid RequireFamilyId()
     {
         if (!familyContext.FamilyId.HasValue)

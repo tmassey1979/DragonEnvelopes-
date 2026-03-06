@@ -2063,9 +2063,109 @@
                                       IsEmpty="False">
                     <StackPanel>
                         <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource BodyTextStyle}" />
-                        <TextBlock Margin="0,12,0,0"
-                                   Text="Detailed data-entry fields are implemented in the next onboarding story."
-                                   Style="{StaticResource CaptionTextStyle}" />
+
+                        <Border Margin="0,12,0,0"
+                                Padding="10"
+                                CornerRadius="8"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Accounts" Style="{StaticResource CaptionTextStyle}" />
+                                <ItemsControl Margin="0,8,0,0"
+                                              ItemsSource="{Binding AccountDrafts}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="1.4*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Grid.Column="0"
+                                                         Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                                                <ComboBox Grid.Column="2"
+                                                          ItemsSource="{Binding DataContext.AccountTypeOptions, RelativeSource={RelativeSource AncestorType=ContentControl}}"
+                                                          SelectedItem="{Binding Type, Mode=TwoWay}" />
+                                                <TextBox Grid.Column="4"
+                                                         Text="{Binding OpeningBalance, UpdateSourceTrigger=PropertyChanged}" />
+                                                <Button Grid.Column="6"
+                                                        Content="Remove"
+                                                        Command="{Binding DataContext.RemoveAccountRowCommand, RelativeSource={RelativeSource AncestorType=ContentControl}}"
+                                                        CommandParameter="{Binding}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button Width="120"
+                                        Content="Add Account"
+                                        Command="{Binding AddAccountRowCommand}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,12,0,0"
+                                Padding="10"
+                                CornerRadius="8"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Envelopes" Style="{StaticResource CaptionTextStyle}" />
+                                <ItemsControl Margin="0,8,0,0"
+                                              ItemsSource="{Binding EnvelopeDrafts}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="1.8*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Grid.Column="0"
+                                                         Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                                                <TextBox Grid.Column="2"
+                                                         Text="{Binding MonthlyBudget, UpdateSourceTrigger=PropertyChanged}" />
+                                                <Button Grid.Column="4"
+                                                        Content="Remove"
+                                                        Command="{Binding DataContext.RemoveEnvelopeRowCommand, RelativeSource={RelativeSource AncestorType=ContentControl}}"
+                                                        CommandParameter="{Binding}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button Width="130"
+                                        Content="Add Envelope"
+                                        Command="{Binding AddEnvelopeRowCommand}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,12,0,0"
+                                Padding="10"
+                                CornerRadius="8"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Starter Budget (optional)" Style="{StaticResource CaptionTextStyle}" />
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding BudgetMonth, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Grid.Column="2"
+                                             Text="{Binding BudgetIncome, UpdateSourceTrigger=PropertyChanged}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
 
                         <StackPanel Margin="0,18,0,0"
                                     Orientation="Horizontal">
@@ -2080,6 +2180,9 @@
                                     Content="Next"
                                     IsEnabled="{Binding CanGoNext}"
                                     Command="{Binding NextStepCommand}" />
+                            <Button Margin="0,0,8,0"
+                                    Content="Submit Setup"
+                                    Command="{Binding SubmitBootstrapCommand}" />
                             <Button Content="Cancel"
                                     Command="{Binding CancelCommand}" />
                         </StackPanel>

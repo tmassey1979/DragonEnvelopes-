@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DragonEnvelopes.Desktop.Services;
+using System.Collections.ObjectModel;
 
 namespace DragonEnvelopes.Desktop.ViewModels;
 
@@ -13,6 +14,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         "Starter Budget",
         "Review"
     ];
+    private static readonly string[] AccountTypes = ["Checking", "Savings", "Cash", "Credit"];
 
     private readonly IOnboardingDataService _onboardingDataService;
 
@@ -23,7 +25,16 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         NextStepCommand = new RelayCommand(NextStep);
         PreviousStepCommand = new RelayCommand(PreviousStep);
         MarkCurrentStepCompleteCommand = new AsyncRelayCommand(MarkCurrentStepCompleteAsync);
+        AddAccountRowCommand = new RelayCommand(AddAccountRow);
+        RemoveAccountRowCommand = new RelayCommand<OnboardingAccountDraftViewModel?>(RemoveAccountRow);
+        AddEnvelopeRowCommand = new RelayCommand(AddEnvelopeRow);
+        RemoveEnvelopeRowCommand = new RelayCommand<OnboardingEnvelopeDraftViewModel?>(RemoveEnvelopeRow);
+        SubmitBootstrapCommand = new AsyncRelayCommand(SubmitBootstrapAsync);
         CancelCommand = new RelayCommand(Cancel);
+        AddAccountRow();
+        AddEnvelopeRow();
+        BudgetMonth = DateTime.UtcNow.ToString("yyyy-MM");
+        BudgetIncome = "0";
         _ = LoadCommand.ExecuteAsync(null);
     }
 
@@ -31,9 +42,15 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public IRelayCommand NextStepCommand { get; }
     public IRelayCommand PreviousStepCommand { get; }
     public IAsyncRelayCommand MarkCurrentStepCompleteCommand { get; }
+    public IRelayCommand AddAccountRowCommand { get; }
+    public IRelayCommand<OnboardingAccountDraftViewModel?> RemoveAccountRowCommand { get; }
+    public IRelayCommand AddEnvelopeRowCommand { get; }
+    public IRelayCommand<OnboardingEnvelopeDraftViewModel?> RemoveEnvelopeRowCommand { get; }
+    public IAsyncRelayCommand SubmitBootstrapCommand { get; }
     public IRelayCommand CancelCommand { get; }
 
     public IReadOnlyList<string> Steps { get; } = StepTitles;
+    public IReadOnlyList<string> AccountTypeOptions { get; } = AccountTypes;
 
     [ObservableProperty]
     private int currentStepIndex;
@@ -58,6 +75,18 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
 
     [ObservableProperty]
     private string statusMessage = "Loading onboarding status...";
+
+    [ObservableProperty]
+    private ObservableCollection<OnboardingAccountDraftViewModel> accountDrafts = [];
+
+    [ObservableProperty]
+    private ObservableCollection<OnboardingEnvelopeDraftViewModel> envelopeDrafts = [];
+
+    [ObservableProperty]
+    private string budgetMonth = string.Empty;
+
+    [ObservableProperty]
+    private string budgetIncome = "0";
 
     public string CurrentStepTitle => Steps[Math.Clamp(CurrentStepIndex, 0, Steps.Count - 1)];
 
@@ -173,6 +202,108 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
             HasError = true;
             ErrorMessage = $"Unable to save onboarding progress: {ex.Message}";
         }
+    }
+
+    private async Task SubmitBootstrapAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        var accounts = new List<(string Name, string Type, decimal OpeningBalance)>();
+        foreach (var row in AccountDrafts)
+        {
+            if (string.IsNullOrWhiteSpace(row.Name))
+            {
+                continue;
+            }
+
+            if (!decimal.TryParse(row.OpeningBalance, out var openingBalance) || openingBalance < 0m)
+            {
+                HasError = true;
+                ErrorMessage = $"Invalid account opening balance for '{row.Name}'.";
+                return;
+            }
+
+            accounts.Add((row.Name.Trim(), row.Type.Trim(), openingBalance));
+        }
+
+        var envelopes = new List<(string Name, decimal MonthlyBudget)>();
+        foreach (var row in EnvelopeDrafts)
+        {
+            if (string.IsNullOrWhiteSpace(row.Name))
+            {
+                continue;
+            }
+
+            if (!decimal.TryParse(row.MonthlyBudget, out var monthlyBudget) || monthlyBudget < 0m)
+            {
+                HasError = true;
+                ErrorMessage = $"Invalid envelope monthly budget for '{row.Name}'.";
+                return;
+            }
+
+            envelopes.Add((row.Name.Trim(), monthlyBudget));
+        }
+
+        (string Month, decimal TotalIncome)? budget = null;
+        if (!string.IsNullOrWhiteSpace(BudgetMonth))
+        {
+            if (!decimal.TryParse(BudgetIncome, out var totalIncome) || totalIncome < 0m)
+            {
+                HasError = true;
+                ErrorMessage = "Budget income must be a non-negative number.";
+                return;
+            }
+
+            budget = (BudgetMonth.Trim(), totalIncome);
+        }
+
+        try
+        {
+            var result = await _onboardingDataService.BootstrapAsync(accounts, envelopes, budget, cancellationToken);
+            await _onboardingDataService.UpdateProfileAsync(
+                result.AccountsCreated > 0 || AccountsCompleted,
+                result.EnvelopesCreated > 0 || EnvelopesCompleted,
+                result.BudgetCreated || BudgetCompleted,
+                cancellationToken);
+            StatusMessage = "Onboarding bootstrap submitted successfully.";
+            await LoadAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to submit onboarding bootstrap: {ex.Message}";
+        }
+    }
+
+    private void AddAccountRow()
+    {
+        AccountDrafts.Add(new OnboardingAccountDraftViewModel());
+    }
+
+    private void RemoveAccountRow(OnboardingAccountDraftViewModel? row)
+    {
+        if (row is null)
+        {
+            return;
+        }
+
+        AccountDrafts.Remove(row);
+    }
+
+    private void AddEnvelopeRow()
+    {
+        EnvelopeDrafts.Add(new OnboardingEnvelopeDraftViewModel());
+    }
+
+    private void RemoveEnvelopeRow(OnboardingEnvelopeDraftViewModel? row)
+    {
+        if (row is null)
+        {
+            return;
+        }
+
+        EnvelopeDrafts.Remove(row);
     }
 
     private void Cancel()

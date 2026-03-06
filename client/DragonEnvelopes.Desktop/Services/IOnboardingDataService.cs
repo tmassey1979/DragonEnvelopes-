@@ -9,4 +9,10 @@ public interface IOnboardingDataService
         bool envelopesCompleted,
         bool budgetCompleted,
         CancellationToken cancellationToken = default);
+
+    Task<OnboardingBootstrapResultData> BootstrapAsync(
+        IReadOnlyList<(string Name, string Type, decimal OpeningBalance)> accounts,
+        IReadOnlyList<(string Name, decimal MonthlyBudget)> envelopes,
+        (string Month, decimal TotalIncome)? budget,
+        CancellationToken cancellationToken = default);
 }
