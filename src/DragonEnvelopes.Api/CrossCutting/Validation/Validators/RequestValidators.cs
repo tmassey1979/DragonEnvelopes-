@@ -75,6 +75,37 @@ public sealed class AddFamilyMemberRequestValidator : AbstractValidator<AddFamil
     }
 }
 
+public sealed class CreateFamilyInviteRequestValidator : AbstractValidator<CreateFamilyInviteRequest>
+{
+    private static readonly string[] AllowedRoles = ["Parent", "Adult", "Teen", "Child"];
+
+    public CreateFamilyInviteRequestValidator()
+    {
+        RuleFor(static request => request.Email)
+            .NotEmpty()
+            .EmailAddress()
+            .MaximumLength(320);
+
+        RuleFor(static request => request.Role)
+            .NotEmpty()
+            .Must(static role => AllowedRoles.Contains(role, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"Role must be one of: {string.Join(", ", AllowedRoles)}.");
+
+        RuleFor(static request => request.ExpiresInHours)
+            .InclusiveBetween(1, 24 * 30);
+    }
+}
+
+public sealed class AcceptFamilyInviteRequestValidator : AbstractValidator<AcceptFamilyInviteRequest>
+{
+    public AcceptFamilyInviteRequestValidator()
+    {
+        RuleFor(static request => request.InviteToken)
+            .NotEmpty()
+            .MaximumLength(256);
+    }
+}
+
 public sealed class CreateAccountRequestValidator : AbstractValidator<CreateAccountRequest>
 {
     private static readonly string[] AllowedAccountTypes = ["Checking", "Savings", "Cash", "Credit"];

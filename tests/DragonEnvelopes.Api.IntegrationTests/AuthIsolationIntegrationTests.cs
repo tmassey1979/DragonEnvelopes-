@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Contracts.Runtime;
 using DragonEnvelopes.Contracts.Transactions;
 using DragonEnvelopes.Domain.Entities;
@@ -165,6 +166,89 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.Equal(94.00m, envelopeA2.CurrentBalance.Amount);
         Assert.Null(transaction.EnvelopeId);
         Assert.Equal(2, splitCount);
+    }
+
+    [Fact]
+    public async Task UserA_Can_Create_List_And_Cancel_Family_Invite()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var createResponse = await client.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/invites", new
+        {
+            email = "invitee@test.dev",
+            role = "Adult",
+            expiresInHours = 72
+        });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        var created = await createResponse.Content.ReadFromJsonAsync<CreateFamilyInviteResponse>();
+        Assert.NotNull(created);
+        Assert.False(string.IsNullOrWhiteSpace(created!.InviteToken));
+        Assert.Equal("Pending", created.Invite.Status);
+
+        var listResponse = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/invites");
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+
+        var list = await listResponse.Content.ReadFromJsonAsync<List<FamilyInviteResponse>>();
+        Assert.NotNull(list);
+        Assert.Contains(list!, invite => invite.Id == created.Invite.Id);
+
+        var cancelResponse = await client.PostAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/invites/{created.Invite.Id}/cancel",
+            content: null);
+        Assert.Equal(HttpStatusCode.OK, cancelResponse.StatusCode);
+
+        var cancelled = await cancelResponse.Content.ReadFromJsonAsync<FamilyInviteResponse>();
+        Assert.NotNull(cancelled);
+        Assert.Equal("Cancelled", cancelled!.Status);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Create_Invite_For_FamilyB()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/invites", new
+        {
+            email = "blocked@test.dev",
+            role = "Adult",
+            expiresInHours = 24
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Invite_Can_Be_Accepted_Anonymously_By_Token()
+    {
+        using var authorizedClient = _factory.CreateClient();
+        authorizedClient.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var createResponse = await authorizedClient.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/invites", new
+        {
+            email = "accept@test.dev",
+            role = "Teen",
+            expiresInHours = 24
+        });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<CreateFamilyInviteResponse>();
+        Assert.NotNull(created);
+
+        using var anonymousClient = _factory.CreateClient();
+        var acceptResponse = await anonymousClient.PostAsJsonAsync("/api/v1/families/invites/accept", new
+        {
+            inviteToken = created!.InviteToken
+        });
+
+        Assert.Equal(HttpStatusCode.OK, acceptResponse.StatusCode);
+
+        var accepted = await acceptResponse.Content.ReadFromJsonAsync<FamilyInviteResponse>();
+        Assert.NotNull(accepted);
+        Assert.Equal("Accepted", accepted!.Status);
     }
 
     [Fact]

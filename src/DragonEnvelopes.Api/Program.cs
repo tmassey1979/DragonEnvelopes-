@@ -640,6 +640,87 @@ v1.MapGet("/families/{familyId:guid}/members", async (
     .WithName("ListFamilyMembers")
     .WithOpenApi();
 
+v1.MapPost("/families/{familyId:guid}/invites", async (
+        Guid familyId,
+        CreateFamilyInviteRequest request,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
+        IFamilyInviteService familyInviteService,
+        CancellationToken cancellationToken) =>
+    {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
+        var result = await familyInviteService.CreateAsync(
+            familyId,
+            request.Email,
+            request.Role,
+            request.ExpiresInHours,
+            cancellationToken);
+
+        return Results.Created(
+            $"/api/v1/families/{familyId}/invites/{result.Invite.Id}",
+            new CreateFamilyInviteResponse(
+                MapFamilyInviteResponse(result.Invite),
+                result.InviteToken));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("CreateFamilyInvite")
+    .WithOpenApi();
+
+v1.MapGet("/families/{familyId:guid}/invites", async (
+        Guid familyId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
+        IFamilyInviteService familyInviteService,
+        CancellationToken cancellationToken) =>
+    {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
+        var invites = await familyInviteService.ListByFamilyAsync(familyId, cancellationToken);
+        return Results.Ok(invites.Select(MapFamilyInviteResponse).ToArray());
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("ListFamilyInvites")
+    .WithOpenApi();
+
+v1.MapPost("/families/{familyId:guid}/invites/{inviteId:guid}/cancel", async (
+        Guid familyId,
+        Guid inviteId,
+        ClaimsPrincipal user,
+        DragonEnvelopesDbContext dbContext,
+        IFamilyInviteService familyInviteService,
+        CancellationToken cancellationToken) =>
+    {
+        if (!await UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+        {
+            return Results.Forbid();
+        }
+
+        var invite = await familyInviteService.CancelAsync(inviteId, cancellationToken);
+        return Results.Ok(MapFamilyInviteResponse(invite));
+    })
+    .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+    .WithName("CancelFamilyInvite")
+    .WithOpenApi();
+
+v1.MapPost("/families/invites/accept", async (
+        AcceptFamilyInviteRequest request,
+        IFamilyInviteService familyInviteService,
+        CancellationToken cancellationToken) =>
+    {
+        var invite = await familyInviteService.AcceptAsync(request.InviteToken, cancellationToken);
+        return Results.Ok(MapFamilyInviteResponse(invite));
+    })
+    .AllowAnonymous()
+    .WithName("AcceptFamilyInvite")
+    .WithOpenApi();
+
 v1.MapPost("/accounts", async (
         CreateAccountRequest request,
         ClaimsPrincipal user,
@@ -1286,6 +1367,20 @@ static FamilyMemberResponse MapFamilyMemberResponse(FamilyMemberDetails member)
         member.Name,
         member.Email,
         member.Role);
+}
+
+static FamilyInviteResponse MapFamilyInviteResponse(FamilyInviteDetails invite)
+{
+    return new FamilyInviteResponse(
+        invite.Id,
+        invite.FamilyId,
+        invite.Email,
+        invite.Role,
+        invite.Status,
+        invite.CreatedAtUtc,
+        invite.ExpiresAtUtc,
+        invite.AcceptedAtUtc,
+        invite.CancelledAtUtc);
 }
 
 static AccountResponse MapAccountResponse(AccountDetails account)
