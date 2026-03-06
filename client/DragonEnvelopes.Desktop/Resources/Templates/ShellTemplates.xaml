@@ -1981,7 +1981,9 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="190" />
+                                <RowDefinition Height="170" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="150" />
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -2043,6 +2045,12 @@
                                     <Button Margin="0,0,8,8"
                                             Content="Refresh Issuance"
                                             Command="{Binding RefreshCardIssuanceCommand}" />
+                                    <Button Margin="0,0,8,8"
+                                            Content="Refresh Failed Notifications"
+                                            Command="{Binding RefreshFailedNotificationEventsCommand}" />
+                                    <Button Margin="0,0,8,8"
+                                            Content="Retry Selected Failed Notification"
+                                            Command="{Binding RetrySelectedFailedNotificationDispatchEventCommand}" />
                                 </WrapPanel>
                             </StackPanel>
 
@@ -2071,6 +2079,35 @@
                                     <DataGridTextColumn Header="Occurred" Binding="{Binding OccurredAt}" Width="130" />
                                     <DataGridTextColumn Header="Summary" Binding="{Binding Summary}" Width="*" />
                                     <DataGridTextColumn Header="Detail" Binding="{Binding Detail}" Width="220" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <TextBlock Grid.Row="3"
+                                       Grid.ColumnSpan="3"
+                                       Margin="0,10,0,6"
+                                       Text="{Binding NotificationRetrySummary}"
+                                       Style="{StaticResource CaptionTextStyle}" />
+
+                            <DataGrid Grid.Row="4"
+                                      Grid.ColumnSpan="3"
+                                      ItemsSource="{Binding FailedNotificationDispatchEvents}"
+                                      SelectedItem="{Binding SelectedFailedNotificationDispatchEvent, Mode=TwoWay}"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      IsReadOnly="True"
+                                      RowHeight="32"
+                                      GridLinesVisibility="Horizontal"
+                                      Background="{StaticResource PanelMutedBackgroundBrush}"
+                                      BorderBrush="{StaticResource PanelOutlineBrush}"
+                                      BorderThickness="1">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Channel" Binding="{Binding Channel}" Width="110" />
+                                    <DataGridTextColumn Header="Merchant" Binding="{Binding Merchant}" Width="200" />
+                                    <DataGridTextColumn Header="Amount" Binding="{Binding Amount}" Width="90" />
+                                    <DataGridTextColumn Header="Attempt" Binding="{Binding AttemptCount}" Width="75" />
+                                    <DataGridTextColumn Header="Last Attempt" Binding="{Binding LastAttemptAt}" Width="130" />
+                                    <DataGridTextColumn Header="Error" Binding="{Binding ErrorMessage}" Width="*" />
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Grid>

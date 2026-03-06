@@ -124,6 +124,23 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
                     Detail: null)
             ],
             TraceId: "trace-test-002");
+        FailedNotificationDispatchEvents =
+        [
+            new FailedNotificationDispatchEventResponse(
+                Guid.Parse("00000000-0000-0000-0000-000000000060"),
+                familyId,
+                "test-user",
+                envelopeId,
+                cardId,
+                "Email",
+                17.25m,
+                "Test Merchant",
+                "Failed",
+                3,
+                now.AddMinutes(-20),
+                now.AddMinutes(-19),
+                "Simulated delivery failure")
+        ];
 
         PlaidLinks =
         [
@@ -192,6 +209,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
 
     public ProviderActivityTimelineResponse ProviderActivityTimelineResponse { get; set; }
 
+    public IReadOnlyList<FailedNotificationDispatchEventResponse> FailedNotificationDispatchEvents { get; private set; }
+
     public IReadOnlyList<PlaidAccountLinkResponse> PlaidLinks { get; private set; }
 
     public IReadOnlyList<EnvelopeFinancialAccountResponse> FamilyFinancialAccounts { get; private set; }
@@ -205,6 +224,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
     public int CreateStripeSetupIntentCallCount { get; private set; }
 
     public int DeletePlaidAccountLinkCallCount { get; private set; }
+
+    public int RetryFailedNotificationDispatchEventCallCount { get; private set; }
 
     public int FreezeCardCallCount { get; private set; }
 
@@ -256,6 +277,41 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
         };
 
         return Task.FromResult(NotificationPreferenceResponse);
+    }
+
+    public Task<IReadOnlyList<FailedNotificationDispatchEventResponse>> ListFailedNotificationDispatchEventsAsync(
+        int take = 25,
+        CancellationToken cancellationToken = default)
+    {
+        var bounded = take <= 0 ? FailedNotificationDispatchEvents.Count : take;
+        return Task.FromResult<IReadOnlyList<FailedNotificationDispatchEventResponse>>(
+            FailedNotificationDispatchEvents.Take(bounded).ToArray());
+    }
+
+    public Task<RetryNotificationDispatchEventResponse> RetryFailedNotificationDispatchEventAsync(
+        Guid eventId,
+        CancellationToken cancellationToken = default)
+    {
+        RetryFailedNotificationDispatchEventCallCount += 1;
+
+        var existing = FailedNotificationDispatchEvents.FirstOrDefault(evt => evt.Id == eventId);
+        if (existing is null)
+        {
+            throw new InvalidOperationException("Failed notification event was not found.");
+        }
+
+        FailedNotificationDispatchEvents = FailedNotificationDispatchEvents
+            .Where(evt => evt.Id != eventId)
+            .ToArray();
+
+        return Task.FromResult(new RetryNotificationDispatchEventResponse(
+            existing.Id,
+            existing.FamilyId,
+            "Sent",
+            existing.AttemptCount + 1,
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow,
+            null));
     }
 
     public Task<CreatePlaidLinkTokenResponse> CreatePlaidLinkTokenAsync(

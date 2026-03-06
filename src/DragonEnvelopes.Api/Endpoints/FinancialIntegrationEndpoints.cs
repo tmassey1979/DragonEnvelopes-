@@ -124,6 +124,72 @@ internal static class FinancialIntegrationEndpoints
             .WithName("UpsertNotificationPreference")
             .WithOpenApi();
 
+        v1.MapGet("/families/{familyId:guid}/notifications/dispatch-events/failed", async (
+                Guid familyId,
+                int? take,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                ISpendNotificationDispatchService spendNotificationDispatchService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var failedEvents = await spendNotificationDispatchService.ListFailedEventsAsync(
+                    familyId,
+                    take ?? 25,
+                    cancellationToken);
+                return Results.Ok(failedEvents.Select(static evt => new FailedNotificationDispatchEventResponse(
+                    evt.Id,
+                    evt.FamilyId,
+                    evt.UserId,
+                    evt.EnvelopeId,
+                    evt.CardId,
+                    evt.Channel,
+                    evt.Amount,
+                    evt.Merchant,
+                    evt.Status,
+                    evt.AttemptCount,
+                    evt.CreatedAtUtc,
+                    evt.LastAttemptAtUtc,
+                    evt.ErrorMessage)));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("ListFailedNotificationDispatchEvents")
+            .WithOpenApi();
+
+        v1.MapPost("/families/{familyId:guid}/notifications/dispatch-events/{eventId:guid}/retry", async (
+                Guid familyId,
+                Guid eventId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                ISpendNotificationDispatchService spendNotificationDispatchService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var retried = await spendNotificationDispatchService.RetryFailedEventAsync(
+                    familyId,
+                    eventId,
+                    cancellationToken);
+                return Results.Ok(new RetryNotificationDispatchEventResponse(
+                    retried.Id,
+                    retried.FamilyId,
+                    retried.Status,
+                    retried.AttemptCount,
+                    retried.LastAttemptAtUtc,
+                    retried.SentAtUtc,
+                    retried.ErrorMessage));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("RetryNotificationDispatchEvent")
+            .WithOpenApi();
+
         v1.MapGet("/families/{familyId:guid}/financial/status", async (
                 Guid familyId,
                 ClaimsPrincipal user,

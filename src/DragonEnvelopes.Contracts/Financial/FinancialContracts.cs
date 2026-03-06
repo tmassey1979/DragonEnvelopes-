@@ -186,6 +186,30 @@ public sealed record NotificationPreferenceResponse(
     bool SmsEnabled,
     DateTimeOffset UpdatedAtUtc);
 
+public sealed record FailedNotificationDispatchEventResponse(
+    Guid Id,
+    Guid FamilyId,
+    string UserId,
+    Guid EnvelopeId,
+    Guid CardId,
+    string Channel,
+    decimal Amount,
+    string Merchant,
+    string Status,
+    int AttemptCount,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset? LastAttemptAtUtc,
+    string? ErrorMessage);
+
+public sealed record RetryNotificationDispatchEventResponse(
+    Guid Id,
+    Guid FamilyId,
+    string Status,
+    int AttemptCount,
+    DateTimeOffset? LastAttemptAtUtc,
+    DateTimeOffset? SentAtUtc,
+    string? ErrorMessage);
+
 public sealed record CreatePlaidAccountLinkRequest(
     Guid AccountId,
     string PlaidAccountId);

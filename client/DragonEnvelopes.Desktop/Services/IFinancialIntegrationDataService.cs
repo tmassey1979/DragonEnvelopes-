@@ -20,6 +20,14 @@ public interface IFinancialIntegrationDataService
         bool smsEnabled,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<FailedNotificationDispatchEventResponse>> ListFailedNotificationDispatchEventsAsync(
+        int take = 25,
+        CancellationToken cancellationToken = default);
+
+    Task<RetryNotificationDispatchEventResponse> RetryFailedNotificationDispatchEventAsync(
+        Guid eventId,
+        CancellationToken cancellationToken = default);
+
     Task<CreatePlaidLinkTokenResponse> CreatePlaidLinkTokenAsync(
         string? clientName,
         CancellationToken cancellationToken = default);

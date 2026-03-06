@@ -74,6 +74,31 @@ public sealed class FinancialIntegrationDataService : IFinancialIntegrationDataS
             cancellationToken);
     }
 
+    public Task<IReadOnlyList<FailedNotificationDispatchEventResponse>> ListFailedNotificationDispatchEventsAsync(
+        int take = 25,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var normalizedTake = take <= 0 ? 25 : take;
+        return GetListAsync<FailedNotificationDispatchEventResponse>(
+            $"families/{familyId}/notifications/dispatch-events/failed?take={normalizedTake}",
+            "Loading failed notification dispatch events",
+            cancellationToken);
+    }
+
+    public Task<RetryNotificationDispatchEventResponse> RetryFailedNotificationDispatchEventAsync(
+        Guid eventId,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        return SendAsync<RetryNotificationDispatchEventResponse>(
+            HttpMethod.Post,
+            $"families/{familyId}/notifications/dispatch-events/{eventId}/retry",
+            payload: null,
+            "Retrying failed notification dispatch event",
+            cancellationToken);
+    }
+
     public Task<CreatePlaidLinkTokenResponse> CreatePlaidLinkTokenAsync(
         string? clientName,
         CancellationToken cancellationToken = default)

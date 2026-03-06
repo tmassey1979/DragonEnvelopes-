@@ -425,7 +425,7 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         var payload = await response.Content.ReadFromJsonAsync<ProviderActivityHealthResponse>();
         Assert.NotNull(payload);
         Assert.Equal(TestApiFactory.FamilyAId, payload!.FamilyId);
-        Assert.Equal("NoEvents", payload.NotificationDispatch.Status);
+        Assert.Equal("Degraded", payload.NotificationDispatch.Status);
         Assert.False(string.IsNullOrWhiteSpace(payload.TraceId));
         Assert.True(response.Headers.TryGetValues("X-Trace-Id", out var traceHeaderValues));
         Assert.False(string.IsNullOrWhiteSpace(traceHeaderValues!.FirstOrDefault()));
@@ -493,6 +493,56 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
 
         var response = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/notifications/preferences");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserA_Can_List_Own_Failed_Notification_Dispatch_Events()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/notifications/dispatch-events/failed");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<List<FailedNotificationDispatchEventResponse>>();
+        Assert.NotNull(payload);
+        Assert.NotEmpty(payload!);
+        Assert.Contains(payload!, evt => evt.Id == TestApiFactory.NotificationEventA2Id);
+    }
+
+    [Fact]
+    public async Task UserA_Can_Retry_Own_Failed_Notification_Dispatch_Event()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/notifications/dispatch-events/{TestApiFactory.NotificationEventAId}/retry",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<RetryNotificationDispatchEventResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(TestApiFactory.NotificationEventAId, payload!.Id);
+        Assert.Equal("Sent", payload.Status);
+        Assert.True(payload.AttemptCount >= 4);
+        Assert.NotNull(payload.SentAtUtc);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Retry_FamilyB_Failed_Notification_Dispatch_Event()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/notifications/dispatch-events/{TestApiFactory.NotificationEventBId}/retry",
+            content: null);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -803,6 +853,9 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
     public static readonly Guid EnvelopeA2Id = Guid.Parse("aaaaaaaa-2222-2222-2222-222222222222");
     public static readonly Guid EnvelopeBId = Guid.Parse("bbbbbbbb-1111-1111-1111-111111111111");
     public static readonly Guid RecurringBillAId = Guid.Parse("12345678-90ab-cdef-1234-567890abcdef");
+    public static readonly Guid NotificationEventAId = Guid.Parse("31000000-0000-0000-0000-000000000001");
+    public static readonly Guid NotificationEventA2Id = Guid.Parse("31000000-0000-0000-0000-000000000003");
+    public static readonly Guid NotificationEventBId = Guid.Parse("31000000-0000-0000-0000-000000000002");
     public static readonly Guid PlaidLinkAId = Guid.Parse("21000000-0000-0000-0000-000000000001");
     public static readonly Guid PlaidLinkBId = Guid.Parse("21000000-0000-0000-0000-000000000002");
     public static readonly Guid TransactionAId = Guid.Parse("11111111-2222-3333-4444-555555555555");
@@ -919,6 +972,56 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
                 "plaid_account_b",
                 now,
                 now));
+
+        var notificationA = new SpendNotificationEvent(
+            NotificationEventAId,
+            FamilyAId,
+            UserAId,
+            EnvelopeAId,
+            Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            "evt_notification_a",
+            "Email",
+            23.75m,
+            "Seed Market A",
+            76.25m,
+            now.AddMinutes(-30));
+        notificationA.MarkRetry("seed retry 1", now.AddMinutes(-29), 3);
+        notificationA.MarkRetry("seed retry 2", now.AddMinutes(-28), 3);
+        notificationA.MarkRetry("seed retry 3", now.AddMinutes(-27), 3);
+
+        var notificationA2 = new SpendNotificationEvent(
+            NotificationEventA2Id,
+            FamilyAId,
+            UserAId,
+            EnvelopeA2Id,
+            Guid.Parse("33333333-3333-3333-3333-333333333333"),
+            "evt_notification_a2",
+            "Email",
+            9.99m,
+            "Seed Utility",
+            90.01m,
+            now.AddMinutes(-26));
+        notificationA2.MarkRetry("seed retry 1", now.AddMinutes(-25), 3);
+        notificationA2.MarkRetry("seed retry 2", now.AddMinutes(-24), 3);
+        notificationA2.MarkRetry("seed retry 3", now.AddMinutes(-23), 3);
+
+        var notificationB = new SpendNotificationEvent(
+            NotificationEventBId,
+            FamilyBId,
+            UserBId,
+            EnvelopeBId,
+            Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            "evt_notification_b",
+            "Email",
+            14.50m,
+            "Seed Market B",
+            85.50m,
+            now.AddMinutes(-22));
+        notificationB.MarkRetry("seed retry 1", now.AddMinutes(-21), 3);
+        notificationB.MarkRetry("seed retry 2", now.AddMinutes(-20), 3);
+        notificationB.MarkRetry("seed retry 3", now.AddMinutes(-19), 3);
+
+        dbContext.SpendNotificationEvents.AddRange(notificationA, notificationA2, notificationB);
 
         dbContext.SaveChanges();
     }

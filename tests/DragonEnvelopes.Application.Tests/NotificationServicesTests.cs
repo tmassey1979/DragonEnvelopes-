@@ -142,4 +142,88 @@ public sealed class NotificationServicesTests
         Assert.Equal("Queued", queued[1].Status);
         Assert.Equal(1, queued[1].AttemptCount);
     }
+
+    [Fact]
+    public async Task ListFailedEventsAsync_ReturnsMappedFailedEvents()
+    {
+        var familyId = Guid.NewGuid();
+        var failed = new SpendNotificationEvent(
+            Guid.NewGuid(),
+            familyId,
+            "parent-1",
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "evt_failed",
+            "Email",
+            22m,
+            "Electric Co",
+            78m,
+            DateTimeOffset.UtcNow);
+        failed.MarkRetry("attempt 1", DateTimeOffset.UtcNow, 3);
+        failed.MarkRetry("attempt 2", DateTimeOffset.UtcNow, 3);
+        failed.MarkRetry("attempt 3", DateTimeOffset.UtcNow, 3);
+
+        var eventRepository = new Mock<ISpendNotificationEventRepository>();
+        eventRepository
+            .Setup(x => x.ListFailedByFamilyAsync(familyId, 25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([failed]);
+
+        var service = new SpendNotificationDispatchService(
+            eventRepository.Object,
+            Mock.Of<IClock>(),
+            Mock.Of<ILogger<SpendNotificationDispatchService>>());
+
+        var result = await service.ListFailedEventsAsync(familyId);
+
+        var mapped = Assert.Single(result);
+        Assert.Equal(failed.Id, mapped.Id);
+        Assert.Equal("Failed", mapped.Status);
+        Assert.Equal(3, mapped.AttemptCount);
+    }
+
+    [Fact]
+    public async Task RetryFailedEventAsync_MarksEventAsSentWhenDeliverySucceeds()
+    {
+        var familyId = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+        var failed = new SpendNotificationEvent(
+            eventId,
+            familyId,
+            "parent-1",
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "evt_retry",
+            "Email",
+            14m,
+            "Grocery",
+            86m,
+            DateTimeOffset.UtcNow.AddMinutes(-10));
+        failed.MarkRetry("attempt 1", DateTimeOffset.UtcNow.AddMinutes(-9), 3);
+        failed.MarkRetry("attempt 2", DateTimeOffset.UtcNow.AddMinutes(-8), 3);
+        failed.MarkRetry("attempt 3", DateTimeOffset.UtcNow.AddMinutes(-7), 3);
+
+        var eventRepository = new Mock<ISpendNotificationEventRepository>();
+        eventRepository
+            .Setup(x => x.GetByFamilyAndIdForUpdateAsync(familyId, eventId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(failed);
+        eventRepository
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var now = DateTimeOffset.UtcNow;
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(now);
+
+        var service = new SpendNotificationDispatchService(
+            eventRepository.Object,
+            clock.Object,
+            Mock.Of<ILogger<SpendNotificationDispatchService>>());
+
+        var result = await service.RetryFailedEventAsync(familyId, eventId);
+
+        Assert.Equal("Sent", result.Status);
+        Assert.Equal(4, result.AttemptCount);
+        Assert.Equal(now, result.SentAtUtc);
+        Assert.Equal("Sent", failed.Status);
+    }
 }

@@ -26,6 +26,32 @@ public sealed class SpendNotificationEventRepository(DragonEnvelopesDbContext db
             .ToArrayAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<SpendNotificationEvent>> ListFailedByFamilyAsync(
+        Guid familyId,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedTake = take <= 0 ? 25 : take;
+
+        return await dbContext.SpendNotificationEvents
+            .AsNoTracking()
+            .Where(x => x.FamilyId == familyId && x.Status == "Failed")
+            .OrderByDescending(x => x.LastAttemptAtUtc ?? x.CreatedAtUtc)
+            .Take(normalizedTake)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public Task<SpendNotificationEvent?> GetByFamilyAndIdForUpdateAsync(
+        Guid familyId,
+        Guid eventId,
+        CancellationToken cancellationToken = default)
+    {
+        return dbContext.SpendNotificationEvents
+            .FirstOrDefaultAsync(
+                x => x.FamilyId == familyId && x.Id == eventId,
+                cancellationToken);
+    }
+
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return dbContext.SaveChangesAsync(cancellationToken);

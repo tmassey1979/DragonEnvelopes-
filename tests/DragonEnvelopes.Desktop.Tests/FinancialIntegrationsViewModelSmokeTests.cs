@@ -21,9 +21,11 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
         Assert.Single(harness.ViewModel.PlaidAccountLinks);
         Assert.Single(harness.ViewModel.FamilyFinancialAccounts);
         Assert.Single(harness.ViewModel.PlaidReconciliationAccounts);
+        Assert.Single(harness.ViewModel.FailedNotificationDispatchEvents);
         Assert.Single(harness.ViewModel.Cards);
         Assert.NotNull(harness.ViewModel.SelectedEnvelope);
         Assert.NotNull(harness.ViewModel.SelectedCard);
+        Assert.NotNull(harness.ViewModel.SelectedFailedNotificationDispatchEvent);
         Assert.Equal("trace-test-002", harness.ViewModel.ProviderHealthTraceId);
         Assert.Equal(2, harness.ViewModel.ProviderTimelineEvents.Count);
         Assert.Equal("Financial integrations loaded.", harness.ViewModel.StatusMessage);
@@ -168,6 +170,23 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
         Assert.True(harness.ViewModel.HasError);
         Assert.Equal("Refreshing Plaid balances... failed.", harness.ViewModel.StatusMessage);
         Assert.Contains("simulated Plaid balance refresh failure", harness.ViewModel.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RetryFailedNotificationDispatchEventCommand_RetriesSelectedEvent()
+    {
+        var harness = CreateHarness();
+        await EnsureLoadedAsync(harness.ViewModel);
+
+        Assert.NotNull(harness.ViewModel.SelectedFailedNotificationDispatchEvent);
+
+        await harness.ViewModel.RetrySelectedFailedNotificationDispatchEventCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(harness.ViewModel);
+
+        Assert.False(harness.ViewModel.HasError);
+        Assert.Equal(1, harness.FinancialDataService.RetryFailedNotificationDispatchEventCallCount);
+        Assert.Equal("Notification dispatch retried successfully.", harness.ViewModel.StatusMessage);
+        Assert.Empty(harness.ViewModel.FailedNotificationDispatchEvents);
     }
 
     private static TestHarness CreateHarness()
