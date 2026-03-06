@@ -10,6 +10,7 @@ using DragonEnvelopes.Api.Services;
 using DragonEnvelopes.Application;
 using DragonEnvelopes.Infrastructure;
 using DragonEnvelopes.Infrastructure.Persistence;
+using DragonEnvelopes.ProviderClients;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -154,6 +155,7 @@ builder.Services.AddProblemDetails(options =>
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddProviderClients(builder.Configuration);
 builder.Services.AddSingleton(BuildKeycloakAdminOptions(builder.Configuration));
 builder.Services.AddHttpClient<IKeycloakProvisioningService, KeycloakProvisioningService>();
 if (!builder.Environment.IsEnvironment("Testing"))
@@ -253,6 +255,7 @@ string[] summaries =
 
 v1.MapSystemAndAuthEndpoints(summaries)
     .MapFamilyEndpoints()
+    .MapFinancialIntegrationEndpoints()
     .MapAutomationEndpoints()
     .MapAccountAndTransactionEndpoints()
     .MapPlanningAndReportingEndpoints();

@@ -3,6 +3,7 @@ using DragonEnvelopes.Contracts.Automation;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Families;
+using DragonEnvelopes.Contracts.Financial;
 using DragonEnvelopes.Contracts.Imports;
 using DragonEnvelopes.Contracts.Onboarding;
 using DragonEnvelopes.Contracts.RecurringBills;
@@ -104,6 +105,42 @@ public sealed class AcceptFamilyInviteRequestValidator : AbstractValidator<Accep
         RuleFor(static request => request.InviteToken)
             .NotEmpty()
             .MaximumLength(256);
+    }
+}
+
+public sealed class CreatePlaidLinkTokenRequestValidator : AbstractValidator<CreatePlaidLinkTokenRequest>
+{
+    public CreatePlaidLinkTokenRequestValidator()
+    {
+        RuleFor(static request => request.ClientUserId)
+            .MaximumLength(128);
+
+        RuleFor(static request => request.ClientName)
+            .MaximumLength(128);
+    }
+}
+
+public sealed class ExchangePlaidPublicTokenRequestValidator : AbstractValidator<ExchangePlaidPublicTokenRequest>
+{
+    public ExchangePlaidPublicTokenRequestValidator()
+    {
+        RuleFor(static request => request.PublicToken)
+            .NotEmpty()
+            .MaximumLength(512);
+    }
+}
+
+public sealed class CreateStripeSetupIntentRequestValidator : AbstractValidator<CreateStripeSetupIntentRequest>
+{
+    public CreateStripeSetupIntentRequestValidator()
+    {
+        RuleFor(static request => request.Email)
+            .NotEmpty()
+            .EmailAddress()
+            .MaximumLength(320);
+
+        RuleFor(static request => request.Name)
+            .MaximumLength(128);
     }
 }
 

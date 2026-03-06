@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using DragonEnvelopes.Contracts.Families;
+using DragonEnvelopes.Contracts.Financial;
 using DragonEnvelopes.Contracts.Onboarding;
 using DragonEnvelopes.Contracts.Runtime;
 using DragonEnvelopes.Contracts.Transactions;
@@ -378,6 +379,33 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
                 totalIncome = 5000.00m
             }
         });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserA_Can_Get_Own_Financial_Status()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/financial/status");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<FamilyFinancialStatusResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(TestApiFactory.FamilyAId, payload!.FamilyId);
+        Assert.False(payload.PlaidConnected);
+        Assert.False(payload.StripeConnected);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Get_FamilyB_Financial_Status()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/financial/status");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }

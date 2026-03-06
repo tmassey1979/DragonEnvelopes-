@@ -26,6 +26,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DragonEnvelopes.Application\DragonEnvelopes.Application.csproj" />
     <ProjectReference Include="..\DragonEnvelopes.Infrastructure\DragonEnvelopes.Infrastructure.csproj" />
+    <ProjectReference Include="..\DragonEnvelopes.ProviderClients\DragonEnvelopes.ProviderClients.csproj" />
     <ProjectReference Include="..\DragonEnvelopes.Contracts\DragonEnvelopes.Contracts.csproj" />
   </ItemGroup>
 

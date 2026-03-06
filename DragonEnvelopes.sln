@@ -29,6 +29,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DragonEnvelopes.Family.Api"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DragonEnvelopes.Ledger.Api", "src\DragonEnvelopes.Ledger.Api\DragonEnvelopes.Ledger.Api.csproj", "{CAA97D5A-6FFB-46E2-9DAC-BC41D9031332}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DragonEnvelopes.ProviderClients", "src\DragonEnvelopes.ProviderClients\DragonEnvelopes.ProviderClients.csproj", "{E28BF556-7FAB-4923-89CD-4F292A98678A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -171,6 +173,18 @@ Global
 		{CAA97D5A-6FFB-46E2-9DAC-BC41D9031332}.Release|x64.Build.0 = Release|Any CPU
 		{CAA97D5A-6FFB-46E2-9DAC-BC41D9031332}.Release|x86.ActiveCfg = Release|Any CPU
 		{CAA97D5A-6FFB-46E2-9DAC-BC41D9031332}.Release|x86.Build.0 = Release|Any CPU
+		{E28BF556-7FAB-4923-89CD-4F292A98678A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E28BF556-7FAB-4923-89CD-4F292A98678A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E28BF556-7FAB-4923-89CD-4F292A98678A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E28BF556-7FAB-4923-89CD-4F292A98678A}.Debug|x64.Build.0 = Debug|Any CPU
+		{E28BF556-7FAB-4923-89CD-4F292A98678A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E28BF556-7FAB-4923-89CD-4F292A98678A}.Debug|x86.Build.0 = Debug|Any CPU
+		{E28BF556-7FAB-4923-89CD-4F292A98678A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E28BF556-7FAB-4923-89CD-4F292A98678A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E28BF556-7FAB-4923-89CD-4F292A98678A}.Release|x64.ActiveCfg = Release|Any CPU
+		{E28BF556-7FAB-4923-89CD-4F292A98678A}.Release|x64.Build.0 = Release|Any CPU
+		{E28BF556-7FAB-4923-89CD-4F292A98678A}.Release|x86.ActiveCfg = Release|Any CPU
+		{E28BF556-7FAB-4923-89CD-4F292A98678A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -187,5 +201,6 @@ Global
 		{769ECDCA-C8E3-4182-AEF4-CB3C711D8ED0} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{44E20C25-CC1C-4D63-BC29-1232110E7BD7} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{CAA97D5A-6FFB-46E2-9DAC-BC41D9031332} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{E28BF556-7FAB-4923-89CD-4F292A98678A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

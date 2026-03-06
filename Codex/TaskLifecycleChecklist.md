@@ -20,5 +20,6 @@ Use this checklist at the start and end of every task.
 
 ## Session Run Log
 - Active task: `#134` Phase 2 backend Stripe + Plaid integration and family financial status.
+- Phase 2 source of truth: `Codex/phase2codex.md`.
 - Previous completed task: `#133` checklist file creation.
 - Last updated: `2026-03-06`.
