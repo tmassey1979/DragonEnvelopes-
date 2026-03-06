@@ -17,6 +17,15 @@ public interface IFamilyService
         string timeZoneId,
         CancellationToken cancellationToken = default);
 
+    Task<FamilyBudgetPreferencesDetails?> GetBudgetPreferencesAsync(Guid familyId, CancellationToken cancellationToken = default);
+
+    Task<FamilyBudgetPreferencesDetails> UpdateBudgetPreferencesAsync(
+        Guid familyId,
+        string payFrequency,
+        string budgetingStyle,
+        decimal? householdMonthlyIncome,
+        CancellationToken cancellationToken = default);
+
     Task<FamilyMemberDetails> AddMemberAsync(
         Guid familyId,
         string keycloakUserId,

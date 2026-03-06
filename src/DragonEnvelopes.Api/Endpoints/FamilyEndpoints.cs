@@ -140,6 +140,52 @@ internal static class FamilyEndpoints
             .WithName("UpdateFamilyProfile")
             .WithOpenApi();
 
+        v1.MapGet("/families/{familyId:guid}/budget-preferences", async (
+                Guid familyId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IFamilyService familyService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var preferences = await familyService.GetBudgetPreferencesAsync(familyId, cancellationToken);
+                return preferences is null
+                    ? Results.NotFound()
+                    : Results.Ok(EndpointMappers.MapFamilyBudgetPreferencesResponse(preferences));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("GetFamilyBudgetPreferences")
+            .WithOpenApi();
+
+        v1.MapPut("/families/{familyId:guid}/budget-preferences", async (
+                Guid familyId,
+                UpdateFamilyBudgetPreferencesRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IFamilyService familyService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var preferences = await familyService.UpdateBudgetPreferencesAsync(
+                    familyId,
+                    request.PayFrequency,
+                    request.BudgetingStyle,
+                    request.HouseholdMonthlyIncome,
+                    cancellationToken);
+                return Results.Ok(EndpointMappers.MapFamilyBudgetPreferencesResponse(preferences));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("UpdateFamilyBudgetPreferences")
+            .WithOpenApi();
+
         v1.MapPost("/families/{familyId:guid}/members", async (
                 Guid familyId,
                 AddFamilyMemberRequest request,

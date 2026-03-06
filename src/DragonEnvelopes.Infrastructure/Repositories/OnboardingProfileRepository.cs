@@ -43,6 +43,14 @@ public sealed class OnboardingProfileRepository(DragonEnvelopesDbContext dbConte
             .AsNoTracking()
             .AnyAsync(x => x.FamilyId == familyId, cancellationToken);
 
+        var hasBudgetPreferences = await dbContext.Families
+            .AsNoTracking()
+            .AnyAsync(
+                x => x.Id == familyId
+                     && x.PayFrequency != null
+                     && x.BudgetingStyle != null,
+                cancellationToken);
+
         var hasPlaidLinks = await dbContext.PlaidAccountLinks
             .AsNoTracking()
             .AnyAsync(x => x.FamilyId == familyId, cancellationToken);
@@ -63,7 +71,7 @@ public sealed class OnboardingProfileRepository(DragonEnvelopesDbContext dbConte
             MembersCompleted: memberCount >= 2,
             AccountsCompleted: hasAccounts,
             EnvelopesCompleted: hasEnvelopes,
-            BudgetCompleted: hasBudget,
+            BudgetCompleted: hasBudget || hasBudgetPreferences,
             PlaidCompleted: hasPlaidLinks,
             StripeAccountsCompleted: hasStripeAccounts,
             CardsCompleted: hasCards,

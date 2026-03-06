@@ -2951,7 +2951,48 @@
                                 </Style>
                             </Border.Style>
                             <StackPanel>
-                                <TextBlock Text="Starter Budget (optional)" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Text="Budget Preferences" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="Select pay frequency and budgeting style to seed onboarding defaults."
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1.2*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="1.2*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ComboBox Grid.Column="0"
+                                              ItemsSource="{Binding PayFrequencyOptions}"
+                                              SelectedItem="{Binding SelectedPayFrequency, Mode=TwoWay}" />
+                                    <ComboBox Grid.Column="2"
+                                              ItemsSource="{Binding BudgetingStyleOptions}"
+                                              SelectedItem="{Binding SelectedBudgetingStyle, Mode=TwoWay}" />
+                                    <TextBox Grid.Column="4"
+                                             Text="{Binding HouseholdMonthlyIncomeDraft, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Grid.Column="6"
+                                            Content="Save Preferences"
+                                            Command="{Binding SaveBudgetPreferencesCommand}" />
+                                </Grid>
+
+                                <Border Margin="0,10,0,0"
+                                        Padding="8"
+                                        CornerRadius="8"
+                                        Background="{StaticResource SidebarBackgroundBrush}"
+                                        BorderBrush="{StaticResource PanelOutlineBrush}"
+                                        BorderThickness="1">
+                                    <TextBlock Text="{Binding BudgetPreferenceSummary}"
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource CaptionTextStyle}" />
+                                </Border>
+
+                                <TextBlock Margin="0,12,0,0"
+                                           Text="Starter Budget (optional)"
+                                           Style="{StaticResource CaptionTextStyle}" />
                                 <Grid Margin="0,8,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />

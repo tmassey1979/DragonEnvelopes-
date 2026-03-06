@@ -69,6 +69,29 @@ public sealed class UpdateFamilyProfileRequestValidator : AbstractValidator<Upda
     }
 }
 
+public sealed class UpdateFamilyBudgetPreferencesRequestValidator : AbstractValidator<UpdateFamilyBudgetPreferencesRequest>
+{
+    private static readonly string[] AllowedPayFrequencies = ["Weekly", "BiWeekly", "SemiMonthly", "Monthly"];
+    private static readonly string[] AllowedBudgetingStyles = ["ZeroBased", "EnvelopePriority"];
+
+    public UpdateFamilyBudgetPreferencesRequestValidator()
+    {
+        RuleFor(static request => request.PayFrequency)
+            .NotEmpty()
+            .Must(static value => AllowedPayFrequencies.Contains(value, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"PayFrequency must be one of: {string.Join(", ", AllowedPayFrequencies)}.");
+
+        RuleFor(static request => request.BudgetingStyle)
+            .NotEmpty()
+            .Must(static value => AllowedBudgetingStyles.Contains(value, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"BudgetingStyle must be one of: {string.Join(", ", AllowedBudgetingStyles)}.");
+
+        RuleFor(static request => request.HouseholdMonthlyIncome)
+            .GreaterThanOrEqualTo(0m)
+            .When(static request => request.HouseholdMonthlyIncome.HasValue);
+    }
+}
+
 public sealed class AddFamilyMemberRequestValidator : AbstractValidator<AddFamilyMemberRequest>
 {
     private static readonly string[] AllowedRoles = ["Parent", "Adult", "Teen", "Child"];

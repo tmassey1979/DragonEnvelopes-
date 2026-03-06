@@ -197,6 +197,55 @@ public sealed class OnboardingWizardViewModelTests
         Assert.Equal("Invite created for 'invite@test.dev'.", viewModel.MemberStepMessage);
     }
 
+    [Fact]
+    public async Task MarkCurrentStepComplete_Saves_Budget_Preferences_And_Completes_Budget_Milestone()
+    {
+        var familyId = Guid.Parse("10000000-0000-0000-0000-000000000006");
+        var now = DateTimeOffset.UtcNow;
+        var onboardingDataService = new FakeOnboardingDataService(familyId)
+        {
+            Profile = new OnboardingProfileData(
+                Guid.NewGuid(),
+                familyId,
+                MembersCompleted: true,
+                AccountsCompleted: true,
+                EnvelopesCompleted: true,
+                BudgetCompleted: false,
+                PlaidCompleted: false,
+                StripeAccountsCompleted: false,
+                CardsCompleted: false,
+                AutomationCompleted: false,
+                IsCompleted: false,
+                CreatedAtUtc: now,
+                UpdatedAtUtc: now,
+                CompletedAtUtc: null)
+        };
+
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-1", "Owner One", "owner1@test.dev", "Parent"));
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-2", "Owner Two", "owner2@test.dev", "Adult"));
+
+        var viewModel = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
+        await EnsureLoadedAsync(viewModel);
+
+        Assert.Equal(4, viewModel.CurrentStepIndex);
+
+        viewModel.SelectedPayFrequency = "BiWeekly";
+        viewModel.SelectedBudgetingStyle = "EnvelopePriority";
+        viewModel.HouseholdMonthlyIncomeDraft = "7800.25";
+
+        await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.False(viewModel.HasError);
+        Assert.Equal(1, onboardingDataService.UpdateBudgetPreferencesCallCount);
+        Assert.Equal(1, onboardingDataService.UpdateProfileCallCount);
+        Assert.True(viewModel.BudgetCompleted);
+        Assert.Equal(5, viewModel.CurrentStepIndex);
+        Assert.Contains("BiWeekly", viewModel.BudgetPreferenceSummary);
+        Assert.Contains("EnvelopePriority", viewModel.BudgetPreferenceSummary);
+    }
+
     private static async Task EnsureLoadedAsync(OnboardingWizardViewModel viewModel)
     {
         await WaitForIdleAsync(viewModel);

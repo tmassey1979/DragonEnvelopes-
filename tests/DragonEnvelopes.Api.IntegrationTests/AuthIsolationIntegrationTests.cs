@@ -288,6 +288,62 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Get_And_Update_Own_Family_Budget_Preferences()
+    {
+        var familyId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.Families.Add(new Family(familyId, "Budget Pref Family", now));
+            dbContext.FamilyMembers.Add(new FamilyMember(
+                Guid.NewGuid(),
+                familyId,
+                TestApiFactory.UserAId,
+                "Owner User",
+                EmailAddress.Parse($"budget-pref-owner-{familyId:N}@test.dev"),
+                MemberRole.Parent));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var getResponse = await client.GetAsync($"/api/v1/families/{familyId}/budget-preferences");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+        var initial = await getResponse.Content.ReadFromJsonAsync<FamilyBudgetPreferencesResponse>();
+        Assert.NotNull(initial);
+        Assert.Null(initial!.PayFrequency);
+        Assert.Null(initial.BudgetingStyle);
+        Assert.Null(initial.HouseholdMonthlyIncome);
+
+        var updateResponse = await client.PutAsJsonAsync(
+            $"/api/v1/families/{familyId}/budget-preferences",
+            new UpdateFamilyBudgetPreferencesRequest("BiWeekly", "ZeroBased", 7200.75m));
+
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        var updated = await updateResponse.Content.ReadFromJsonAsync<FamilyBudgetPreferencesResponse>();
+        Assert.NotNull(updated);
+        Assert.Equal("BiWeekly", updated!.PayFrequency);
+        Assert.Equal("ZeroBased", updated.BudgetingStyle);
+        Assert.Equal(7200.75m, updated.HouseholdMonthlyIncome);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Update_FamilyB_Budget_Preferences()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/budget-preferences",
+            new UpdateFamilyBudgetPreferencesRequest("Weekly", "EnvelopePriority", 5100m));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Invite_Can_Be_Accepted_Anonymously_By_Token()
     {
         using var authorizedClient = _factory.CreateClient();

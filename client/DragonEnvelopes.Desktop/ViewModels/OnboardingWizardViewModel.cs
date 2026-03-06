@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Net.Mail;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -37,6 +38,8 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     ];
 
     private static readonly string[] InviteRoles = ["Parent", "Adult", "Teen", "Child"];
+    private static readonly string[] PayFrequencies = ["Weekly", "BiWeekly", "SemiMonthly", "Monthly"];
+    private static readonly string[] BudgetingStyles = ["ZeroBased", "EnvelopePriority"];
     private const int MilestoneCount = 9;
 
     private readonly IOnboardingDataService _onboardingDataService;
@@ -55,6 +58,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         MarkCurrentStepCompleteCommand = new AsyncRelayCommand(MarkCurrentStepCompleteAsync);
         ReconcileProgressCommand = new AsyncRelayCommand(ReconcileProgressAsync);
         SaveFamilyProfileCommand = new AsyncRelayCommand(SaveFamilyProfileAsync);
+        SaveBudgetPreferencesCommand = new AsyncRelayCommand(SaveBudgetPreferencesAsync);
         CreateInviteCommand = new AsyncRelayCommand(CreateFamilyInviteAsync);
         CancelInviteCommand = new AsyncRelayCommand(CancelFamilyInviteAsync);
         AddAccountRowCommand = new RelayCommand(AddAccountRow);
@@ -86,6 +90,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public IAsyncRelayCommand MarkCurrentStepCompleteCommand { get; }
     public IAsyncRelayCommand ReconcileProgressCommand { get; }
     public IAsyncRelayCommand SaveFamilyProfileCommand { get; }
+    public IAsyncRelayCommand SaveBudgetPreferencesCommand { get; }
     public IAsyncRelayCommand CreateInviteCommand { get; }
     public IAsyncRelayCommand CancelInviteCommand { get; }
     public IRelayCommand AddAccountRowCommand { get; }
@@ -100,6 +105,8 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public IReadOnlyList<string> CurrencyOptions { get; } = CurrencyCodes;
     public IReadOnlyList<string> TimeZoneOptions { get; } = TimeZoneIds;
     public IReadOnlyList<string> InviteRoleOptions { get; } = InviteRoles;
+    public IReadOnlyList<string> PayFrequencyOptions { get; } = PayFrequencies;
+    public IReadOnlyList<string> BudgetingStyleOptions { get; } = BudgetingStyles;
 
     [ObservableProperty]
     private int currentStepIndex;
@@ -188,6 +195,18 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     [ObservableProperty]
     private string selectedTimeZoneId = DefaultTimeZoneId;
 
+    [ObservableProperty]
+    private string selectedPayFrequency = PayFrequencies[0];
+
+    [ObservableProperty]
+    private string selectedBudgetingStyle = BudgetingStyles[0];
+
+    [ObservableProperty]
+    private string householdMonthlyIncomeDraft = string.Empty;
+
+    [ObservableProperty]
+    private string budgetPreferenceSummary = "No budget preferences saved yet.";
+
     public string CurrentStepTitle => Steps[Math.Clamp(CurrentStepIndex, 0, Steps.Count - 1)];
 
     public bool IsFirstStep => CurrentStepIndex == 0;
@@ -224,16 +243,18 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         {
             var profileTask = _onboardingDataService.GetProfileAsync(cancellationToken);
             var familyProfileTask = _onboardingDataService.GetFamilyProfileAsync(cancellationToken);
+            var budgetPreferencesTask = _onboardingDataService.GetBudgetPreferencesAsync(cancellationToken);
             var membersTask = _familyMembersDataService.GetMembersAsync(cancellationToken);
             var invitesTask = _familyMembersDataService.GetInvitesAsync(cancellationToken);
 
-            await Task.WhenAll(profileTask, familyProfileTask, membersTask, invitesTask);
+            await Task.WhenAll(profileTask, familyProfileTask, budgetPreferencesTask, membersTask, invitesTask);
 
             FamilyMembers = new ObservableCollection<FamilyMemberItemViewModel>(await membersTask);
             FamilyInvites = new ObservableCollection<FamilyInviteItemViewModel>(await invitesTask);
             SelectedFamilyInvite = FamilyInvites.FirstOrDefault();
 
             ApplyFamilyProfile(await familyProfileTask);
+            ApplyBudgetPreferences(await budgetPreferencesTask);
 
             var profile = await profileTask;
             profile = await SyncMembersMilestoneFromRealStateAsync(profile, cancellationToken);
@@ -337,6 +358,12 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
                 nextEnvelopes = true;
                 break;
             case 4:
+                var saved = await SaveBudgetPreferencesCoreAsync(cancellationToken);
+                if (!saved)
+                {
+                    return;
+                }
+
                 nextBudget = true;
                 break;
             case 5:
@@ -437,6 +464,46 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         {
             HasError = true;
             ErrorMessage = $"Unable to save family profile: {ex.Message}";
+            return false;
+        }
+    }
+
+    private async Task SaveBudgetPreferencesAsync(CancellationToken cancellationToken)
+    {
+        await SaveBudgetPreferencesCoreAsync(cancellationToken);
+    }
+
+    private async Task<bool> SaveBudgetPreferencesCoreAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        var validationError = ValidateBudgetPreferencesDraft();
+        if (!string.IsNullOrWhiteSpace(validationError))
+        {
+            HasError = true;
+            ErrorMessage = validationError;
+            return false;
+        }
+
+        var householdIncome = ParseHouseholdMonthlyIncome(HouseholdMonthlyIncomeDraft);
+
+        try
+        {
+            var updated = await _onboardingDataService.UpdateBudgetPreferencesAsync(
+                SelectedPayFrequency,
+                SelectedBudgetingStyle,
+                householdIncome,
+                cancellationToken);
+
+            ApplyBudgetPreferences(updated);
+            StatusMessage = "Budget preferences saved.";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to save budget preferences: {ex.Message}";
             return false;
         }
     }
@@ -621,6 +688,63 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(SelectedTimeZoneId))
         {
             return "Time zone is required.";
+        }
+
+        return null;
+    }
+
+    private string? ValidateBudgetPreferencesDraft()
+    {
+        if (!PayFrequencyOptions.Contains(SelectedPayFrequency, StringComparer.OrdinalIgnoreCase))
+        {
+            return "Select a valid pay frequency.";
+        }
+
+        if (!BudgetingStyleOptions.Contains(SelectedBudgetingStyle, StringComparer.OrdinalIgnoreCase))
+        {
+            return "Select a valid budgeting style.";
+        }
+
+        if (string.IsNullOrWhiteSpace(HouseholdMonthlyIncomeDraft))
+        {
+            return null;
+        }
+
+        var parsed = ParseHouseholdMonthlyIncome(HouseholdMonthlyIncomeDraft);
+        if (!parsed.HasValue)
+        {
+            return "Household monthly income must be a non-negative number when provided.";
+        }
+
+        return null;
+    }
+
+    private static decimal? ParseHouseholdMonthlyIncome(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        if (decimal.TryParse(
+                normalized,
+                NumberStyles.Number | NumberStyles.AllowCurrencySymbol,
+                CultureInfo.CurrentCulture,
+                out var currentCultureValue)
+            && currentCultureValue >= 0m)
+        {
+            return currentCultureValue;
+        }
+
+        if (decimal.TryParse(
+                normalized,
+                NumberStyles.Number | NumberStyles.AllowCurrencySymbol,
+                CultureInfo.InvariantCulture,
+                out var invariantCultureValue)
+            && invariantCultureValue >= 0m)
+        {
+            return invariantCultureValue;
         }
 
         return null;
@@ -811,6 +935,16 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         FamilyProfileCompleted = IsFamilyProfileComplete(FamilyNameDraft, SelectedCurrencyCode, SelectedTimeZoneId);
     }
 
+    private void ApplyBudgetPreferences(FamilyBudgetPreferencesData preferences)
+    {
+        SelectedPayFrequency = NormalizePayFrequency(preferences.PayFrequency);
+        SelectedBudgetingStyle = NormalizeBudgetingStyle(preferences.BudgetingStyle);
+        HouseholdMonthlyIncomeDraft = preferences.HouseholdMonthlyIncome.HasValue
+            ? preferences.HouseholdMonthlyIncome.Value.ToString("0.##", CultureInfo.CurrentCulture)
+            : string.Empty;
+        BudgetPreferenceSummary = BuildBudgetPreferenceSummary(preferences);
+    }
+
     private void ApplyProfile(OnboardingProfileData profile)
     {
         MembersCompleted = profile.MembersCompleted;
@@ -937,6 +1071,52 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         }
 
         return DefaultTimeZoneId;
+    }
+
+    private string NormalizePayFrequency(string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            var normalized = value.Trim();
+            var matched = PayFrequencyOptions.FirstOrDefault(option =>
+                option.Equals(normalized, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(matched))
+            {
+                return matched;
+            }
+        }
+
+        return PayFrequencies[0];
+    }
+
+    private string NormalizeBudgetingStyle(string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            var normalized = value.Trim();
+            var matched = BudgetingStyleOptions.FirstOrDefault(option =>
+                option.Equals(normalized, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(matched))
+            {
+                return matched;
+            }
+        }
+
+        return BudgetingStyles[0];
+    }
+
+    private static string BuildBudgetPreferenceSummary(FamilyBudgetPreferencesData preferences)
+    {
+        if (string.IsNullOrWhiteSpace(preferences.PayFrequency) || string.IsNullOrWhiteSpace(preferences.BudgetingStyle))
+        {
+            return "No budget preferences saved yet.";
+        }
+
+        var income = preferences.HouseholdMonthlyIncome.HasValue
+            ? preferences.HouseholdMonthlyIncome.Value.ToString("C2", CultureInfo.CurrentCulture)
+            : "Not provided";
+
+        return $"Pay {preferences.PayFrequency} | Style {preferences.BudgetingStyle} | Income {income}";
     }
 
     partial void OnFamilyProfileCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));

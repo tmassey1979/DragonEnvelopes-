@@ -27,6 +27,15 @@ public sealed class FamilyConfiguration : IEntityTypeConfiguration<Family>
             .HasMaxLength(100)
             .IsRequired();
 
+        builder.Property(x => x.PayFrequency)
+            .HasMaxLength(32);
+
+        builder.Property(x => x.BudgetingStyle)
+            .HasMaxLength(64);
+
+        builder.Property(x => x.HouseholdMonthlyIncome)
+            .HasPrecision(18, 2);
+
         builder.Property(x => x.CreatedAt)
             .IsRequired();
 

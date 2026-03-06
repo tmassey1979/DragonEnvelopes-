@@ -13,6 +13,9 @@ public sealed class Family
     public string Name { get; private set; }
     public string CurrencyCode { get; private set; }
     public string TimeZoneId { get; private set; }
+    public string? PayFrequency { get; private set; }
+    public string? BudgetingStyle { get; private set; }
+    public decimal? HouseholdMonthlyIncome { get; private set; }
     public DateTimeOffset CreatedAt { get; }
     public DateTimeOffset UpdatedAt { get; private set; }
     public IReadOnlyCollection<FamilyMember> Members => _members.AsReadOnly();
@@ -65,6 +68,18 @@ public sealed class Family
         Name = ValidateText(name, "Family name");
         CurrencyCode = ValidateCurrencyCode(currencyCode);
         TimeZoneId = ValidateTimeZoneId(timeZoneId);
+        UpdatedAt = updatedAt;
+    }
+
+    public void UpdateBudgetPreferences(
+        string payFrequency,
+        string budgetingStyle,
+        decimal? householdMonthlyIncome,
+        DateTimeOffset updatedAt)
+    {
+        PayFrequency = ValidatePayFrequency(payFrequency);
+        BudgetingStyle = ValidateBudgetingStyle(budgetingStyle);
+        HouseholdMonthlyIncome = ValidateHouseholdMonthlyIncome(householdMonthlyIncome);
         UpdatedAt = updatedAt;
     }
 
@@ -147,5 +162,54 @@ public sealed class Family
         }
 
         return value.Trim();
+    }
+
+    private static string ValidatePayFrequency(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new DomainValidationException("Pay frequency is required.");
+        }
+
+        var normalized = value.Trim();
+        return normalized switch
+        {
+            "Weekly" => normalized,
+            "BiWeekly" => normalized,
+            "SemiMonthly" => normalized,
+            "Monthly" => normalized,
+            _ => throw new DomainValidationException("Pay frequency is invalid.")
+        };
+    }
+
+    private static string ValidateBudgetingStyle(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new DomainValidationException("Budgeting style is required.");
+        }
+
+        var normalized = value.Trim();
+        return normalized switch
+        {
+            "ZeroBased" => normalized,
+            "EnvelopePriority" => normalized,
+            _ => throw new DomainValidationException("Budgeting style is invalid.")
+        };
+    }
+
+    private static decimal? ValidateHouseholdMonthlyIncome(decimal? value)
+    {
+        if (!value.HasValue)
+        {
+            return null;
+        }
+
+        if (value.Value < 0m)
+        {
+            throw new DomainValidationException("Household monthly income cannot be negative.");
+        }
+
+        return value.Value;
     }
 }

@@ -36,10 +36,18 @@ internal sealed class FakeOnboardingDataService : IOnboardingDataService
             "America/Chicago",
             now,
             now);
+
+        BudgetPreferences = new FamilyBudgetPreferencesData(
+            familyId,
+            PayFrequency: null,
+            BudgetingStyle: null,
+            HouseholdMonthlyIncome: null,
+            UpdatedAt: now);
     }
 
     public OnboardingProfileData Profile { get; set; }
     public FamilyProfileData FamilyProfile { get; set; }
+    public FamilyBudgetPreferencesData BudgetPreferences { get; set; }
 
     public OnboardingBootstrapResultData BootstrapResult { get; set; }
 
@@ -49,6 +57,7 @@ internal sealed class FakeOnboardingDataService : IOnboardingDataService
 
     public int ReconcileProfileCallCount { get; private set; }
     public int UpdateFamilyProfileCallCount { get; private set; }
+    public int UpdateBudgetPreferencesCallCount { get; private set; }
 
     public Task<OnboardingProfileData> GetProfileAsync(CancellationToken cancellationToken = default)
     {
@@ -58,6 +67,11 @@ internal sealed class FakeOnboardingDataService : IOnboardingDataService
     public Task<FamilyProfileData> GetFamilyProfileAsync(CancellationToken cancellationToken = default)
     {
         return Task.FromResult(FamilyProfile);
+    }
+
+    public Task<FamilyBudgetPreferencesData> GetBudgetPreferencesAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(BudgetPreferences);
     }
 
     public Task<OnboardingProfileData> UpdateProfileAsync(
@@ -122,6 +136,25 @@ internal sealed class FakeOnboardingDataService : IOnboardingDataService
         };
 
         return Task.FromResult(FamilyProfile);
+    }
+
+    public Task<FamilyBudgetPreferencesData> UpdateBudgetPreferencesAsync(
+        string payFrequency,
+        string budgetingStyle,
+        decimal? householdMonthlyIncome,
+        CancellationToken cancellationToken = default)
+    {
+        UpdateBudgetPreferencesCallCount += 1;
+        var now = DateTimeOffset.UtcNow;
+        BudgetPreferences = BudgetPreferences with
+        {
+            PayFrequency = payFrequency,
+            BudgetingStyle = budgetingStyle,
+            HouseholdMonthlyIncome = householdMonthlyIncome,
+            UpdatedAt = now
+        };
+
+        return Task.FromResult(BudgetPreferences);
     }
 
     public Task<OnboardingBootstrapResultData> BootstrapAsync(

@@ -44,6 +44,26 @@ public sealed class OnboardingDataService(
             payload.UpdatedAt);
     }
 
+    public async Task<FamilyBudgetPreferencesData> GetBudgetPreferencesAsync(CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        using var response = await apiClient.GetAsync($"families/{familyId}/budget-preferences", cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Budget preferences request failed with status {(int)response.StatusCode}.");
+        }
+
+        var payload = await response.Content.ReadFromJsonAsync<FamilyBudgetPreferencesResponse>(cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("Budget preferences response payload was invalid.");
+
+        return new FamilyBudgetPreferencesData(
+            payload.FamilyId,
+            payload.PayFrequency,
+            payload.BudgetingStyle,
+            payload.HouseholdMonthlyIncome,
+            payload.UpdatedAt);
+    }
+
     public async Task<OnboardingProfileData> UpdateProfileAsync(
         bool membersCompleted,
         bool accountsCompleted,
@@ -109,6 +129,39 @@ public sealed class OnboardingDataService(
             updated.CurrencyCode,
             updated.TimeZoneId,
             updated.CreatedAt,
+            updated.UpdatedAt);
+    }
+
+    public async Task<FamilyBudgetPreferencesData> UpdateBudgetPreferencesAsync(
+        string payFrequency,
+        string budgetingStyle,
+        decimal? householdMonthlyIncome,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var payload = new UpdateFamilyBudgetPreferencesRequest(
+            payFrequency,
+            budgetingStyle,
+            householdMonthlyIncome);
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"families/{familyId}/budget-preferences")
+        {
+            Content = JsonContent.Create(payload)
+        };
+
+        using var response = await apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Budget preferences update failed with status {(int)response.StatusCode}.");
+        }
+
+        var updated = await response.Content.ReadFromJsonAsync<FamilyBudgetPreferencesResponse>(cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("Budget preferences update response payload was invalid.");
+
+        return new FamilyBudgetPreferencesData(
+            updated.FamilyId,
+            updated.PayFrequency,
+            updated.BudgetingStyle,
+            updated.HouseholdMonthlyIncome,
             updated.UpdatedAt);
     }
 

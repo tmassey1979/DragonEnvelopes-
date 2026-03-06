@@ -42,6 +42,16 @@ internal static class EndpointMappers
             family.UpdatedAt);
     }
 
+    public static FamilyBudgetPreferencesResponse MapFamilyBudgetPreferencesResponse(FamilyBudgetPreferencesDetails details)
+    {
+        return new FamilyBudgetPreferencesResponse(
+            details.FamilyId,
+            details.PayFrequency,
+            details.BudgetingStyle,
+            details.HouseholdMonthlyIncome,
+            details.UpdatedAt);
+    }
+
     public static FamilyMemberResponse MapFamilyMemberResponse(FamilyMemberDetails member)
     {
         return new FamilyMemberResponse(

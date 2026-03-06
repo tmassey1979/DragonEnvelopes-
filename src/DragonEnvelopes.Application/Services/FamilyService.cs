@@ -77,6 +77,42 @@ public sealed class FamilyService(
         return MapProfile(family);
     }
 
+    public async Task<FamilyBudgetPreferencesDetails?> GetBudgetPreferencesAsync(
+        Guid familyId,
+        CancellationToken cancellationToken = default)
+    {
+        var family = await familyRepository.GetFamilyByIdAsync(familyId, cancellationToken);
+        if (family is null)
+        {
+            return null;
+        }
+
+        return MapBudgetPreferences(family);
+    }
+
+    public async Task<FamilyBudgetPreferencesDetails> UpdateBudgetPreferencesAsync(
+        Guid familyId,
+        string payFrequency,
+        string budgetingStyle,
+        decimal? householdMonthlyIncome,
+        CancellationToken cancellationToken = default)
+    {
+        var family = await familyRepository.GetFamilyByIdForUpdateAsync(familyId, cancellationToken);
+        if (family is null)
+        {
+            throw new DomainValidationException("Family was not found.");
+        }
+
+        family.UpdateBudgetPreferences(
+            payFrequency,
+            budgetingStyle,
+            householdMonthlyIncome,
+            clock.UtcNow);
+        await familyRepository.SaveChangesAsync(cancellationToken);
+
+        return MapBudgetPreferences(family);
+    }
+
     public async Task<FamilyMemberDetails> AddMemberAsync(
         Guid familyId,
         string keycloakUserId,
@@ -149,6 +185,16 @@ public sealed class FamilyService(
             family.CurrencyCode,
             family.TimeZoneId,
             family.CreatedAt,
+            family.UpdatedAt);
+    }
+
+    private static FamilyBudgetPreferencesDetails MapBudgetPreferences(Family family)
+    {
+        return new FamilyBudgetPreferencesDetails(
+            family.Id,
+            family.PayFrequency,
+            family.BudgetingStyle,
+            family.HouseholdMonthlyIncome,
             family.UpdatedAt);
     }
 

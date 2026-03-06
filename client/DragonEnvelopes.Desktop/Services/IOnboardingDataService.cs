@@ -6,6 +6,8 @@ public interface IOnboardingDataService
 
     Task<FamilyProfileData> GetFamilyProfileAsync(CancellationToken cancellationToken = default);
 
+    Task<FamilyBudgetPreferencesData> GetBudgetPreferencesAsync(CancellationToken cancellationToken = default);
+
     Task<OnboardingProfileData> UpdateProfileAsync(
         bool membersCompleted,
         bool accountsCompleted,
@@ -21,6 +23,12 @@ public interface IOnboardingDataService
         string name,
         string currencyCode,
         string timeZoneId,
+        CancellationToken cancellationToken = default);
+
+    Task<FamilyBudgetPreferencesData> UpdateBudgetPreferencesAsync(
+        string payFrequency,
+        string budgetingStyle,
+        decimal? householdMonthlyIncome,
         CancellationToken cancellationToken = default);
 
     Task<OnboardingProfileData> ReconcileProfileAsync(CancellationToken cancellationToken = default);
