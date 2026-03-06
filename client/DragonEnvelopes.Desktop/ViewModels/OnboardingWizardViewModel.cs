@@ -9,12 +9,18 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
 {
     private static readonly string[] StepTitles =
     [
+        "Family Members",
         "Accounts",
         "Envelopes",
         "Starter Budget",
+        "Plaid Connection",
+        "Stripe Accounts",
+        "Cards",
+        "Automation Rules",
         "Review"
     ];
     private static readonly string[] AccountTypes = ["Checking", "Savings", "Cash", "Credit"];
+    private const int MilestoneCount = 8;
 
     private readonly IOnboardingDataService _onboardingDataService;
 
@@ -56,6 +62,9 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     private int currentStepIndex;
 
     [ObservableProperty]
+    private bool membersCompleted;
+
+    [ObservableProperty]
     private bool accountsCompleted;
 
     [ObservableProperty]
@@ -63,6 +72,18 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
 
     [ObservableProperty]
     private bool budgetCompleted;
+
+    [ObservableProperty]
+    private bool plaidCompleted;
+
+    [ObservableProperty]
+    private bool stripeAccountsCompleted;
+
+    [ObservableProperty]
+    private bool cardsCompleted;
+
+    [ObservableProperty]
+    private bool automationCompleted;
 
     [ObservableProperty]
     private bool isLoading;
@@ -99,23 +120,13 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     {
         get
         {
-            var completed = 0;
-            if (AccountsCompleted)
+            var completed = CountCompletedMilestones();
+            if (completed <= 0)
             {
-                completed++;
+                return 0;
             }
 
-            if (EnvelopesCompleted)
-            {
-                completed++;
-            }
-
-            if (BudgetCompleted)
-            {
-                completed++;
-            }
-
-            return completed * 33;
+            return (int)Math.Round(completed * 100d / MilestoneCount, MidpointRounding.AwayFromZero);
         }
     }
 
@@ -128,17 +139,15 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         try
         {
             var profile = await _onboardingDataService.GetProfileAsync(cancellationToken);
+            MembersCompleted = profile.MembersCompleted;
             AccountsCompleted = profile.AccountsCompleted;
             EnvelopesCompleted = profile.EnvelopesCompleted;
             BudgetCompleted = profile.BudgetCompleted;
-
-            CurrentStepIndex = !profile.AccountsCompleted
-                ? 0
-                : !profile.EnvelopesCompleted
-                    ? 1
-                    : !profile.BudgetCompleted
-                        ? 2
-                        : 3;
+            PlaidCompleted = profile.PlaidCompleted;
+            StripeAccountsCompleted = profile.StripeAccountsCompleted;
+            CardsCompleted = profile.CardsCompleted;
+            AutomationCompleted = profile.AutomationCompleted;
+            CurrentStepIndex = DetermineCurrentStepIndex(profile);
 
             StatusMessage = profile.IsCompleted
                 ? "Onboarding is complete."
@@ -174,21 +183,64 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
 
     private async Task MarkCurrentStepCompleteAsync(CancellationToken cancellationToken)
     {
-        var nextAccounts = AccountsCompleted || CurrentStepIndex >= 0;
-        var nextEnvelopes = EnvelopesCompleted || CurrentStepIndex >= 1;
-        var nextBudget = BudgetCompleted || CurrentStepIndex >= 2;
+        var nextMembers = MembersCompleted;
+        var nextAccounts = AccountsCompleted;
+        var nextEnvelopes = EnvelopesCompleted;
+        var nextBudget = BudgetCompleted;
+        var nextPlaid = PlaidCompleted;
+        var nextStripeAccounts = StripeAccountsCompleted;
+        var nextCards = CardsCompleted;
+        var nextAutomation = AutomationCompleted;
+
+        switch (CurrentStepIndex)
+        {
+            case 0:
+                nextMembers = true;
+                break;
+            case 1:
+                nextAccounts = true;
+                break;
+            case 2:
+                nextEnvelopes = true;
+                break;
+            case 3:
+                nextBudget = true;
+                break;
+            case 4:
+                nextPlaid = true;
+                break;
+            case 5:
+                nextStripeAccounts = true;
+                break;
+            case 6:
+                nextCards = true;
+                break;
+            case 7:
+                nextAutomation = true;
+                break;
+        }
 
         try
         {
             var updated = await _onboardingDataService.UpdateProfileAsync(
+                nextMembers,
                 nextAccounts,
                 nextEnvelopes,
                 nextBudget,
+                nextPlaid,
+                nextStripeAccounts,
+                nextCards,
+                nextAutomation,
                 cancellationToken);
 
+            MembersCompleted = updated.MembersCompleted;
             AccountsCompleted = updated.AccountsCompleted;
             EnvelopesCompleted = updated.EnvelopesCompleted;
             BudgetCompleted = updated.BudgetCompleted;
+            PlaidCompleted = updated.PlaidCompleted;
+            StripeAccountsCompleted = updated.StripeAccountsCompleted;
+            CardsCompleted = updated.CardsCompleted;
+            AutomationCompleted = updated.AutomationCompleted;
             StatusMessage = updated.IsCompleted
                 ? "Onboarding marked complete."
                 : "Progress saved.";
@@ -262,9 +314,14 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         {
             var result = await _onboardingDataService.BootstrapAsync(accounts, envelopes, budget, cancellationToken);
             await _onboardingDataService.UpdateProfileAsync(
+                MembersCompleted,
                 result.AccountsCreated > 0 || AccountsCompleted,
                 result.EnvelopesCreated > 0 || EnvelopesCompleted,
                 result.BudgetCreated || BudgetCompleted,
+                PlaidCompleted,
+                StripeAccountsCompleted,
+                CardsCompleted,
+                AutomationCompleted,
                 cancellationToken);
             StatusMessage = "Onboarding bootstrap submitted successfully.";
             await LoadAsync(cancellationToken);
@@ -320,7 +377,103 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         OnPropertyChanged(nameof(CanGoNext));
     }
 
+    private static int DetermineCurrentStepIndex(OnboardingProfileData profile)
+    {
+        if (!profile.MembersCompleted)
+        {
+            return 0;
+        }
+
+        if (!profile.AccountsCompleted)
+        {
+            return 1;
+        }
+
+        if (!profile.EnvelopesCompleted)
+        {
+            return 2;
+        }
+
+        if (!profile.BudgetCompleted)
+        {
+            return 3;
+        }
+
+        if (!profile.PlaidCompleted)
+        {
+            return 4;
+        }
+
+        if (!profile.StripeAccountsCompleted)
+        {
+            return 5;
+        }
+
+        if (!profile.CardsCompleted)
+        {
+            return 6;
+        }
+
+        if (!profile.AutomationCompleted)
+        {
+            return 7;
+        }
+
+        return 8;
+    }
+
+    private int CountCompletedMilestones()
+    {
+        var completed = 0;
+        if (MembersCompleted)
+        {
+            completed++;
+        }
+
+        if (AccountsCompleted)
+        {
+            completed++;
+        }
+
+        if (EnvelopesCompleted)
+        {
+            completed++;
+        }
+
+        if (BudgetCompleted)
+        {
+            completed++;
+        }
+
+        if (PlaidCompleted)
+        {
+            completed++;
+        }
+
+        if (StripeAccountsCompleted)
+        {
+            completed++;
+        }
+
+        if (CardsCompleted)
+        {
+            completed++;
+        }
+
+        if (AutomationCompleted)
+        {
+            completed++;
+        }
+
+        return completed;
+    }
+
+    partial void OnMembersCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
     partial void OnAccountsCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
     partial void OnEnvelopesCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
     partial void OnBudgetCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
+    partial void OnPlaidCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
+    partial void OnStripeAccountsCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
+    partial void OnCardsCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
+    partial void OnAutomationCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
 }

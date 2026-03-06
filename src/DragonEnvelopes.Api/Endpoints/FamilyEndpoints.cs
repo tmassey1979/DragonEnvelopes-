@@ -252,9 +252,14 @@ internal static class FamilyEndpoints
 
                 var onboarding = await onboardingProfileService.UpdateAsync(
                     familyId,
+                    request.MembersCompleted,
                     request.AccountsCompleted,
                     request.EnvelopesCompleted,
                     request.BudgetCompleted,
+                    request.PlaidCompleted,
+                    request.StripeAccountsCompleted,
+                    request.CardsCompleted,
+                    request.AutomationCompleted,
                     cancellationToken);
 
                 return Results.Ok(EndpointMappers.MapOnboardingProfileResponse(onboarding));

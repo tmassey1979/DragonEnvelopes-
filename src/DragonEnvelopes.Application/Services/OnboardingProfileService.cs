@@ -25,9 +25,14 @@ public sealed class OnboardingProfileService(
             profile = new OnboardingProfile(
                 Guid.NewGuid(),
                 familyId,
+                membersCompleted: false,
                 accountsCompleted: false,
                 envelopesCompleted: false,
                 budgetCompleted: false,
+                plaidCompleted: false,
+                stripeAccountsCompleted: false,
+                cardsCompleted: false,
+                automationCompleted: false,
                 createdAtUtc: now,
                 updatedAtUtc: now,
                 completedAtUtc: null);
@@ -39,9 +44,14 @@ public sealed class OnboardingProfileService(
 
     public async Task<OnboardingProfileDetails> UpdateAsync(
         Guid familyId,
+        bool membersCompleted,
         bool accountsCompleted,
         bool envelopesCompleted,
         bool budgetCompleted,
+        bool plaidCompleted,
+        bool stripeAccountsCompleted,
+        bool cardsCompleted,
+        bool automationCompleted,
         CancellationToken cancellationToken = default)
     {
         if (!await onboardingProfileRepository.FamilyExistsAsync(familyId, cancellationToken))
@@ -56,17 +66,40 @@ public sealed class OnboardingProfileService(
             profile = new OnboardingProfile(
                 Guid.NewGuid(),
                 familyId,
+                membersCompleted,
                 accountsCompleted,
                 envelopesCompleted,
                 budgetCompleted,
+                plaidCompleted,
+                stripeAccountsCompleted,
+                cardsCompleted,
+                automationCompleted,
                 now,
                 now,
-                completedAtUtc: accountsCompleted && envelopesCompleted && budgetCompleted ? now : null);
+                completedAtUtc: membersCompleted
+                                && accountsCompleted
+                                && envelopesCompleted
+                                && budgetCompleted
+                                && plaidCompleted
+                                && stripeAccountsCompleted
+                                && cardsCompleted
+                                && automationCompleted
+                    ? now
+                    : null);
             await onboardingProfileRepository.AddAsync(profile, cancellationToken);
             return Map(profile);
         }
 
-        profile.UpdateMilestones(accountsCompleted, envelopesCompleted, budgetCompleted, clock.UtcNow);
+        profile.UpdateMilestones(
+            membersCompleted,
+            accountsCompleted,
+            envelopesCompleted,
+            budgetCompleted,
+            plaidCompleted,
+            stripeAccountsCompleted,
+            cardsCompleted,
+            automationCompleted,
+            clock.UtcNow);
         await onboardingProfileRepository.SaveChangesAsync(cancellationToken);
         return Map(profile);
     }
@@ -76,9 +109,14 @@ public sealed class OnboardingProfileService(
         return new OnboardingProfileDetails(
             profile.Id,
             profile.FamilyId,
+            profile.MembersCompleted,
             profile.AccountsCompleted,
             profile.EnvelopesCompleted,
             profile.BudgetCompleted,
+            profile.PlaidCompleted,
+            profile.StripeAccountsCompleted,
+            profile.CardsCompleted,
+            profile.AutomationCompleted,
             profile.IsCompleted,
             profile.CreatedAtUtc,
             profile.UpdatedAtUtc,

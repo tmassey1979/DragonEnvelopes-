@@ -290,15 +290,25 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
 
         var initial = await getResponse.Content.ReadFromJsonAsync<OnboardingProfileResponse>();
         Assert.NotNull(initial);
+        Assert.False(initial!.MembersCompleted);
         Assert.False(initial!.AccountsCompleted);
         Assert.False(initial.EnvelopesCompleted);
         Assert.False(initial.BudgetCompleted);
+        Assert.False(initial.PlaidCompleted);
+        Assert.False(initial.StripeAccountsCompleted);
+        Assert.False(initial.CardsCompleted);
+        Assert.False(initial.AutomationCompleted);
 
         var updateResponse = await client.PutAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/onboarding", new
         {
+            membersCompleted = true,
             accountsCompleted = true,
             envelopesCompleted = true,
-            budgetCompleted = true
+            budgetCompleted = true,
+            plaidCompleted = true,
+            stripeAccountsCompleted = true,
+            cardsCompleted = true,
+            automationCompleted = true
         });
 
         Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
@@ -316,9 +326,14 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
 
         var updateResponse = await client.PutAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/onboarding", new
         {
+            membersCompleted = true,
             accountsCompleted = true,
             envelopesCompleted = true,
-            budgetCompleted = true
+            budgetCompleted = true,
+            plaidCompleted = true,
+            stripeAccountsCompleted = true,
+            cardsCompleted = true,
+            automationCompleted = true
         });
 
         Assert.Equal(HttpStatusCode.Forbidden, updateResponse.StatusCode);

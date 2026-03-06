@@ -2560,7 +2560,7 @@
                 <StackPanel Grid.Column="0">
                     <TextBlock Text="Onboarding Wizard" Style="{StaticResource DisplayTextStyle}" />
                     <TextBlock Margin="0,8,0,0"
-                               Text="Guided setup for accounts, envelopes, and initial budget configuration."
+                               Text="Guided setup for members, budgeting, and Phase 2 financial integrations."
                                Style="{StaticResource BodyTextStyle}" />
                 </StackPanel>
 

@@ -21,10 +21,25 @@ public sealed class OnboardingProfileConfiguration : IEntityTypeConfiguration<On
         builder.Property(x => x.AccountsCompleted)
             .IsRequired();
 
+        builder.Property(x => x.MembersCompleted)
+            .IsRequired();
+
         builder.Property(x => x.EnvelopesCompleted)
             .IsRequired();
 
         builder.Property(x => x.BudgetCompleted)
+            .IsRequired();
+
+        builder.Property(x => x.PlaidCompleted)
+            .IsRequired();
+
+        builder.Property(x => x.StripeAccountsCompleted)
+            .IsRequired();
+
+        builder.Property(x => x.CardsCompleted)
+            .IsRequired();
+
+        builder.Property(x => x.AutomationCompleted)
             .IsRequired();
 
         builder.Property(x => x.CreatedAtUtc)

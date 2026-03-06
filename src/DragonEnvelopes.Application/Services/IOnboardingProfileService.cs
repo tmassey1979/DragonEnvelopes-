@@ -10,8 +10,13 @@ public interface IOnboardingProfileService
 
     Task<OnboardingProfileDetails> UpdateAsync(
         Guid familyId,
+        bool membersCompleted,
         bool accountsCompleted,
         bool envelopesCompleted,
         bool budgetCompleted,
+        bool plaidCompleted,
+        bool stripeAccountsCompleted,
+        bool cardsCompleted,
+        bool automationCompleted,
         CancellationToken cancellationToken = default);
 }

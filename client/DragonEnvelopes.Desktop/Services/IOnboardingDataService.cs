@@ -5,9 +5,14 @@ public interface IOnboardingDataService
     Task<OnboardingProfileData> GetProfileAsync(CancellationToken cancellationToken = default);
 
     Task<OnboardingProfileData> UpdateProfileAsync(
+        bool membersCompleted,
         bool accountsCompleted,
         bool envelopesCompleted,
         bool budgetCompleted,
+        bool plaidCompleted,
+        bool stripeAccountsCompleted,
+        bool cardsCompleted,
+        bool automationCompleted,
         CancellationToken cancellationToken = default);
 
     Task<OnboardingBootstrapResultData> BootstrapAsync(

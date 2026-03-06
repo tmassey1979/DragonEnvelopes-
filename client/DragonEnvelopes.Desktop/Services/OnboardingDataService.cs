@@ -24,13 +24,26 @@ public sealed class OnboardingDataService(
     }
 
     public async Task<OnboardingProfileData> UpdateProfileAsync(
+        bool membersCompleted,
         bool accountsCompleted,
         bool envelopesCompleted,
         bool budgetCompleted,
+        bool plaidCompleted,
+        bool stripeAccountsCompleted,
+        bool cardsCompleted,
+        bool automationCompleted,
         CancellationToken cancellationToken = default)
     {
         var familyId = RequireFamilyId();
-        var payload = new UpdateOnboardingProfileRequest(accountsCompleted, envelopesCompleted, budgetCompleted);
+        var payload = new UpdateOnboardingProfileRequest(
+            membersCompleted,
+            accountsCompleted,
+            envelopesCompleted,
+            budgetCompleted,
+            plaidCompleted,
+            stripeAccountsCompleted,
+            cardsCompleted,
+            automationCompleted);
         using var request = new HttpRequestMessage(HttpMethod.Put, $"families/{familyId}/onboarding")
         {
             Content = JsonContent.Create(payload)
@@ -97,9 +110,14 @@ public sealed class OnboardingDataService(
         return new OnboardingProfileData(
             response.Id,
             response.FamilyId,
+            response.MembersCompleted,
             response.AccountsCompleted,
             response.EnvelopesCompleted,
             response.BudgetCompleted,
+            response.PlaidCompleted,
+            response.StripeAccountsCompleted,
+            response.CardsCompleted,
+            response.AutomationCompleted,
             response.IsCompleted,
             response.CreatedAtUtc,
             response.UpdatedAtUtc,
