@@ -17,7 +17,7 @@ public partial class LoginWindow : Window
         _familyAccountService = familyAccountService;
         InitializeComponent();
         LoginControl.SignInRequested += OnSignInRequested;
-        LoginControl.CreateFamilyRequested += OnCreateFamilyRequested;
+        LoginControl.GetStartedRequested += OnGetStartedRequested;
         LoginControl.CancelRequested += OnCancelRequested;
     }
 
@@ -50,7 +50,7 @@ public partial class LoginWindow : Window
         }
     }
 
-    private void OnCreateFamilyRequested(object? sender, EventArgs e)
+    private void OnGetStartedRequested(object? sender, EventArgs e)
     {
         var createFamilyWindow = new CreateFamilyAccountWindow(_familyAccountService)
         {
@@ -68,6 +68,7 @@ public partial class LoginWindow : Window
             LoginControl.SetUsername(createFamilyWindow.CreatedEmail);
         }
 
+        LoginControl.ShowSignInView();
         LoginControl.SetStatus("Family account created. Sign in with your new credentials.");
     }
 
