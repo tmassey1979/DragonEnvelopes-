@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Net.Http;
 using System.Text.Json;
+using DragonEnvelopes.Contracts.Families;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DragonEnvelopes.Desktop.Api;
@@ -17,6 +18,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly IAuthService _authService;
     private readonly IBackendApiClient _apiClient;
     private readonly IFamilyContext _familyContext;
+    private readonly IFamilySelectionStore _familySelectionStore;
+    private bool _isApplyingFamilySelection;
 
     public MainWindowViewModel()
         : this(CreateDefaults())
@@ -27,12 +30,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
         INavigationService navigationService,
         IAuthService authService,
         IBackendApiClient apiClient,
-        IFamilyContext familyContext)
+        IFamilyContext familyContext,
+        IFamilySelectionStore familySelectionStore)
     {
         _navigationService = navigationService;
         _authService = authService;
         _apiClient = apiClient;
         _familyContext = familyContext;
+        _familySelectionStore = familySelectionStore;
 
         NavigationItems = new ObservableCollection<NavigationItemViewModel>(
             navigationService.Routes.Select(static route =>
@@ -73,6 +78,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     private string apiStatus = "API idle";
+
+    [ObservableProperty]
+    private ObservableCollection<FamilyOptionViewModel> availableFamilies = [];
+
+    [ObservableProperty]
+    private FamilyOptionViewModel? selectedFamily;
 
     public string AuthActionLabel => IsAuthenticated ? "Sign Out" : "Sign In";
 
@@ -147,6 +158,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IsAuthenticated = false;
         AuthStatus = "Signed out";
         _familyContext.SetFamilyId(null);
+        AvailableFamilies.Clear();
+        SelectedFamily = null;
+        await _familySelectionStore.ClearAsync();
     }
 
     public async Task<AuthSignInResult> SignInWithPasswordAsync(string usernameOrEmail, string password)
@@ -198,7 +212,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         INavigationService NavigationService,
         IAuthService AuthService,
         IBackendApiClient ApiClient,
-        IFamilyContext FamilyContext) CreateDefaults()
+        IFamilyContext FamilyContext,
+        IFamilySelectionStore FamilySelectionStore) CreateDefaults()
     {
         var authService = new DesktopAuthService(new ProtectedTokenSessionStore());
         var apiOptions = new ApiClientOptions();
@@ -214,13 +229,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         var apiClient = new DragonEnvelopesApiClient(httpClient);
         var familyContext = new FamilyContext();
+        var familySelectionStore = new ProtectedFamilySelectionStore();
         var navigationService = new NavigationService(new RouteRegistry(apiClient, authService, familyContext));
-        return (navigationService, authService, apiClient, familyContext);
+        return (navigationService, authService, apiClient, familyContext, familySelectionStore);
     }
 
     private MainWindowViewModel(
-        (INavigationService NavigationService, IAuthService AuthService, IBackendApiClient ApiClient, IFamilyContext FamilyContext) defaults)
-        : this(defaults.NavigationService, defaults.AuthService, defaults.ApiClient, defaults.FamilyContext)
+        (INavigationService NavigationService, IAuthService AuthService, IBackendApiClient ApiClient, IFamilyContext FamilyContext, IFamilySelectionStore FamilySelectionStore) defaults)
+        : this(defaults.NavigationService, defaults.AuthService, defaults.ApiClient, defaults.FamilyContext, defaults.FamilySelectionStore)
     {
     }
 
@@ -232,6 +248,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
             if (!response.IsSuccessStatusCode)
             {
                 _familyContext.SetFamilyId(null);
+                AvailableFamilies.Clear();
+                SelectedFamily = null;
                 return;
             }
 
@@ -241,20 +259,134 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 familyIdsElement.ValueKind != JsonValueKind.Array)
             {
                 _familyContext.SetFamilyId(null);
+                AvailableFamilies.Clear();
+                SelectedFamily = null;
                 return;
             }
 
-            var familyId = familyIdsElement.EnumerateArray()
+            var familyIds = familyIdsElement.EnumerateArray()
                 .Select(static element => element.GetString())
                 .Where(static value => !string.IsNullOrWhiteSpace(value))
                 .Select(static value => Guid.TryParse(value, out var parsed) ? parsed : Guid.Empty)
-                .FirstOrDefault(static value => value != Guid.Empty);
+                .Where(static value => value != Guid.Empty)
+                .Distinct()
+                .ToArray();
 
-            _familyContext.SetFamilyId(familyId == Guid.Empty ? null : familyId);
+            if (familyIds.Length == 0)
+            {
+                _familyContext.SetFamilyId(null);
+                AvailableFamilies.Clear();
+                SelectedFamily = null;
+                await _familySelectionStore.ClearAsync();
+                return;
+            }
+
+            var familyOptions = await LoadFamilyOptionsAsync(familyIds);
+            AvailableFamilies = new ObservableCollection<FamilyOptionViewModel>(familyOptions);
+
+            var persistedFamilyId = await _familySelectionStore.LoadAsync(cancellationToken: default);
+            var preferredFamily = AvailableFamilies.FirstOrDefault(family =>
+                    persistedFamilyId.HasValue && family.Id == persistedFamilyId.Value)
+                ?? AvailableFamilies.FirstOrDefault();
+
+            _isApplyingFamilySelection = true;
+            SelectedFamily = preferredFamily;
+            _isApplyingFamilySelection = false;
+            _familyContext.SetFamilyId(preferredFamily?.Id);
+
+            if (preferredFamily is not null)
+            {
+                await _familySelectionStore.SaveAsync(preferredFamily.Id);
+            }
+
+            await RefreshFamilyBoundViewModelsAsync();
         }
         catch
         {
             _familyContext.SetFamilyId(null);
+            AvailableFamilies.Clear();
+            SelectedFamily = null;
+        }
+    }
+
+    partial void OnSelectedFamilyChanged(FamilyOptionViewModel? value)
+    {
+        if (_isApplyingFamilySelection)
+        {
+            return;
+        }
+
+        _ = ApplySelectedFamilyAsync(value);
+    }
+
+    private async Task ApplySelectedFamilyAsync(FamilyOptionViewModel? family)
+    {
+        _familyContext.SetFamilyId(family?.Id);
+        if (family is null)
+        {
+            await _familySelectionStore.ClearAsync();
+            return;
+        }
+
+        await _familySelectionStore.SaveAsync(family.Id);
+        await RefreshFamilyBoundViewModelsAsync();
+    }
+
+    private async Task<IReadOnlyList<FamilyOptionViewModel>> LoadFamilyOptionsAsync(IEnumerable<Guid> familyIds)
+    {
+        var options = new List<FamilyOptionViewModel>();
+        foreach (var familyId in familyIds)
+        {
+            try
+            {
+                using var response = await _apiClient.GetAsync($"families/{familyId}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    continue;
+                }
+
+                await using var stream = await response.Content.ReadAsStreamAsync();
+                var family = await JsonSerializer.DeserializeAsync<FamilyResponse>(stream);
+                if (family is null)
+                {
+                    continue;
+                }
+
+                options.Add(new FamilyOptionViewModel(family.Id, family.Name));
+            }
+            catch
+            {
+                // Ignore individual family lookup failures and continue with remaining options.
+            }
+        }
+
+        return options
+            .OrderBy(static family => family.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private async Task RefreshFamilyBoundViewModelsAsync()
+    {
+        foreach (var item in NavigationItems)
+        {
+            switch (item.Content)
+            {
+                case AccountsViewModel accounts:
+                    await accounts.LoadCommand.ExecuteAsync(null);
+                    break;
+                case EnvelopesViewModel envelopes:
+                    await envelopes.LoadCommand.ExecuteAsync(null);
+                    break;
+                case TransactionsViewModel transactions:
+                    await transactions.LoadAccountsCommand.ExecuteAsync(null);
+                    break;
+                case BudgetsViewModel budgets:
+                    await budgets.LoadCommand.ExecuteAsync(null);
+                    break;
+                case AutomationRulesViewModel automation:
+                    await automation.LoadCommand.ExecuteAsync(null);
+                    break;
+            }
         }
     }
 }

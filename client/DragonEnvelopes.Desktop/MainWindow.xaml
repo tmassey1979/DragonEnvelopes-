@@ -85,6 +85,7 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="220" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
@@ -100,26 +101,34 @@
                                Style="{StaticResource CaptionTextStyle}" />
                 </StackPanel>
 
-                <TextBox Grid.Column="1"
-                         Margin="16,0,12,0"
-                         VerticalAlignment="Center"
-                         Text="Search routes..."
-                         AutomationProperties.Name="Search routes placeholder"
-                         IsReadOnly="True" />
+                <TextBlock Grid.Column="1"
+                           Margin="16,0,8,0"
+                           VerticalAlignment="Center"
+                           Text="Family:"
+                           Style="{StaticResource CaptionTextStyle}" />
 
-                <TextBlock Grid.Column="2"
+                <ComboBox Grid.Column="2"
+                         Margin="0,0,12,0"
+                         VerticalAlignment="Center"
+                         Width="220"
+                         ItemsSource="{Binding AvailableFamilies}"
+                         SelectedItem="{Binding SelectedFamily, Mode=TwoWay}"
+                         DisplayMemberPath="Name"
+                         AutomationProperties.Name="Active family selector" />
+
+                <TextBlock Grid.Column="3"
                            Margin="0,0,14,0"
                            VerticalAlignment="Center"
                            Text="{Binding AuthStatus}"
                            Style="{StaticResource CaptionTextStyle}" />
 
-                <TextBlock Grid.Column="3"
+                <TextBlock Grid.Column="4"
                            Margin="0,0,14,0"
                            VerticalAlignment="Center"
                            Text="{Binding ApiStatus}"
                            Style="{StaticResource CaptionTextStyle}" />
 
-                <Border Grid.Column="4"
+                <Border Grid.Column="5"
                         Padding="12,8"
                         CornerRadius="8"
                         Background="{StaticResource AccentMutedBrush}"
@@ -129,7 +138,7 @@
                     <TextBlock Text="Dark Theme" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource PrimaryTextBrush}" FontWeight="SemiBold" />
                 </Border>
 
-                <Button Grid.Column="5"
+                <Button Grid.Column="6"
                         Margin="12,0,0,0"
                         VerticalAlignment="Center"
                         MinWidth="92"
@@ -137,7 +146,7 @@
                         AutomationProperties.Name="Authentication action"
                         Click="OnAuthButtonClicked" />
 
-                <Button Grid.Column="6"
+                <Button Grid.Column="7"
                         Margin="12,0,0,0"
                         VerticalAlignment="Center"
                         MinWidth="84"
