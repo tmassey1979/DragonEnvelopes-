@@ -207,65 +207,96 @@ public sealed class DesktopAuthService : IAuthService
         bool forceRefresh,
         CancellationToken cancellationToken)
     {
-        _currentSession ??= await _sessionStore.LoadAsync(cancellationToken);
-        var session = _currentSession;
-        if (session is null)
+        try
         {
-            return null;
-        }
-
-        var nowUtc = DateTimeOffset.UtcNow;
-        var shouldRefresh = forceRefresh || session.ExpiresAtUtc <= nowUtc.Add(RefreshSkew);
-        if (!shouldRefresh)
-        {
-            return session;
-        }
-
-        if (string.IsNullOrWhiteSpace(session.RefreshToken))
-        {
-            if (session.IsExpired(nowUtc))
+            _currentSession ??= await _sessionStore.LoadAsync(cancellationToken);
+            var session = _currentSession;
+            if (session is null || string.IsNullOrWhiteSpace(session.AccessToken))
             {
-                await SignOutAsync(cancellationToken);
+                await SafeSignOutAsync(cancellationToken);
                 return null;
             }
 
-            return session;
-        }
+            var nowUtc = DateTimeOffset.UtcNow;
+            var shouldRefresh = forceRefresh || session.ExpiresAtUtc <= nowUtc.Add(RefreshSkew);
+            if (!shouldRefresh)
+            {
+                return session;
+            }
 
-        RefreshTokenResult? refreshResult;
-        try
-        {
-            refreshResult = await _oidcClient.RefreshTokenAsync(session.RefreshToken);
+            if (string.IsNullOrWhiteSpace(session.RefreshToken))
+            {
+                if (session.IsExpired(nowUtc))
+                {
+                    await SafeSignOutAsync(cancellationToken);
+                    return null;
+                }
+
+                return session;
+            }
+
+            RefreshTokenResult? refreshResult;
+            try
+            {
+                refreshResult = await _oidcClient.RefreshTokenAsync(session.RefreshToken);
+            }
+            catch
+            {
+                if (!session.IsExpired(nowUtc))
+                {
+                    return session;
+                }
+
+                await SafeSignOutAsync(cancellationToken);
+                return null;
+            }
+
+            if (refreshResult is null || refreshResult.IsError || string.IsNullOrWhiteSpace(refreshResult.AccessToken))
+            {
+                if (!session.IsExpired(nowUtc))
+                {
+                    return session;
+                }
+
+                await SafeSignOutAsync(cancellationToken);
+                return null;
+            }
+
+            var expiresInSeconds = refreshResult.ExpiresIn <= 0
+                ? 300
+                : refreshResult.ExpiresIn;
+
+            var refreshed = new AuthSession
+            {
+                AccessToken = refreshResult.AccessToken,
+                RefreshToken = string.IsNullOrWhiteSpace(refreshResult.RefreshToken)
+                    ? session.RefreshToken
+                    : refreshResult.RefreshToken,
+                IdentityToken = refreshResult.IdentityToken,
+                ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(expiresInSeconds),
+                Subject = session.Subject
+            };
+
+            _currentSession = refreshed;
+            await _sessionStore.SaveAsync(refreshed, cancellationToken);
+            return refreshed;
         }
         catch
         {
-            await SignOutAsync(cancellationToken);
+            await SafeSignOutAsync(cancellationToken);
             return null;
         }
+    }
 
-        if (refreshResult is null || refreshResult.IsError || string.IsNullOrWhiteSpace(refreshResult.AccessToken))
+    private async Task SafeSignOutAsync(CancellationToken cancellationToken)
+    {
+        try
         {
             await SignOutAsync(cancellationToken);
-            return null;
         }
-
-        var expiresInSeconds = refreshResult.ExpiresIn <= 0
-            ? 300
-            : refreshResult.ExpiresIn;
-
-        var refreshed = new AuthSession
+        catch
         {
-            AccessToken = refreshResult.AccessToken,
-            RefreshToken = string.IsNullOrWhiteSpace(refreshResult.RefreshToken)
-                ? session.RefreshToken
-                : refreshResult.RefreshToken,
-            IdentityToken = refreshResult.IdentityToken,
-            ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(expiresInSeconds),
-            Subject = session.Subject
-        };
-
-        _currentSession = refreshed;
-        await _sessionStore.SaveAsync(refreshed, cancellationToken);
-        return refreshed;
+            _currentSession = null;
+        }
     }
 }
