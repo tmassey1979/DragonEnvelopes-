@@ -1851,8 +1851,8 @@
                                    Style="{StaticResource BodyTextStyle}" />
                         <Button Grid.Column="1"
                                 Margin="12,0,8,0"
-                                Content="Refresh Session"
-                                Command="{Binding ReloadSessionCommand}" />
+                                Content="Refresh Status"
+                                Command="{Binding ReloadStatusCommand}" />
                         <Button Grid.Column="2"
                                 Content="Sign Out"
                                 Command="{Binding SignOutCommand}" />
@@ -1884,6 +1884,21 @@
                         <TextBlock Text="{Binding EnvironmentName, StringFormat=Environment: {0}}" Style="{StaticResource CaptionTextStyle}" />
                         <TextBlock Margin="0,6,0,0"
                                    Text="{Binding AppVersion, StringFormat=Desktop Version: {0}}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,10,0,0"
+                                   Text="{Binding BackendHealthStatus, StringFormat=Backend Health: {0}}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding BackendVersion, StringFormat=Backend Version: {0}}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding BackendEnvironment, StringFormat=Backend Environment: {0}}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding BackendCheckedAt, StringFormat=Backend Checked: {0}}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding BackendStatusMessage}"
                                    Style="{StaticResource CaptionTextStyle}" />
                     </StackPanel>
                 </controls:CardControl>

@@ -18,6 +18,7 @@ using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Contracts.Imports;
 using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Contracts.Reports;
+using DragonEnvelopes.Contracts.Runtime;
 using DragonEnvelopes.Contracts.Transactions;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -29,6 +30,7 @@ using Microsoft.OpenApi.Models;
 using DragonEnvelopes.Infrastructure;
 using Serilog;
 using Serilog.Sinks.Grafana.Loki;
+using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 var authority = builder.Configuration["Authentication:Authority"]
@@ -309,6 +311,29 @@ v1.MapGet("/auth/parent-only", () =>
     Results.Ok(new { message = "Parent access granted." }))
     .RequireAuthorization(ApiAuthorizationPolicies.Parent)
     .WithName("ParentOnlyProbe")
+    .WithOpenApi();
+
+v1.MapGet("/system/health", () =>
+    Results.Ok(new ApiHealthResponse("Healthy", DateTimeOffset.UtcNow)))
+    .AllowAnonymous()
+    .WithName("GetSystemHealth")
+    .WithOpenApi();
+
+v1.MapGet("/system/version", (IHostEnvironment hostEnvironment) =>
+    {
+        var version = Environment.GetEnvironmentVariable("DRAGONENVELOPES_API_VERSION");
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0";
+        }
+
+        return Results.Ok(new ApiVersionResponse(
+            version,
+            hostEnvironment.EnvironmentName,
+            DateTimeOffset.UtcNow));
+    })
+    .AllowAnonymous()
+    .WithName("GetSystemVersion")
     .WithOpenApi();
 
 v1.MapPost("/families", async (

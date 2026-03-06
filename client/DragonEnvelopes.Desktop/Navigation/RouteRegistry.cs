@@ -79,7 +79,7 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Settings",
                 Glyph: "\uE713",
                 TopBarSubtitle: "Session and profile settings",
-                Content: new SettingsViewModel(authService))
+                Content: new SettingsViewModel(authService, new SystemStatusDataService(apiClient)))
         };
 
         _routes = routeList.ToDictionary(static route => route.Key, StringComparer.OrdinalIgnoreCase);

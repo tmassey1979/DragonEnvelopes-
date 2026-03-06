@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using DragonEnvelopes.Contracts.Runtime;
 using DragonEnvelopes.Domain.Entities;
 using DragonEnvelopes.Domain.ValueObjects;
 using DragonEnvelopes.Infrastructure.Persistence;
@@ -77,6 +78,33 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
 
         Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+    }
+
+    [Fact]
+    public async Task System_Health_Is_Available_Anonymously()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/system/health");
+        var payload = await response.Content.ReadFromJsonAsync<ApiHealthResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(payload);
+        Assert.Equal("Healthy", payload!.Status);
+    }
+
+    [Fact]
+    public async Task System_Version_Is_Available_Anonymously()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/system/version");
+        var payload = await response.Content.ReadFromJsonAsync<ApiVersionResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(payload);
+        Assert.False(string.IsNullOrWhiteSpace(payload!.Version));
+        Assert.False(string.IsNullOrWhiteSpace(payload.Environment));
     }
 }
 
