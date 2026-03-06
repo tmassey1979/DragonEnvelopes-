@@ -10,6 +10,7 @@ namespace DragonEnvelopes.Application.Services;
 public sealed class FamilyInviteService(
     IFamilyRepository familyRepository,
     IFamilyInviteRepository familyInviteRepository,
+    IFamilyInviteSender familyInviteSender,
     IClock clock) : IFamilyInviteService
 {
     private static readonly string[] AllowedRoles = ["Parent", "Adult", "Teen", "Child"];
@@ -51,6 +52,22 @@ public sealed class FamilyInviteService(
             now.AddHours(Math.Clamp(expiresInHours, 1, 24 * 30)));
 
         await familyInviteRepository.AddAsync(invite, cancellationToken);
+
+        try
+        {
+            await familyInviteSender.SendInviteAsync(
+                familyId,
+                invite.Email,
+                invite.Role,
+                inviteToken,
+                invite.ExpiresAtUtc,
+                cancellationToken);
+        }
+        catch
+        {
+            // Invite persistence should succeed even when outbound email fails.
+        }
+
         return new CreateFamilyInviteResult(Map(invite), inviteToken);
     }
 
