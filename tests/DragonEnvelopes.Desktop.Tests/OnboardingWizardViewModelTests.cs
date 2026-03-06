@@ -75,9 +75,45 @@ public sealed class OnboardingWizardViewModelTests
         Assert.False(viewModel.HasError);
         Assert.Equal(1, onboardingDataService.UpdateProfileCallCount);
         Assert.True(viewModel.PlaidCompleted);
-        Assert.Equal(5, viewModel.CurrentStepIndex);
+        Assert.Equal(6, viewModel.CurrentStepIndex);
         Assert.Equal("Progress saved.", viewModel.StatusMessage);
         Assert.Equal(63, viewModel.ProgressPercent);
+    }
+
+    [Fact]
+    public async Task ReconcileProgressCommand_Loads_Reconciled_Status()
+    {
+        var familyId = Guid.Parse("10000000-0000-0000-0000-000000000003");
+        var now = DateTimeOffset.UtcNow;
+        var onboardingDataService = new FakeOnboardingDataService(familyId)
+        {
+            Profile = new OnboardingProfileData(
+                Guid.NewGuid(),
+                familyId,
+                MembersCompleted: true,
+                AccountsCompleted: true,
+                EnvelopesCompleted: true,
+                BudgetCompleted: false,
+                PlaidCompleted: true,
+                StripeAccountsCompleted: false,
+                CardsCompleted: false,
+                AutomationCompleted: false,
+                IsCompleted: false,
+                CreatedAtUtc: now,
+                UpdatedAtUtc: now,
+                CompletedAtUtc: null)
+        };
+
+        var viewModel = new OnboardingWizardViewModel(onboardingDataService);
+        await EnsureLoadedAsync(viewModel);
+
+        await viewModel.ReconcileProgressCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.False(viewModel.HasError);
+        Assert.Equal(1, onboardingDataService.ReconcileProfileCallCount);
+        Assert.Equal("Onboarding reconciled from current family data.", viewModel.StatusMessage);
+        Assert.Equal(3, viewModel.CurrentStepIndex);
     }
 
     private static async Task EnsureLoadedAsync(OnboardingWizardViewModel viewModel)

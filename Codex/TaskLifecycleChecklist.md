@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#165` Onboarding V2 milestone expansion.
+- Active task: `#166` Onboarding reconcile operation.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#164` Desktop security operation: provider secret rewrap.
+- Previous completed task: `#165` Onboarding V2 milestone expansion.
 - Last updated: `2026-03-06`.

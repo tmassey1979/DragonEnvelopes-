@@ -31,6 +31,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         NextStepCommand = new RelayCommand(NextStep);
         PreviousStepCommand = new RelayCommand(PreviousStep);
         MarkCurrentStepCompleteCommand = new AsyncRelayCommand(MarkCurrentStepCompleteAsync);
+        ReconcileProgressCommand = new AsyncRelayCommand(ReconcileProgressAsync);
         AddAccountRowCommand = new RelayCommand(AddAccountRow);
         RemoveAccountRowCommand = new RelayCommand<OnboardingAccountDraftViewModel?>(RemoveAccountRow);
         AddEnvelopeRowCommand = new RelayCommand(AddEnvelopeRow);
@@ -48,6 +49,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public IRelayCommand NextStepCommand { get; }
     public IRelayCommand PreviousStepCommand { get; }
     public IAsyncRelayCommand MarkCurrentStepCompleteCommand { get; }
+    public IAsyncRelayCommand ReconcileProgressCommand { get; }
     public IRelayCommand AddAccountRowCommand { get; }
     public IRelayCommand<OnboardingAccountDraftViewModel?> RemoveAccountRowCommand { get; }
     public IRelayCommand AddEnvelopeRowCommand { get; }
@@ -139,15 +141,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         try
         {
             var profile = await _onboardingDataService.GetProfileAsync(cancellationToken);
-            MembersCompleted = profile.MembersCompleted;
-            AccountsCompleted = profile.AccountsCompleted;
-            EnvelopesCompleted = profile.EnvelopesCompleted;
-            BudgetCompleted = profile.BudgetCompleted;
-            PlaidCompleted = profile.PlaidCompleted;
-            StripeAccountsCompleted = profile.StripeAccountsCompleted;
-            CardsCompleted = profile.CardsCompleted;
-            AutomationCompleted = profile.AutomationCompleted;
-            CurrentStepIndex = DetermineCurrentStepIndex(profile);
+            ApplyProfile(profile);
 
             StatusMessage = profile.IsCompleted
                 ? "Onboarding is complete."
@@ -233,14 +227,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
                 nextAutomation,
                 cancellationToken);
 
-            MembersCompleted = updated.MembersCompleted;
-            AccountsCompleted = updated.AccountsCompleted;
-            EnvelopesCompleted = updated.EnvelopesCompleted;
-            BudgetCompleted = updated.BudgetCompleted;
-            PlaidCompleted = updated.PlaidCompleted;
-            StripeAccountsCompleted = updated.StripeAccountsCompleted;
-            CardsCompleted = updated.CardsCompleted;
-            AutomationCompleted = updated.AutomationCompleted;
+            ApplyProfile(updated);
             StatusMessage = updated.IsCompleted
                 ? "Onboarding marked complete."
                 : "Progress saved.";
@@ -253,6 +240,26 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         {
             HasError = true;
             ErrorMessage = $"Unable to save onboarding progress: {ex.Message}";
+        }
+    }
+
+    private async Task ReconcileProgressAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        try
+        {
+            var reconciled = await _onboardingDataService.ReconcileProfileAsync(cancellationToken);
+            ApplyProfile(reconciled);
+            StatusMessage = reconciled.IsCompleted
+                ? "Onboarding reconciled and complete."
+                : "Onboarding reconciled from current family data.";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to reconcile onboarding progress: {ex.Message}";
         }
     }
 
@@ -420,6 +427,19 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         }
 
         return 8;
+    }
+
+    private void ApplyProfile(OnboardingProfileData profile)
+    {
+        MembersCompleted = profile.MembersCompleted;
+        AccountsCompleted = profile.AccountsCompleted;
+        EnvelopesCompleted = profile.EnvelopesCompleted;
+        BudgetCompleted = profile.BudgetCompleted;
+        PlaidCompleted = profile.PlaidCompleted;
+        StripeAccountsCompleted = profile.StripeAccountsCompleted;
+        CardsCompleted = profile.CardsCompleted;
+        AutomationCompleted = profile.AutomationCompleted;
+        CurrentStepIndex = DetermineCurrentStepIndex(profile);
     }
 
     private int CountCompletedMilestones()

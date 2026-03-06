@@ -38,6 +38,8 @@ internal sealed class FakeOnboardingDataService : IOnboardingDataService
 
     public int BootstrapCallCount { get; private set; }
 
+    public int ReconcileProfileCallCount { get; private set; }
+
     public Task<OnboardingProfileData> GetProfileAsync(CancellationToken cancellationToken = default)
     {
         return Task.FromResult(Profile);
@@ -79,6 +81,12 @@ internal sealed class FakeOnboardingDataService : IOnboardingDataService
             CompletedAtUtc = isCompleted ? now : null
         };
 
+        return Task.FromResult(Profile);
+    }
+
+    public Task<OnboardingProfileData> ReconcileProfileAsync(CancellationToken cancellationToken = default)
+    {
+        ReconcileProfileCallCount += 1;
         return Task.FromResult(Profile);
     }
 

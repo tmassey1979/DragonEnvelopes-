@@ -15,6 +15,8 @@ public interface IOnboardingDataService
         bool automationCompleted,
         CancellationToken cancellationToken = default);
 
+    Task<OnboardingProfileData> ReconcileProfileAsync(CancellationToken cancellationToken = default);
+
     Task<OnboardingBootstrapResultData> BootstrapAsync(
         IReadOnlyList<(string Name, string Type, decimal OpeningBalance)> accounts,
         IReadOnlyList<(string Name, decimal MonthlyBudget)> envelopes,

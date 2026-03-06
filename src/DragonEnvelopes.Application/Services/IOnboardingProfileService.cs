@@ -19,4 +19,8 @@ public interface IOnboardingProfileService
         bool cardsCompleted,
         bool automationCompleted,
         CancellationToken cancellationToken = default);
+
+    Task<OnboardingProfileDetails> ReconcileAsync(
+        Guid familyId,
+        CancellationToken cancellationToken = default);
 }

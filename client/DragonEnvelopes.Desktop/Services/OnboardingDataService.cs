@@ -60,6 +60,21 @@ public sealed class OnboardingDataService(
         return Map(updated);
     }
 
+    public async Task<OnboardingProfileData> ReconcileProfileAsync(CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"families/{familyId}/onboarding/reconcile");
+        using var response = await apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Onboarding reconcile failed with status {(int)response.StatusCode}.");
+        }
+
+        var reconciled = await response.Content.ReadFromJsonAsync<OnboardingProfileResponse>(cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("Onboarding reconcile response payload was invalid.");
+        return Map(reconciled);
+    }
+
     public async Task<OnboardingBootstrapResultData> BootstrapAsync(
         IReadOnlyList<(string Name, string Type, decimal OpeningBalance)> accounts,
         IReadOnlyList<(string Name, decimal MonthlyBudget)> envelopes,

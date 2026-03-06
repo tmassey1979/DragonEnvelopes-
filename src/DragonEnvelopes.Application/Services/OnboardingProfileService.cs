@@ -18,26 +18,7 @@ public sealed class OnboardingProfileService(
             throw new DomainValidationException("Family was not found.");
         }
 
-        var profile = await onboardingProfileRepository.GetByFamilyIdForUpdateAsync(familyId, cancellationToken);
-        if (profile is null)
-        {
-            var now = clock.UtcNow;
-            profile = new OnboardingProfile(
-                Guid.NewGuid(),
-                familyId,
-                membersCompleted: false,
-                accountsCompleted: false,
-                envelopesCompleted: false,
-                budgetCompleted: false,
-                plaidCompleted: false,
-                stripeAccountsCompleted: false,
-                cardsCompleted: false,
-                automationCompleted: false,
-                createdAtUtc: now,
-                updatedAtUtc: now,
-                completedAtUtc: null);
-            await onboardingProfileRepository.AddAsync(profile, cancellationToken);
-        }
+        var profile = await GetOrCreateEntityAsync(familyId, cancellationToken);
 
         return Map(profile);
     }
@@ -59,37 +40,7 @@ public sealed class OnboardingProfileService(
             throw new DomainValidationException("Family was not found.");
         }
 
-        var profile = await onboardingProfileRepository.GetByFamilyIdForUpdateAsync(familyId, cancellationToken);
-        if (profile is null)
-        {
-            var now = clock.UtcNow;
-            profile = new OnboardingProfile(
-                Guid.NewGuid(),
-                familyId,
-                membersCompleted,
-                accountsCompleted,
-                envelopesCompleted,
-                budgetCompleted,
-                plaidCompleted,
-                stripeAccountsCompleted,
-                cardsCompleted,
-                automationCompleted,
-                now,
-                now,
-                completedAtUtc: membersCompleted
-                                && accountsCompleted
-                                && envelopesCompleted
-                                && budgetCompleted
-                                && plaidCompleted
-                                && stripeAccountsCompleted
-                                && cardsCompleted
-                                && automationCompleted
-                    ? now
-                    : null);
-            await onboardingProfileRepository.AddAsync(profile, cancellationToken);
-            return Map(profile);
-        }
-
+        var profile = await GetOrCreateEntityAsync(familyId, cancellationToken);
         profile.UpdateMilestones(
             membersCompleted,
             accountsCompleted,
@@ -102,6 +53,62 @@ public sealed class OnboardingProfileService(
             clock.UtcNow);
         await onboardingProfileRepository.SaveChangesAsync(cancellationToken);
         return Map(profile);
+    }
+
+    public async Task<OnboardingProfileDetails> ReconcileAsync(
+        Guid familyId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await onboardingProfileRepository.FamilyExistsAsync(familyId, cancellationToken))
+        {
+            throw new DomainValidationException("Family was not found.");
+        }
+
+        var profile = await GetOrCreateEntityAsync(familyId, cancellationToken);
+        var signals = await onboardingProfileRepository.GetMilestoneSignalsAsync(familyId, cancellationToken);
+
+        profile.UpdateMilestones(
+            signals.MembersCompleted,
+            signals.AccountsCompleted,
+            signals.EnvelopesCompleted,
+            signals.BudgetCompleted,
+            signals.PlaidCompleted,
+            signals.StripeAccountsCompleted,
+            signals.CardsCompleted,
+            signals.AutomationCompleted,
+            clock.UtcNow);
+
+        await onboardingProfileRepository.SaveChangesAsync(cancellationToken);
+        return Map(profile);
+    }
+
+    private async Task<OnboardingProfile> GetOrCreateEntityAsync(
+        Guid familyId,
+        CancellationToken cancellationToken)
+    {
+        var profile = await onboardingProfileRepository.GetByFamilyIdForUpdateAsync(familyId, cancellationToken);
+        if (profile is not null)
+        {
+            return profile;
+        }
+
+        var now = clock.UtcNow;
+        profile = new OnboardingProfile(
+            Guid.NewGuid(),
+            familyId,
+            membersCompleted: false,
+            accountsCompleted: false,
+            envelopesCompleted: false,
+            budgetCompleted: false,
+            plaidCompleted: false,
+            stripeAccountsCompleted: false,
+            cardsCompleted: false,
+            automationCompleted: false,
+            createdAtUtc: now,
+            updatedAtUtc: now,
+            completedAtUtc: null);
+        await onboardingProfileRepository.AddAsync(profile, cancellationToken);
+        return profile;
     }
 
     private static OnboardingProfileDetails Map(OnboardingProfile profile)

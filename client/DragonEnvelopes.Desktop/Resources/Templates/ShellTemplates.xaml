@@ -2555,6 +2555,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
@@ -2565,9 +2566,14 @@
                 </StackPanel>
 
                 <Button Grid.Column="1"
+                        Margin="0,0,8,0"
                         VerticalAlignment="Center"
                         Content="Reload"
                         Command="{Binding LoadCommand}" />
+                <Button Grid.Column="2"
+                        VerticalAlignment="Center"
+                        Content="Reconcile"
+                        Command="{Binding ReconcileProgressCommand}" />
             </Grid>
 
             <Border Grid.Row="1"

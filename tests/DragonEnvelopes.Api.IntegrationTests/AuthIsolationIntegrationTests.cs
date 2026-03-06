@@ -282,10 +282,26 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     [Fact]
     public async Task UserA_Can_Get_And_Update_Own_Onboarding_Profile()
     {
+        var familyId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.Families.Add(new Family(familyId, "Onboarding Profile Family", now));
+            dbContext.FamilyMembers.Add(new FamilyMember(
+                Guid.NewGuid(),
+                familyId,
+                TestApiFactory.UserAId,
+                "Owner User",
+                EmailAddress.Parse($"onboarding-owner-{familyId:N}@test.dev"),
+                MemberRole.Parent));
+            await dbContext.SaveChangesAsync();
+        }
+
         using var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
 
-        var getResponse = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/onboarding");
+        var getResponse = await client.GetAsync($"/api/v1/families/{familyId}/onboarding");
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
 
         var initial = await getResponse.Content.ReadFromJsonAsync<OnboardingProfileResponse>();
@@ -299,7 +315,7 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.False(initial.CardsCompleted);
         Assert.False(initial.AutomationCompleted);
 
-        var updateResponse = await client.PutAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/onboarding", new
+        var updateResponse = await client.PutAsJsonAsync($"/api/v1/families/{familyId}/onboarding", new
         {
             membersCompleted = true,
             accountsCompleted = true,
@@ -337,6 +353,129 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         });
 
         Assert.Equal(HttpStatusCode.Forbidden, updateResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserA_Can_Reconcile_Own_Onboarding_Profile_From_Family_Data()
+    {
+        var familyId = Guid.NewGuid();
+        var accountId = Guid.NewGuid();
+        var envelopeId = Guid.NewGuid();
+        var envelopeFinancialAccountId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.Families.Add(new Family(familyId, "Onboarding Reconcile Family", now));
+            dbContext.FamilyMembers.AddRange(
+                new FamilyMember(
+                    Guid.NewGuid(),
+                    familyId,
+                    TestApiFactory.UserAId,
+                    "Owner User",
+                    EmailAddress.Parse($"reconcile-owner-{familyId:N}@test.dev"),
+                    MemberRole.Parent),
+                new FamilyMember(
+                    Guid.NewGuid(),
+                    familyId,
+                    "member-b",
+                    "Second Member",
+                    EmailAddress.Parse($"reconcile-member-{familyId:N}@test.dev"),
+                    MemberRole.Adult));
+            dbContext.Accounts.Add(new Account(
+                accountId,
+                familyId,
+                "Reconcile Checking",
+                AccountType.Checking,
+                Money.FromDecimal(900m)));
+            dbContext.Envelopes.Add(new Envelope(
+                envelopeId,
+                familyId,
+                "Reconcile Envelope",
+                Money.FromDecimal(250m),
+                Money.FromDecimal(125m)));
+            dbContext.Budgets.Add(new Budget(
+                Guid.NewGuid(),
+                familyId,
+                BudgetMonth.Parse("2027-03"),
+                Money.FromDecimal(4500m)));
+            dbContext.PlaidAccountLinks.Add(new PlaidAccountLink(
+                Guid.NewGuid(),
+                familyId,
+                accountId,
+                "plaid_reconcile_account",
+                now,
+                now));
+            dbContext.EnvelopeFinancialAccounts.Add(new EnvelopeFinancialAccount(
+                envelopeFinancialAccountId,
+                familyId,
+                envelopeId,
+                "Stripe",
+                "fa_reconcile_001",
+                now,
+                now));
+            dbContext.EnvelopePaymentCards.Add(new EnvelopePaymentCard(
+                Guid.NewGuid(),
+                familyId,
+                envelopeId,
+                envelopeFinancialAccountId,
+                "Stripe",
+                "card_reconcile_001",
+                "Virtual",
+                "Active",
+                "Visa",
+                "4242",
+                now,
+                now));
+            dbContext.AutomationRules.Add(new AutomationRule(
+                Guid.NewGuid(),
+                familyId,
+                "Auto Rule Reconcile",
+                AutomationRuleType.Categorization,
+                priority: 1,
+                isEnabled: true,
+                conditionsJson: "{\"merchantContains\":\"Store\"}",
+                actionJson: "{\"setCategory\":\"Groceries\"}",
+                createdAt: now,
+                updatedAt: now));
+
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsync(
+            $"/api/v1/families/{familyId}/onboarding/reconcile",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<OnboardingProfileResponse>();
+        Assert.NotNull(payload);
+        Assert.True(payload!.MembersCompleted);
+        Assert.True(payload.AccountsCompleted);
+        Assert.True(payload.EnvelopesCompleted);
+        Assert.True(payload.BudgetCompleted);
+        Assert.True(payload.PlaidCompleted);
+        Assert.True(payload.StripeAccountsCompleted);
+        Assert.True(payload.CardsCompleted);
+        Assert.True(payload.AutomationCompleted);
+        Assert.True(payload.IsCompleted);
+        Assert.NotNull(payload.CompletedAtUtc);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Reconcile_FamilyB_Onboarding_Profile()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/onboarding/reconcile",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]

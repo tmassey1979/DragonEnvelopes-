@@ -268,6 +268,25 @@ internal static class FamilyEndpoints
             .WithName("UpdateFamilyOnboardingProfile")
             .WithOpenApi();
 
+        v1.MapPost("/families/{familyId:guid}/onboarding/reconcile", async (
+                Guid familyId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IOnboardingProfileService onboardingProfileService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var onboarding = await onboardingProfileService.ReconcileAsync(familyId, cancellationToken);
+                return Results.Ok(EndpointMappers.MapOnboardingProfileResponse(onboarding));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("ReconcileFamilyOnboardingProfile")
+            .WithOpenApi();
+
         v1.MapPost("/families/{familyId:guid}/onboarding/bootstrap", async (
                 Guid familyId,
                 OnboardingBootstrapRequest request,
