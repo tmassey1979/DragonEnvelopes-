@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Net.Http;
+using System.Reflection;
 using System.Text.Json;
 using DragonEnvelopes.Contracts.Families;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -19,7 +20,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly IBackendApiClient _apiClient;
     private readonly IFamilyContext _familyContext;
     private readonly IFamilySelectionStore _familySelectionStore;
+    private readonly IOperationStatusCenter _operationStatusCenter;
     private bool _isApplyingFamilySelection;
+    private INotifyPropertyChanged? _observedContent;
+    private IDisposable? _activeContentOperation;
+    private string? _lastReportedContentError;
 
     public MainWindowViewModel()
         : this(CreateDefaults())
@@ -31,13 +36,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IAuthService authService,
         IBackendApiClient apiClient,
         IFamilyContext familyContext,
-        IFamilySelectionStore familySelectionStore)
+        IFamilySelectionStore familySelectionStore,
+        IOperationStatusCenter operationStatusCenter)
     {
         _navigationService = navigationService;
         _authService = authService;
         _apiClient = apiClient;
         _familyContext = familyContext;
         _familySelectionStore = familySelectionStore;
+        _operationStatusCenter = operationStatusCenter;
 
         NavigationItems = new ObservableCollection<NavigationItemViewModel>(
             navigationService.Routes.Select(static route =>
@@ -46,6 +53,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         NavigateCommand = new RelayCommand<NavigationItemViewModel?>(Navigate);
         ToggleAuthenticationCommand = new AsyncRelayCommand(ToggleAuthenticationAsync);
         PingApiCommand = new AsyncRelayCommand(PingApiAsync);
+        ClearOperationToastsCommand = new RelayCommand(ClearOperationToasts);
 
         _navigationService.PropertyChanged += OnNavigationServiceChanged;
         _navigationService.Navigate("/dashboard");
@@ -60,6 +68,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IAsyncRelayCommand ToggleAuthenticationCommand { get; }
 
     public IAsyncRelayCommand PingApiCommand { get; }
+    public IRelayCommand ClearOperationToastsCommand { get; }
+    public IOperationStatusCenter OperationStatusCenter => _operationStatusCenter;
 
     [ObservableProperty]
     private string topBarTitle = "DragonEnvelopes";
@@ -119,6 +129,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         TopBarTitle = _navigationService.CurrentTitle;
         TopBarSubtitle = _navigationService.CurrentSubtitle;
         CurrentContent = _navigationService.CurrentContent;
+        AttachCurrentContentObserver(CurrentContent);
 
         foreach (var item in NavigationItems)
         {
@@ -144,6 +155,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         AuthStatus = string.IsNullOrWhiteSpace(session.Subject)
             ? "Signed in"
             : $"Signed in as {session.Subject}";
+        _operationStatusCenter.ReportInfo("Session restored.");
         await RefreshFamilyContextAsync();
     }
 
@@ -160,6 +172,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public async Task SignOutAsync()
     {
+        using var operation = _operationStatusCenter.BeginOperation("Signing out");
         await _authService.SignOutAsync();
         IsAuthenticated = false;
         AuthStatus = "Signed out";
@@ -167,10 +180,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
         AvailableFamilies.Clear();
         SelectedFamily = null;
         await _familySelectionStore.ClearAsync();
+        _operationStatusCenter.ReportSuccess("Signed out.");
     }
 
     public async Task<AuthSignInResult> SignInWithPasswordAsync(string usernameOrEmail, string password)
     {
+        using var operation = _operationStatusCenter.BeginOperation("Signing in");
         AuthStatus = "Signing in...";
         var result = await _authService.SignInWithPasswordAsync(usernameOrEmail, password);
         if (!result.Succeeded)
@@ -178,6 +193,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             IsAuthenticated = false;
             AuthStatus = result.Message;
             _familyContext.SetFamilyId(null);
+            _operationStatusCenter.ReportError(result.Message);
             return result;
         }
 
@@ -185,6 +201,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         AuthStatus = string.IsNullOrWhiteSpace(result.Session?.Subject)
             ? "Signed in"
             : $"Signed in as {result.Session.Subject}";
+        _operationStatusCenter.ReportSuccess(AuthStatus);
         await RefreshFamilyContextAsync();
 
         return result;
@@ -192,10 +209,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private async Task PingApiAsync()
     {
+        using var operation = _operationStatusCenter.BeginOperation("Pinging API");
         try
         {
             using var response = await _apiClient.GetAsync("auth/me");
             ApiStatus = $"API {(int)response.StatusCode}";
+            _operationStatusCenter.ReportInfo(ApiStatus);
 
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
@@ -206,6 +225,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         catch (Exception ex)
         {
             ApiStatus = $"API error: {ex.Message}";
+            _operationStatusCenter.ReportError(ApiStatus);
         }
     }
 
@@ -219,7 +239,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IAuthService AuthService,
         IBackendApiClient ApiClient,
         IFamilyContext FamilyContext,
-        IFamilySelectionStore FamilySelectionStore) CreateDefaults()
+        IFamilySelectionStore FamilySelectionStore,
+        IOperationStatusCenter OperationStatusCenter) CreateDefaults()
     {
         var authService = new DesktopAuthService(new ProtectedTokenSessionStore());
         var apiOptions = new ApiClientOptions();
@@ -236,18 +257,20 @@ public sealed partial class MainWindowViewModel : ObservableObject
         var apiClient = new DragonEnvelopesApiClient(httpClient);
         var familyContext = new FamilyContext();
         var familySelectionStore = new ProtectedFamilySelectionStore();
+        var operationStatusCenter = new OperationStatusCenter();
         var navigationService = new NavigationService(new RouteRegistry(apiClient, authService, familyContext));
-        return (navigationService, authService, apiClient, familyContext, familySelectionStore);
+        return (navigationService, authService, apiClient, familyContext, familySelectionStore, operationStatusCenter);
     }
 
     private MainWindowViewModel(
-        (INavigationService NavigationService, IAuthService AuthService, IBackendApiClient ApiClient, IFamilyContext FamilyContext, IFamilySelectionStore FamilySelectionStore) defaults)
-        : this(defaults.NavigationService, defaults.AuthService, defaults.ApiClient, defaults.FamilyContext, defaults.FamilySelectionStore)
+        (INavigationService NavigationService, IAuthService AuthService, IBackendApiClient ApiClient, IFamilyContext FamilyContext, IFamilySelectionStore FamilySelectionStore, IOperationStatusCenter OperationStatusCenter) defaults)
+        : this(defaults.NavigationService, defaults.AuthService, defaults.ApiClient, defaults.FamilyContext, defaults.FamilySelectionStore, defaults.OperationStatusCenter)
     {
     }
 
     private async Task RefreshFamilyContextAsync()
     {
+        using var operation = _operationStatusCenter.BeginOperation("Refreshing family context");
         try
         {
             using var response = await _apiClient.GetAsync("auth/me");
@@ -319,6 +342,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             }
 
             await RefreshFamilyBoundViewModelsAsync();
+            _operationStatusCenter.ReportSuccess("Family context refreshed.");
         }
         catch
         {
@@ -328,6 +352,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             RoleSummary = "Role: unknown";
             IsParentUser = false;
             ApplyRoleGates();
+            _operationStatusCenter.ReportError("Unable to refresh family context.");
         }
     }
 
@@ -425,6 +450,127 @@ public sealed partial class MainWindowViewModel : ObservableObject
             _navigationService.Navigate("/dashboard");
             SyncFromNavigationService();
             ApiStatus = "Access adjusted: parent role required for selected route.";
+            _operationStatusCenter.ReportInfo(ApiStatus);
         }
+    }
+
+    private void ClearOperationToasts()
+    {
+        _operationStatusCenter.ClearTransient();
+    }
+
+    private void AttachCurrentContentObserver(object? content)
+    {
+        if (ReferenceEquals(_observedContent, content))
+        {
+            return;
+        }
+
+        if (_observedContent is not null)
+        {
+            _observedContent.PropertyChanged -= OnCurrentContentPropertyChanged;
+        }
+
+        _activeContentOperation?.Dispose();
+        _activeContentOperation = null;
+        _lastReportedContentError = null;
+
+        _observedContent = content as INotifyPropertyChanged;
+        if (_observedContent is null)
+        {
+            return;
+        }
+
+        _observedContent.PropertyChanged += OnCurrentContentPropertyChanged;
+    }
+
+    private void OnCurrentContentPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is null)
+        {
+            return;
+        }
+
+        if (e.PropertyName is nameof(AccountsViewModel.IsLoading) or nameof(EnvelopesViewModel.IsLoading) or nameof(TransactionsViewModel.IsLoading) or null)
+        {
+            HandleCurrentContentLoadingChange(sender);
+        }
+
+        if (e.PropertyName is nameof(AccountsViewModel.ErrorMessage) or nameof(AccountsViewModel.HasError) or null)
+        {
+            HandleCurrentContentErrorChange(sender);
+        }
+    }
+
+    private void HandleCurrentContentLoadingChange(object content)
+    {
+        if (!TryGetBooleanProperty(content, "IsLoading", out var isLoading))
+        {
+            return;
+        }
+
+        if (isLoading && _activeContentOperation is null)
+        {
+            _activeContentOperation = _operationStatusCenter.BeginOperation($"{TopBarTitle} request");
+            return;
+        }
+
+        if (!isLoading && _activeContentOperation is not null)
+        {
+            _activeContentOperation.Dispose();
+            _activeContentOperation = null;
+        }
+    }
+
+    private void HandleCurrentContentErrorChange(object content)
+    {
+        if (!TryGetBooleanProperty(content, "HasError", out var hasError) || !hasError)
+        {
+            return;
+        }
+
+        if (!TryGetStringProperty(content, "ErrorMessage", out var errorMessage) || string.IsNullOrWhiteSpace(errorMessage))
+        {
+            return;
+        }
+
+        if (string.Equals(_lastReportedContentError, errorMessage, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastReportedContentError = errorMessage;
+        _operationStatusCenter.ReportError(errorMessage);
+    }
+
+    private static bool TryGetBooleanProperty(object source, string propertyName, out bool value)
+    {
+        value = default;
+        var property = source.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
+        if (property?.PropertyType != typeof(bool))
+        {
+            return false;
+        }
+
+        if (property.GetValue(source) is not bool typedValue)
+        {
+            return false;
+        }
+
+        value = typedValue;
+        return true;
+    }
+
+    private static bool TryGetStringProperty(object source, string propertyName, out string? value)
+    {
+        value = null;
+        var property = source.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
+        if (property?.PropertyType != typeof(string))
+        {
+            return false;
+        }
+
+        value = property.GetValue(source) as string;
+        return true;
     }
 }

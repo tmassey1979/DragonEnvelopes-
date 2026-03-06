@@ -1,5 +1,6 @@
 using IdentityModel.OidcClient;
 using IdentityModel.OidcClient.Browser;
+using IdentityModel.OidcClient.Results;
 using System.Net.Http;
 using System.Text.Json;
 
@@ -231,12 +232,26 @@ public sealed class DesktopAuthService : IAuthService
             return session;
         }
 
-        var refreshResult = await _oidcClient.RefreshTokenAsync(session.RefreshToken);
+        RefreshTokenResult? refreshResult;
+        try
+        {
+            refreshResult = await _oidcClient.RefreshTokenAsync(session.RefreshToken);
+        }
+        catch
+        {
+            await SignOutAsync(cancellationToken);
+            return null;
+        }
+
         if (refreshResult is null || refreshResult.IsError || string.IsNullOrWhiteSpace(refreshResult.AccessToken))
         {
             await SignOutAsync(cancellationToken);
             return null;
         }
+
+        var expiresInSeconds = refreshResult.ExpiresIn <= 0
+            ? 300
+            : refreshResult.ExpiresIn;
 
         var refreshed = new AuthSession
         {
@@ -245,7 +260,7 @@ public sealed class DesktopAuthService : IAuthService
                 ? session.RefreshToken
                 : refreshResult.RefreshToken,
             IdentityToken = refreshResult.IdentityToken,
-            ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(refreshResult.ExpiresIn),
+            ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(expiresInSeconds),
             Subject = session.Subject
         };
 

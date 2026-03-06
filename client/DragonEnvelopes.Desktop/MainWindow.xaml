@@ -157,10 +157,62 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="1"
-                Grid.Column="1"
-                Padding="24">
-            <ContentControl Content="{Binding CurrentContent}" />
-        </Border>
+        <Grid Grid.Row="1" Grid.Column="1">
+            <Border Padding="24">
+                <ContentControl Content="{Binding CurrentContent}" />
+            </Border>
+
+            <Border HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Margin="0,16,16,0"
+                    Width="360"
+                    CornerRadius="10"
+                    BorderBrush="{StaticResource PanelOutlineBrush}"
+                    BorderThickness="1"
+                    Background="{StaticResource SidebarBackgroundBrush}"
+                    Padding="10">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding OperationStatusCenter.ActiveOperationSummary}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+
+                        <Button Grid.Column="1"
+                                Padding="8,2"
+                                Content="Clear"
+                                Command="{Binding ClearOperationToastsCommand}" />
+                    </Grid>
+
+                    <ItemsControl Margin="0,8,0,0"
+                                  ItemsSource="{Binding OperationStatusCenter.Toasts}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,6"
+                                        Padding="8"
+                                        CornerRadius="8"
+                                        BorderBrush="{Binding LevelBrush}"
+                                        BorderThickness="1"
+                                        Background="{StaticResource PanelMutedBackgroundBrush}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding LevelLabel}"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   Foreground="{Binding LevelBrush}" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Text="{Binding Message}"
+                                                   TextWrapping="Wrap"
+                                                   Style="{StaticResource CaptionTextStyle}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>
