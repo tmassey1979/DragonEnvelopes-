@@ -15,9 +15,13 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
     {
         _familyMembersDataService = familyMembersDataService;
         DraftRole = Roles[0];
+        DraftInviteRole = Roles[0];
+        DraftInviteExpiresInHours = "168";
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         AddMemberCommand = new AsyncRelayCommand(AddMemberAsync);
+        CreateInviteCommand = new AsyncRelayCommand(CreateInviteAsync);
+        CancelInviteCommand = new AsyncRelayCommand(CancelSelectedInviteAsync);
         ResetDraftCommand = new RelayCommand(ResetDraft);
 
         _ = LoadCommand.ExecuteAsync(null);
@@ -25,11 +29,19 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
 
     public IAsyncRelayCommand LoadCommand { get; }
     public IAsyncRelayCommand AddMemberCommand { get; }
+    public IAsyncRelayCommand CreateInviteCommand { get; }
+    public IAsyncRelayCommand CancelInviteCommand { get; }
     public IRelayCommand ResetDraftCommand { get; }
     public IReadOnlyList<string> RoleOptions { get; } = Roles;
 
     [ObservableProperty]
     private ObservableCollection<FamilyMemberItemViewModel> members = [];
+
+    [ObservableProperty]
+    private ObservableCollection<FamilyInviteItemViewModel> invites = [];
+
+    [ObservableProperty]
+    private FamilyInviteItemViewModel? selectedInvite;
 
     [ObservableProperty]
     private string draftKeycloakUserId = string.Empty;
@@ -44,7 +56,22 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
     private string draftRole = string.Empty;
 
     [ObservableProperty]
+    private string draftInviteEmail = string.Empty;
+
+    [ObservableProperty]
+    private string draftInviteRole = string.Empty;
+
+    [ObservableProperty]
+    private string draftInviteExpiresInHours = "168";
+
+    [ObservableProperty]
     private string editorMessage = "Add a family member to the active family.";
+
+    [ObservableProperty]
+    private string inviteMessage = "Create and manage pending invites for this family.";
+
+    [ObservableProperty]
+    private string lastInviteToken = string.Empty;
 
     [ObservableProperty]
     private bool isLoading;
@@ -68,13 +95,17 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
         {
             var members = await _familyMembersDataService.GetMembersAsync(cancellationToken);
             Members = new ObservableCollection<FamilyMemberItemViewModel>(members);
-            IsEmpty = Members.Count == 0;
+            var invites = await _familyMembersDataService.GetInvitesAsync(cancellationToken);
+            Invites = new ObservableCollection<FamilyInviteItemViewModel>(invites);
+            SelectedInvite = Invites.FirstOrDefault();
+            IsEmpty = Members.Count == 0 && Invites.Count == 0;
         }
         catch (Exception ex)
         {
             HasError = true;
             ErrorMessage = $"Unable to load family members: {ex.Message}";
             Members.Clear();
+            Invites.Clear();
             IsEmpty = true;
         }
         finally
@@ -147,11 +178,98 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
         }
     }
 
+    private async Task CreateInviteAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(DraftInviteEmail))
+        {
+            HasError = true;
+            ErrorMessage = "Invite email is required.";
+            return;
+        }
+
+        try
+        {
+            _ = new MailAddress(DraftInviteEmail.Trim());
+        }
+        catch
+        {
+            HasError = true;
+            ErrorMessage = "Enter a valid invite email.";
+            return;
+        }
+
+        if (!Roles.Contains(DraftInviteRole, StringComparer.OrdinalIgnoreCase))
+        {
+            HasError = true;
+            ErrorMessage = "Invite role is invalid.";
+            return;
+        }
+
+        if (!int.TryParse(DraftInviteExpiresInHours, out var expiresInHours) || expiresInHours < 1 || expiresInHours > 720)
+        {
+            HasError = true;
+            ErrorMessage = "Invite expiration must be between 1 and 720 hours.";
+            return;
+        }
+
+        try
+        {
+            var created = await _familyMembersDataService.CreateInviteAsync(
+                DraftInviteEmail.Trim(),
+                DraftInviteRole,
+                expiresInHours,
+                cancellationToken);
+
+            InviteMessage = $"Invite created for '{created.Invite.Email}'.";
+            LastInviteToken = created.InviteToken;
+            DraftInviteEmail = string.Empty;
+            DraftInviteRole = Roles[0];
+            DraftInviteExpiresInHours = "168";
+            await LoadAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to create invite: {ex.Message}";
+        }
+    }
+
+    private async Task CancelSelectedInviteAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedInvite is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select an invite to cancel.";
+            return;
+        }
+
+        HasError = false;
+        ErrorMessage = string.Empty;
+        try
+        {
+            var cancelled = await _familyMembersDataService.CancelInviteAsync(SelectedInvite.Id, cancellationToken);
+            InviteMessage = $"Invite for '{cancelled.Email}' cancelled.";
+            await LoadAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to cancel invite: {ex.Message}";
+        }
+    }
+
     private void ResetDraft()
     {
         DraftKeycloakUserId = string.Empty;
         DraftName = string.Empty;
         DraftEmail = string.Empty;
         DraftRole = Roles[0];
+        DraftInviteEmail = string.Empty;
+        DraftInviteRole = Roles[0];
+        DraftInviteExpiresInHours = "168";
+        LastInviteToken = string.Empty;
     }
 }

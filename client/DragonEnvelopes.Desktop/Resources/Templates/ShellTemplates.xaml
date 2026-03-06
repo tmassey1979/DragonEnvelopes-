@@ -1419,35 +1419,102 @@
                 </controls:CardControl>
 
                 <controls:CardControl Grid.Column="2"
-                                      Header="Add Member"
-                                      Subheader="Invite/link user to this family"
-                                      EmptyMessage="Member editor unavailable."
+                                      Header="Family Access"
+                                      Subheader="Manage direct members and invites"
+                                      EmptyMessage="Family access editor unavailable."
                                       IsLoading="False"
                                       IsEmpty="False">
-                    <StackPanel>
-                        <TextBlock Text="{Binding EditorMessage}" Style="{StaticResource CaptionTextStyle}" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock Text="{Binding EditorMessage}" Style="{StaticResource CaptionTextStyle}" />
 
-                        <TextBlock Margin="0,12,0,6" Text="Keycloak User Id" Style="{StaticResource CaptionTextStyle}" />
-                        <TextBox Text="{Binding DraftKeycloakUserId, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,12,0,6" Text="Keycloak User Id" Style="{StaticResource CaptionTextStyle}" />
+                            <TextBox Text="{Binding DraftKeycloakUserId, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Margin="0,12,0,6" Text="Name" Style="{StaticResource CaptionTextStyle}" />
-                        <TextBox Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,12,0,6" Text="Name" Style="{StaticResource CaptionTextStyle}" />
+                            <TextBox Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Margin="0,12,0,6" Text="Email" Style="{StaticResource CaptionTextStyle}" />
-                        <TextBox Text="{Binding DraftEmail, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,12,0,6" Text="Email" Style="{StaticResource CaptionTextStyle}" />
+                            <TextBox Text="{Binding DraftEmail, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Margin="0,12,0,6" Text="Role" Style="{StaticResource CaptionTextStyle}" />
-                        <ComboBox ItemsSource="{Binding RoleOptions}"
-                                  SelectedItem="{Binding DraftRole, Mode=TwoWay}" />
+                            <TextBlock Margin="0,12,0,6" Text="Role" Style="{StaticResource CaptionTextStyle}" />
+                            <ComboBox ItemsSource="{Binding RoleOptions}"
+                                      SelectedItem="{Binding DraftRole, Mode=TwoWay}" />
 
-                        <StackPanel Margin="0,16,0,0" Orientation="Horizontal">
-                            <Button Margin="0,0,8,0"
-                                    Content="Add Member"
-                                    Command="{Binding AddMemberCommand}" />
-                            <Button Content="Reset"
-                                    Command="{Binding ResetDraftCommand}" />
+                            <StackPanel Margin="0,16,0,0" Orientation="Horizontal">
+                                <Button Margin="0,0,8,0"
+                                        Content="Add Member"
+                                        Command="{Binding AddMemberCommand}" />
+                                <Button Content="Reset"
+                                        Command="{Binding ResetDraftCommand}" />
+                            </StackPanel>
+
+                            <Border Margin="0,16,0,0"
+                                    Padding="10"
+                                    CornerRadius="8"
+                                    Background="{StaticResource PanelMutedBackgroundBrush}"
+                                    BorderBrush="{StaticResource PanelOutlineBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Invites" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock Margin="0,6,0,0"
+                                               Text="{Binding InviteMessage}"
+                                               Style="{StaticResource CaptionTextStyle}" />
+
+                                    <TextBlock Margin="0,12,0,6" Text="Invite Email" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBox Text="{Binding DraftInviteEmail, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Margin="0,0,0,6" Text="Role" Style="{StaticResource CaptionTextStyle}" />
+                                            <ComboBox ItemsSource="{Binding RoleOptions}"
+                                                      SelectedItem="{Binding DraftInviteRole, Mode=TwoWay}" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Margin="0,0,0,6" Text="Expires (hours)" Style="{StaticResource CaptionTextStyle}" />
+                                            <TextBox Text="{Binding DraftInviteExpiresInHours, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+                                        <Button Margin="0,0,8,0"
+                                                Content="Create Invite"
+                                                Command="{Binding CreateInviteCommand}" />
+                                        <Button Content="Cancel Selected"
+                                                Command="{Binding CancelInviteCommand}" />
+                                    </StackPanel>
+
+                                    <TextBlock Margin="0,10,0,0"
+                                               Text="{Binding LastInviteToken, StringFormat=Dev Invite Token: {0}}"
+                                               Style="{StaticResource CaptionTextStyle}" />
+
+                                    <DataGrid Margin="0,10,0,0"
+                                              ItemsSource="{Binding Invites}"
+                                              SelectedItem="{Binding SelectedInvite, Mode=TwoWay}"
+                                              AutoGenerateColumns="False"
+                                              HeadersVisibility="Column"
+                                              CanUserAddRows="False"
+                                              CanUserDeleteRows="False"
+                                              IsReadOnly="True"
+                                              RowHeight="30">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Email" Binding="{Binding Email}" Width="*" />
+                                            <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="70" />
+                                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90" />
+                                            <DataGridTextColumn Header="Expires" Binding="{Binding ExpiresAtUtc}" Width="130" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
-                    </StackPanel>
+                    </ScrollViewer>
                 </controls:CardControl>
             </Grid>
         </Grid>
