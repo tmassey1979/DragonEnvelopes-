@@ -239,6 +239,67 @@ internal static class FinancialIntegrationEndpoints
             .WithName("GetProviderActivityHealth")
             .WithOpenApi();
 
+        v1.MapGet("/families/{familyId:guid}/financial/provider-activity/timeline", async (
+                Guid familyId,
+                int? take,
+                ClaimsPrincipal user,
+                HttpContext httpContext,
+                DragonEnvelopesDbContext dbContext,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var normalizedTake = Math.Clamp(take ?? 25, 1, 100);
+
+                var webhooks = await dbContext.StripeWebhookEvents
+                    .AsNoTracking()
+                    .Where(x => x.FamilyId == familyId)
+                    .OrderByDescending(x => x.ProcessedAtUtc)
+                    .Take(normalizedTake)
+                    .Select(static webhook => new ProviderTimelineEventResponse(
+                        "StripeWebhook",
+                        webhook.EventType,
+                        webhook.ProcessingStatus,
+                        webhook.ProcessedAtUtc,
+                        $"Stripe webhook {webhook.EventType} -> {webhook.ProcessingStatus}.",
+                        webhook.ErrorMessage))
+                    .ToArrayAsync(cancellationToken);
+
+                var notifications = await dbContext.SpendNotificationEvents
+                    .AsNoTracking()
+                    .Where(x => x.FamilyId == familyId)
+                    .OrderByDescending(x => x.LastAttemptAtUtc ?? x.CreatedAtUtc)
+                    .Take(normalizedTake)
+                    .Select(static notification => new ProviderTimelineEventResponse(
+                        "NotificationDispatch",
+                        notification.Channel,
+                        notification.Status,
+                        notification.LastAttemptAtUtc ?? notification.CreatedAtUtc,
+                        $"Spend notification via {notification.Channel} -> {notification.Status}.",
+                        notification.ErrorMessage))
+                    .ToArrayAsync(cancellationToken);
+
+                var timeline = webhooks
+                    .Concat(notifications)
+                    .OrderByDescending(static item => item.OccurredAtUtc)
+                    .Select(item => item with { Detail = TrimActivityError(item.Detail) })
+                    .Take(normalizedTake)
+                    .ToArray();
+
+                return Results.Ok(new ProviderActivityTimelineResponse(
+                    FamilyId: familyId,
+                    GeneratedAtUtc: DateTimeOffset.UtcNow,
+                    RequestedTake: normalizedTake,
+                    Events: timeline,
+                    TraceId: httpContext.TraceIdentifier));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("GetProviderActivityTimeline")
+            .WithOpenApi();
+
         v1.MapPost("/families/{familyId:guid}/financial/plaid/link-token", async (
                 Guid familyId,
                 CreatePlaidLinkTokenRequest request,

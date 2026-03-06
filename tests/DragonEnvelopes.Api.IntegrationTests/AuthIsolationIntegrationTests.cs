@@ -443,6 +443,35 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Get_Own_Provider_Activity_Timeline()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/financial/provider-activity/timeline?take=20");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<ProviderActivityTimelineResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(TestApiFactory.FamilyAId, payload!.FamilyId);
+        Assert.Equal(20, payload.RequestedTake);
+        Assert.False(string.IsNullOrWhiteSpace(payload.TraceId));
+        Assert.True(response.Headers.TryGetValues("X-Trace-Id", out var traceHeaderValues));
+        Assert.False(string.IsNullOrWhiteSpace(traceHeaderValues!.FirstOrDefault()));
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Get_FamilyB_Provider_Activity_Timeline()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/financial/provider-activity/timeline");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserA_Can_Get_Own_Notification_Preferences()
     {
         using var client = _factory.CreateClient();

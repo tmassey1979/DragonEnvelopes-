@@ -8,6 +8,10 @@ public interface IFinancialIntegrationDataService
 
     Task<ProviderActivityHealthResponse> GetProviderActivityHealthAsync(CancellationToken cancellationToken = default);
 
+    Task<ProviderActivityTimelineResponse> GetProviderActivityTimelineAsync(
+        int take = 25,
+        CancellationToken cancellationToken = default);
+
     Task<NotificationPreferenceResponse> GetNotificationPreferenceAsync(CancellationToken cancellationToken = default);
 
     Task<NotificationPreferenceResponse> UpdateNotificationPreferenceAsync(

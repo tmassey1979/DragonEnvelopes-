@@ -53,6 +53,21 @@ public sealed record ProviderActivityHealthResponse(
     SpendNotificationDispatchStatusResponse NotificationDispatch,
     string TraceId);
 
+public sealed record ProviderTimelineEventResponse(
+    string Source,
+    string EventType,
+    string Status,
+    DateTimeOffset OccurredAtUtc,
+    string Summary,
+    string? Detail);
+
+public sealed record ProviderActivityTimelineResponse(
+    Guid FamilyId,
+    DateTimeOffset GeneratedAtUtc,
+    int RequestedTake,
+    IReadOnlyList<ProviderTimelineEventResponse> Events,
+    string TraceId);
+
 public sealed record CreateStripeEnvelopeFinancialAccountRequest(
     string? DisplayName);
 

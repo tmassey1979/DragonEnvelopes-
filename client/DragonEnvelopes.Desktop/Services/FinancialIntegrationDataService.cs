@@ -37,6 +37,18 @@ public sealed class FinancialIntegrationDataService : IFinancialIntegrationDataS
             cancellationToken);
     }
 
+    public Task<ProviderActivityTimelineResponse> GetProviderActivityTimelineAsync(
+        int take = 25,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var normalizedTake = take <= 0 ? 25 : take;
+        return GetAsync<ProviderActivityTimelineResponse>(
+            $"families/{familyId}/financial/provider-activity/timeline?take={normalizedTake}",
+            "Loading provider activity timeline",
+            cancellationToken);
+    }
+
     public Task<NotificationPreferenceResponse> GetNotificationPreferenceAsync(CancellationToken cancellationToken = default)
     {
         var familyId = RequireFamilyId();

@@ -52,10 +52,12 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         ProviderHealthNotificationSummary = "Notification dispatch status unavailable.";
         ProviderHealthNotificationError = "-";
         ProviderHealthTraceId = "-";
+        ProviderTimelineSummary = "No provider timeline events loaded.";
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         RefreshStatusCommand = new AsyncRelayCommand(RefreshStatusAsync);
         RefreshProviderActivityCommand = new AsyncRelayCommand(RefreshProviderActivityAsync);
+        RefreshProviderTimelineCommand = new AsyncRelayCommand(RefreshProviderTimelineAsync);
         SaveNotificationPreferenceCommand = new AsyncRelayCommand(SaveNotificationPreferenceAsync);
         CreatePlaidLinkTokenCommand = new AsyncRelayCommand(CreatePlaidLinkTokenAsync);
         LaunchNativePlaidLinkCommand = new AsyncRelayCommand(LaunchNativePlaidLinkAsync);
@@ -89,6 +91,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public IAsyncRelayCommand LoadCommand { get; }
     public IAsyncRelayCommand RefreshStatusCommand { get; }
     public IAsyncRelayCommand RefreshProviderActivityCommand { get; }
+    public IAsyncRelayCommand RefreshProviderTimelineCommand { get; }
     public IAsyncRelayCommand SaveNotificationPreferenceCommand { get; }
     public IAsyncRelayCommand CreatePlaidLinkTokenCommand { get; }
     public IAsyncRelayCommand LaunchNativePlaidLinkCommand { get; }
@@ -329,6 +332,12 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     [ObservableProperty]
     private string providerHealthTraceId = string.Empty;
 
+    [ObservableProperty]
+    private string providerTimelineSummary = string.Empty;
+
+    [ObservableProperty]
+    private ObservableCollection<ProviderTimelineEventItemViewModel> providerTimelineEvents = [];
+
     public bool HasEnvelopeSelection => SelectedEnvelope is not null;
     public bool HasCardSelection => SelectedCard is not null;
     public bool SelectedCardIsPhysical => SelectedCard?.IsPhysical == true;
@@ -418,6 +427,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             await LoadSelectedEnvelopeCoreAsync(ct);
             await LoadPlaidReconciliationCoreAsync(ct);
             await LoadProviderActivityHealthCoreAsync(ct);
+            await LoadProviderTimelineCoreAsync(ct);
             StatusMessage = "Financial integrations loaded.";
         }, cancellationToken);
     }
@@ -429,6 +439,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             await RefreshStatusCoreAsync(ct);
             await LoadNotificationPreferenceCoreAsync(ct);
             await LoadProviderActivityHealthCoreAsync(ct);
+            await LoadProviderTimelineCoreAsync(ct);
             StatusMessage = "Integration status refreshed.";
         }, cancellationToken);
     }
@@ -438,7 +449,17 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         return RunOperationAsync("Refreshing provider activity health...", async ct =>
         {
             await LoadProviderActivityHealthCoreAsync(ct);
+            await LoadProviderTimelineCoreAsync(ct);
             StatusMessage = "Provider activity health refreshed.";
+        }, cancellationToken);
+    }
+
+    private Task RefreshProviderTimelineAsync(CancellationToken cancellationToken)
+    {
+        return RunOperationAsync("Refreshing provider activity timeline...", async ct =>
+        {
+            await LoadProviderTimelineCoreAsync(ct);
+            StatusMessage = "Provider activity timeline refreshed.";
         }, cancellationToken);
     }
 
@@ -601,6 +622,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             PlaidSyncSummary =
                 $"Pulled {sync.PulledCount}, inserted {sync.InsertedCount}, deduped {sync.DedupedCount}, unmapped {sync.UnmappedCount} at {FormatDate(sync.ProcessedAtUtc)}.";
             await LoadProviderActivityHealthCoreAsync(ct);
+            await LoadProviderTimelineCoreAsync(ct);
             StatusMessage = "Plaid transaction sync completed.";
         }, cancellationToken);
     }
@@ -614,6 +636,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
                 $"Refreshed {refresh.RefreshedCount} accounts, drifted {refresh.DriftedCount}, total drift {refresh.TotalAbsoluteDrift.ToString("$#,##0.00")} at {FormatDate(refresh.RefreshedAtUtc)}.";
             await LoadPlaidReconciliationCoreAsync(ct);
             await LoadProviderActivityHealthCoreAsync(ct);
+            await LoadProviderTimelineCoreAsync(ct);
             StatusMessage = "Plaid balances refreshed.";
         }, cancellationToken);
     }
@@ -1126,6 +1149,29 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             : activity.TraceId.Trim();
 
         ProviderHealthStatusSummary = $"Generated {ProviderActivityGeneratedAt}.";
+    }
+
+    private async Task LoadProviderTimelineCoreAsync(CancellationToken cancellationToken)
+    {
+        var timeline = await _financialIntegrationDataService.GetProviderActivityTimelineAsync(cancellationToken: cancellationToken);
+
+        ProviderTimelineEvents = new ObservableCollection<ProviderTimelineEventItemViewModel>(
+            timeline.Events.Select(eventItem => new ProviderTimelineEventItemViewModel(
+                eventItem.Source,
+                eventItem.EventType,
+                eventItem.Status,
+                FormatDate(eventItem.OccurredAtUtc),
+                eventItem.Summary,
+                string.IsNullOrWhiteSpace(eventItem.Detail) ? "-" : eventItem.Detail)));
+
+        ProviderTimelineSummary = timeline.Events.Count == 0
+            ? "No provider timeline events recorded."
+            : $"Showing {timeline.Events.Count} recent events (requested {timeline.RequestedTake}).";
+
+        if (!string.IsNullOrWhiteSpace(timeline.TraceId))
+        {
+            ProviderHealthTraceId = timeline.TraceId.Trim();
+        }
     }
 
     private async Task RunOperationAsync(

@@ -1978,13 +1978,18 @@
                                           IsLoading="{Binding IsLoading}"
                                           IsEmpty="False">
                         <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="190" />
+                            </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="14" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <StackPanel Grid.Column="0">
+                            <StackPanel Grid.Row="0" Grid.Column="0">
                                 <TextBlock Text="{Binding ProviderActivityGeneratedAt, StringFormat=Generated: {0}}" Style="{StaticResource CaptionTextStyle}" />
                                 <TextBlock Margin="0,4,0,0" Text="{Binding ProviderHealthPlaidSyncAt, StringFormat=Plaid Sync: {0}}" Style="{StaticResource CaptionTextStyle}" />
                                 <TextBlock Margin="0,4,0,0" Text="{Binding ProviderHealthBalanceRefreshAt, StringFormat=Balance Refresh: {0}}" Style="{StaticResource CaptionTextStyle}" />
@@ -1992,7 +1997,7 @@
                                 <TextBlock Margin="0,4,0,0" Text="{Binding ProviderHealthWebhookSummary}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                             </StackPanel>
 
-                            <StackPanel Grid.Column="2">
+                            <StackPanel Grid.Row="0" Grid.Column="2">
                                 <TextBlock Text="{Binding ProviderHealthNotificationSummary}"
                                            Style="{StaticResource CaptionTextStyle}"
                                            TextWrapping="Wrap" />
@@ -2027,6 +2032,9 @@
                                             Content="Refresh Panel"
                                             Command="{Binding RefreshProviderActivityCommand}" />
                                     <Button Margin="0,0,8,8"
+                                            Content="Refresh Timeline"
+                                            Command="{Binding RefreshProviderTimelineCommand}" />
+                                    <Button Margin="0,0,8,8"
                                             Content="Retry Plaid Sync"
                                             Command="{Binding SyncPlaidTransactionsCommand}" />
                                     <Button Margin="0,0,8,8"
@@ -2037,6 +2045,34 @@
                                             Command="{Binding RefreshCardIssuanceCommand}" />
                                 </WrapPanel>
                             </StackPanel>
+
+                            <TextBlock Grid.Row="1"
+                                       Grid.ColumnSpan="3"
+                                       Margin="0,10,0,6"
+                                       Text="{Binding ProviderTimelineSummary}"
+                                       Style="{StaticResource CaptionTextStyle}" />
+
+                            <DataGrid Grid.Row="2"
+                                      Grid.ColumnSpan="3"
+                                      ItemsSource="{Binding ProviderTimelineEvents}"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      IsReadOnly="True"
+                                      RowHeight="32"
+                                      GridLinesVisibility="Horizontal"
+                                      Background="{StaticResource PanelMutedBackgroundBrush}"
+                                      BorderBrush="{StaticResource PanelOutlineBrush}"
+                                      BorderThickness="1">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="130" />
+                                    <DataGridTextColumn Header="Type" Binding="{Binding EventType}" Width="170" />
+                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110" />
+                                    <DataGridTextColumn Header="Occurred" Binding="{Binding OccurredAt}" Width="130" />
+                                    <DataGridTextColumn Header="Summary" Binding="{Binding Summary}" Width="*" />
+                                    <DataGridTextColumn Header="Detail" Binding="{Binding Detail}" Width="220" />
+                                </DataGrid.Columns>
+                            </DataGrid>
                         </Grid>
                     </controls:CardControl>
 

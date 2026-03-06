@@ -102,6 +102,28 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
                 LastAttemptAtUtc: now.AddMinutes(-1),
                 LastErrorMessage: null),
             TraceId: "trace-test-001");
+        ProviderActivityTimelineResponse = new ProviderActivityTimelineResponse(
+            FamilyId: familyId,
+            GeneratedAtUtc: now,
+            RequestedTake: 25,
+            Events:
+            [
+                new ProviderTimelineEventResponse(
+                    Source: "StripeWebhook",
+                    EventType: "issuing_authorization.request",
+                    Status: "Processed",
+                    OccurredAtUtc: now.AddMinutes(-2),
+                    Summary: "Stripe webhook issuing_authorization.request -> Processed.",
+                    Detail: null),
+                new ProviderTimelineEventResponse(
+                    Source: "NotificationDispatch",
+                    EventType: "InApp",
+                    Status: "Sent",
+                    OccurredAtUtc: now.AddMinutes(-1),
+                    Summary: "Spend notification via InApp -> Sent.",
+                    Detail: null)
+            ],
+            TraceId: "trace-test-002");
 
         PlaidLinks =
         [
@@ -168,6 +190,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
 
     public ProviderActivityHealthResponse ProviderActivityHealthResponse { get; set; }
 
+    public ProviderActivityTimelineResponse ProviderActivityTimelineResponse { get; set; }
+
     public IReadOnlyList<PlaidAccountLinkResponse> PlaidLinks { get; private set; }
 
     public IReadOnlyList<EnvelopeFinancialAccountResponse> FamilyFinancialAccounts { get; private set; }
@@ -194,6 +218,20 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
     public Task<ProviderActivityHealthResponse> GetProviderActivityHealthAsync(CancellationToken cancellationToken = default)
     {
         return Task.FromResult(ProviderActivityHealthResponse);
+    }
+
+    public Task<ProviderActivityTimelineResponse> GetProviderActivityTimelineAsync(
+        int take = 25,
+        CancellationToken cancellationToken = default)
+    {
+        var bounded = take <= 0 ? ProviderActivityTimelineResponse.RequestedTake : take;
+        var events = ProviderActivityTimelineResponse.Events.Take(bounded).ToArray();
+        var response = ProviderActivityTimelineResponse with
+        {
+            RequestedTake = bounded,
+            Events = events
+        };
+        return Task.FromResult(response);
     }
 
     public Task<NotificationPreferenceResponse> GetNotificationPreferenceAsync(CancellationToken cancellationToken = default)
