@@ -35,8 +35,11 @@ public static class DependencyInjection
             SmtpPassword = configuration["FamilyInvites:Email:SmtpPassword"],
             SmtpEnableSsl = bool.TryParse(configuration["FamilyInvites:Email:SmtpEnableSsl"], out var smtpEnableSsl) && smtpEnableSsl
         };
+        var providerSecretEncryptionOptions = BuildProviderSecretEncryptionOptions(configuration);
         services.AddSingleton(Options.Create(familyInviteEmailOptions));
+        services.AddSingleton(Options.Create(providerSecretEncryptionOptions));
         services.AddSingleton<IClock, SystemClock>();
+        services.AddSingleton<IProviderSecretProtector, ProviderSecretProtector>();
         services.AddScoped<IFamilyInviteSender, FamilyInviteSender>();
         services.AddScoped<IRepositoryMarker, RepositoryMarker>();
         services.AddScoped<IFamilyRepository, FamilyRepository>();
@@ -65,5 +68,30 @@ public static class DependencyInjection
         services.AddScoped<IReportingRepository, ReportingRepository>();
 
         return services;
+    }
+
+    private static ProviderSecretEncryptionOptions BuildProviderSecretEncryptionOptions(IConfiguration configuration)
+    {
+        var keys = configuration
+            .GetSection("ProviderSecretEncryption:Keys")
+            .GetChildren()
+            .Where(static child => !string.IsNullOrWhiteSpace(child.Value))
+            .ToDictionary(
+                static child => child.Key,
+                static child => child.Value ?? string.Empty,
+                StringComparer.Ordinal);
+
+        var activeKeyId = configuration["ProviderSecretEncryption:ActiveKeyId"] ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(activeKeyId) && keys.Count > 0)
+        {
+            activeKeyId = keys.Keys.First();
+        }
+
+        return new ProviderSecretEncryptionOptions
+        {
+            Enabled = bool.TryParse(configuration["ProviderSecretEncryption:Enabled"], out var enabled) && enabled,
+            ActiveKeyId = activeKeyId,
+            Keys = keys
+        };
     }
 }
