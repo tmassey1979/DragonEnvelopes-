@@ -145,3 +145,24 @@ public sealed record NotificationPreferenceResponse(
     bool InAppEnabled,
     bool SmsEnabled,
     DateTimeOffset UpdatedAtUtc);
+
+public sealed record CreatePlaidAccountLinkRequest(
+    Guid AccountId,
+    string PlaidAccountId);
+
+public sealed record PlaidAccountLinkResponse(
+    Guid Id,
+    Guid FamilyId,
+    Guid AccountId,
+    string PlaidAccountId,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc);
+
+public sealed record PlaidTransactionSyncResponse(
+    Guid FamilyId,
+    int PulledCount,
+    int InsertedCount,
+    int DedupedCount,
+    int UnmappedCount,
+    string? NextCursor,
+    DateTimeOffset ProcessedAtUtc);

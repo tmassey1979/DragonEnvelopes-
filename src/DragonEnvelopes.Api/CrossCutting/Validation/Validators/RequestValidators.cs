@@ -130,6 +130,19 @@ public sealed class ExchangePlaidPublicTokenRequestValidator : AbstractValidator
     }
 }
 
+public sealed class CreatePlaidAccountLinkRequestValidator : AbstractValidator<CreatePlaidAccountLinkRequest>
+{
+    public CreatePlaidAccountLinkRequestValidator()
+    {
+        RuleFor(static request => request.AccountId)
+            .NotEmpty();
+
+        RuleFor(static request => request.PlaidAccountId)
+            .NotEmpty()
+            .MaximumLength(128);
+    }
+}
+
 public sealed class CreateStripeSetupIntentRequestValidator : AbstractValidator<CreateStripeSetupIntentRequest>
 {
     public CreateStripeSetupIntentRequestValidator()

@@ -49,6 +49,9 @@ public static class DependencyInjection
         services.AddScoped<IStripeWebhookEventRepository, StripeWebhookEventRepository>();
         services.AddScoped<INotificationPreferenceRepository, NotificationPreferenceRepository>();
         services.AddScoped<ISpendNotificationEventRepository, SpendNotificationEventRepository>();
+        services.AddScoped<IPlaidAccountLinkRepository, PlaidAccountLinkRepository>();
+        services.AddScoped<IPlaidSyncCursorRepository, PlaidSyncCursorRepository>();
+        services.AddScoped<IPlaidSyncedTransactionRepository, PlaidSyncedTransactionRepository>();
         services.AddScoped<IOnboardingProfileRepository, OnboardingProfileRepository>();
         services.AddScoped<IOnboardingBootstrapRepository, OnboardingBootstrapRepository>();
         services.AddScoped<IAutomationRuleRepository, AutomationRuleRepository>();

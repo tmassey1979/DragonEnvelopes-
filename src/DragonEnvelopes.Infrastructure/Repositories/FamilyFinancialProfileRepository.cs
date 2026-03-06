@@ -27,6 +27,14 @@ public sealed class FamilyFinancialProfileRepository(DragonEnvelopesDbContext db
             .FirstOrDefaultAsync(x => x.FamilyId == familyId, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<FamilyFinancialProfile>> ListPlaidConnectedAsync(CancellationToken cancellationToken = default)
+    {
+        return await dbContext.FamilyFinancialProfiles
+            .AsNoTracking()
+            .Where(x => x.PlaidConnected && x.PlaidAccessToken != null)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task AddAsync(FamilyFinancialProfile profile, CancellationToken cancellationToken = default)
     {
         dbContext.FamilyFinancialProfiles.Add(profile);

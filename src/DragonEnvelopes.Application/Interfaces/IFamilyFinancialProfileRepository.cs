@@ -10,6 +10,8 @@ public interface IFamilyFinancialProfileRepository
 
     Task<FamilyFinancialProfile?> GetByFamilyIdForUpdateAsync(Guid familyId, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<FamilyFinancialProfile>> ListPlaidConnectedAsync(CancellationToken cancellationToken = default);
+
     Task AddAsync(FamilyFinancialProfile profile, CancellationToken cancellationToken = default);
 
     Task SaveChangesAsync(CancellationToken cancellationToken = default);

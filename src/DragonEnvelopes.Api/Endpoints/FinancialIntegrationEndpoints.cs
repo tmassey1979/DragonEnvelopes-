@@ -198,6 +198,87 @@ internal static class FinancialIntegrationEndpoints
             .WithName("ExchangePlaidPublicToken")
             .WithOpenApi();
 
+        v1.MapPost("/families/{familyId:guid}/financial/plaid/account-links", async (
+                Guid familyId,
+                CreatePlaidAccountLinkRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IPlaidTransactionSyncService plaidTransactionSyncService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var link = await plaidTransactionSyncService.UpsertAccountLinkAsync(
+                    familyId,
+                    request.AccountId,
+                    request.PlaidAccountId,
+                    cancellationToken);
+                return Results.Ok(new PlaidAccountLinkResponse(
+                    link.Id,
+                    link.FamilyId,
+                    link.AccountId,
+                    link.PlaidAccountId,
+                    link.CreatedAtUtc,
+                    link.UpdatedAtUtc));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("UpsertPlaidAccountLink")
+            .WithOpenApi();
+
+        v1.MapGet("/families/{familyId:guid}/financial/plaid/account-links", async (
+                Guid familyId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IPlaidTransactionSyncService plaidTransactionSyncService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var links = await plaidTransactionSyncService.ListAccountLinksAsync(familyId, cancellationToken);
+                return Results.Ok(links.Select(link => new PlaidAccountLinkResponse(
+                    link.Id,
+                    link.FamilyId,
+                    link.AccountId,
+                    link.PlaidAccountId,
+                    link.CreatedAtUtc,
+                    link.UpdatedAtUtc)).ToArray());
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("ListPlaidAccountLinks")
+            .WithOpenApi();
+
+        v1.MapPost("/families/{familyId:guid}/financial/plaid/sync-transactions", async (
+                Guid familyId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IPlaidTransactionSyncService plaidTransactionSyncService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var sync = await plaidTransactionSyncService.SyncFamilyAsync(familyId, cancellationToken);
+                return Results.Ok(new PlaidTransactionSyncResponse(
+                    sync.FamilyId,
+                    sync.PulledCount,
+                    sync.InsertedCount,
+                    sync.DedupedCount,
+                    sync.UnmappedCount,
+                    sync.NextCursor,
+                    sync.ProcessedAtUtc));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("SyncPlaidTransactions")
+            .WithOpenApi();
+
         v1.MapPost("/families/{familyId:guid}/financial/stripe/setup-intent", async (
                 Guid familyId,
                 CreateStripeSetupIntentRequest request,

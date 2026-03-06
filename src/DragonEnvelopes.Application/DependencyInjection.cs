@@ -15,6 +15,7 @@ public static class DependencyInjection
         services.AddScoped<IOnboardingProfileService, OnboardingProfileService>();
         services.AddScoped<IOnboardingBootstrapService, OnboardingBootstrapService>();
         services.AddScoped<IFinancialIntegrationService, FinancialIntegrationService>();
+        services.AddScoped<IPlaidTransactionSyncService, PlaidTransactionSyncService>();
         services.AddScoped<IEnvelopeFinancialAccountService, EnvelopeFinancialAccountService>();
         services.AddScoped<IEnvelopePaymentCardService, EnvelopePaymentCardService>();
         services.AddScoped<IEnvelopePaymentCardControlService, EnvelopePaymentCardControlService>();

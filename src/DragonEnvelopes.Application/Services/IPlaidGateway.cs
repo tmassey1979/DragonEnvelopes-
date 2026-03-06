@@ -11,4 +11,10 @@ public interface IPlaidGateway
     Task<(string ItemId, string AccessToken)> ExchangePublicTokenAsync(
         string publicToken,
         CancellationToken cancellationToken = default);
+
+    Task<PlaidTransactionSyncResult> SyncTransactionsAsync(
+        string accessToken,
+        string? cursor,
+        int count,
+        CancellationToken cancellationToken = default);
 }

@@ -478,6 +478,36 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Cannot_Create_Plaid_Account_Link_For_FamilyB()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/financial/plaid/account-links",
+            new
+            {
+                accountId = TestApiFactory.AccountBId,
+                plaidAccountId = "plaid_account_blocked"
+            });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Sync_Plaid_Transactions_For_FamilyB()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/financial/plaid/sync-transactions",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserA_Can_List_Own_Envelope_Cards()
     {
         using var client = _factory.CreateClient();
