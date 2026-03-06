@@ -41,7 +41,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         NavigationItems = new ObservableCollection<NavigationItemViewModel>(
             navigationService.Routes.Select(static route =>
-                new NavigationItemViewModel(route.Key, route.Label, route.Glyph, route.Content)));
+                new NavigationItemViewModel(route.Key, route.Label, route.Glyph, route.Content, route.RequiredRole)));
 
         NavigateCommand = new RelayCommand<NavigationItemViewModel?>(Navigate);
         ToggleAuthenticationCommand = new AsyncRelayCommand(ToggleAuthenticationAsync);
@@ -80,6 +80,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private string apiStatus = "API idle";
 
     [ObservableProperty]
+    private string roleSummary = "Role: unknown";
+
+    [ObservableProperty]
+    private bool isParentUser;
+
+    [ObservableProperty]
     private ObservableCollection<FamilyOptionViewModel> availableFamilies = [];
 
     [ObservableProperty]
@@ -89,7 +95,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private void Navigate(NavigationItemViewModel? selectedItem)
     {
-        if (selectedItem is null)
+        if (selectedItem is null || !selectedItem.IsEnabled)
         {
             return;
         }
@@ -250,11 +256,24 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 _familyContext.SetFamilyId(null);
                 AvailableFamilies.Clear();
                 SelectedFamily = null;
+                RoleSummary = "Role: unknown";
+                IsParentUser = false;
                 return;
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync();
             using var document = await JsonDocument.ParseAsync(stream);
+            var roles = document.RootElement.TryGetProperty("roles", out var rolesElement) && rolesElement.ValueKind == JsonValueKind.Array
+                ? rolesElement.EnumerateArray().Select(static role => role.GetString())
+                    .Where(static role => !string.IsNullOrWhiteSpace(role))
+                    .ToArray()
+                : [];
+            IsParentUser = roles.Any(static role => string.Equals(role, "Parent", StringComparison.OrdinalIgnoreCase));
+            RoleSummary = roles.Length == 0
+                ? "Role: unknown"
+                : $"Roles: {string.Join(", ", roles)}";
+            ApplyRoleGates();
+
             if (!document.RootElement.TryGetProperty("familyIds", out var familyIdsElement) ||
                 familyIdsElement.ValueKind != JsonValueKind.Array)
             {
@@ -306,6 +325,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
             _familyContext.SetFamilyId(null);
             AvailableFamilies.Clear();
             SelectedFamily = null;
+            RoleSummary = "Role: unknown";
+            IsParentUser = false;
+            ApplyRoleGates();
         }
     }
 
@@ -387,6 +409,22 @@ public sealed partial class MainWindowViewModel : ObservableObject
                     await automation.LoadCommand.ExecuteAsync(null);
                     break;
             }
+        }
+    }
+
+    private void ApplyRoleGates()
+    {
+        foreach (var item in NavigationItems)
+        {
+            item.IsEnabled = string.IsNullOrWhiteSpace(item.RequiredRole)
+                || (string.Equals(item.RequiredRole, "Parent", StringComparison.OrdinalIgnoreCase) && IsParentUser);
+        }
+
+        if (NavigationItems.FirstOrDefault(item => item.IsSelected) is { IsEnabled: false })
+        {
+            _navigationService.Navigate("/dashboard");
+            SyncFromNavigationService();
+            ApiStatus = "Access adjusted: parent role required for selected route.";
         }
     }
 }

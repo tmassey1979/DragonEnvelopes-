@@ -7,4 +7,5 @@ public sealed record RouteDefinition(
     string Label,
     string Glyph,
     string TopBarSubtitle,
-    object Content);
+    object Content,
+    string? RequiredRole = null);

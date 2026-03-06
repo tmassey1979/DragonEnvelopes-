@@ -4,6 +4,7 @@
              x:Name="Root">
     <Button Margin="0,0,0,10"
             Padding="14,12"
+            IsEnabled="{Binding IsEnabled, ElementName=Root}"
             Command="{Binding Command, ElementName=Root}"
             CommandParameter="{Binding CommandParameter, ElementName=Root}">
         <Button.Style>

@@ -58,6 +58,7 @@
                             <controls:SidebarItemControl Glyph="{Binding Glyph}"
                                                          Label="{Binding Label}"
                                                          IsSelected="{Binding IsSelected}"
+                                                         IsEnabled="{Binding IsEnabled}"
                                                          Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                          CommandParameter="{Binding}" />
                         </DataTemplate>
@@ -125,7 +126,7 @@
                 <TextBlock Grid.Column="4"
                            Margin="0,0,14,0"
                            VerticalAlignment="Center"
-                           Text="{Binding ApiStatus}"
+                           Text="{Binding RoleSummary}"
                            Style="{StaticResource CaptionTextStyle}" />
 
                 <Border Grid.Column="5"

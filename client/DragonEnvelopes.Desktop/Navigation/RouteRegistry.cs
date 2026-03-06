@@ -60,7 +60,8 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Family",
                 Glyph: "\uE716",
                 TopBarSubtitle: "Household membership management",
-                Content: new FamilyMembersViewModel(new FamilyMembersDataService(apiClient, familyContext))),
+                Content: new FamilyMembersViewModel(new FamilyMembersDataService(apiClient, familyContext)),
+                RequiredRole: "Parent"),
             new RouteDefinition(
                 Key: "/recurring-bills",
                 Label: "Recurring Bills",
