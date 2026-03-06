@@ -474,6 +474,17 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Cannot_Get_FamilyB_Onboarding_Profile()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/onboarding");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserA_Can_Reconcile_Own_Onboarding_Profile_From_Family_Data()
     {
         var familyId = Guid.NewGuid();

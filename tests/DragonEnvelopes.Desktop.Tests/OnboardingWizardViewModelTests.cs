@@ -432,6 +432,147 @@ public sealed class OnboardingWizardViewModelTests
         Assert.Equal("Launching dashboard...", viewModel.StatusMessage);
     }
 
+    [Fact]
+    public async Task Recreate_ViewModel_Resumes_From_Next_Incomplete_Step()
+    {
+        var familyId = Guid.Parse("10000000-0000-0000-0000-000000000012");
+        var now = DateTimeOffset.UtcNow;
+        var onboardingDataService = new FakeOnboardingDataService(familyId)
+        {
+            FamilyProfile = new FamilyProfileData(
+                familyId,
+                string.Empty,
+                "USD",
+                "America/Chicago",
+                now,
+                now)
+        };
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-1", "Owner One", "owner1@test.dev", "Parent"));
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-2", "Owner Two", "owner2@test.dev", "Adult"));
+
+        var firstSession = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
+        await EnsureLoadedAsync(firstSession);
+
+        firstSession.FamilyNameDraft = "Resume Family";
+        firstSession.SelectedCurrencyCode = "USD";
+        firstSession.SelectedTimeZoneId = "America/Chicago";
+        await firstSession.SaveFamilyProfileCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(firstSession);
+
+        await onboardingDataService.UpdateProfileAsync(
+            membersCompleted: true,
+            accountsCompleted: true,
+            envelopesCompleted: false,
+            budgetCompleted: false,
+            plaidCompleted: false,
+            stripeAccountsCompleted: false,
+            cardsCompleted: false,
+            automationCompleted: false,
+            cancellationToken: default);
+
+        var secondSession = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
+        await EnsureLoadedAsync(secondSession);
+
+        Assert.Equal(3, secondSession.CurrentStepIndex);
+        Assert.Equal("Envelopes", secondSession.CurrentStepTitle);
+    }
+
+    [Fact]
+    public async Task Full_Onboarding_Happy_Path_Smoke_Test_Reaches_Review_And_Launches_Dashboard()
+    {
+        var familyId = Guid.Parse("10000000-0000-0000-0000-000000000013");
+        var onboardingDataService = new FakeOnboardingDataService(familyId)
+        {
+            FamilyProfile = new FamilyProfileData(
+                familyId,
+                string.Empty,
+                "USD",
+                "America/Chicago",
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow)
+        };
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-1", "Owner One", "owner1@test.dev", "Parent"));
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(Guid.NewGuid(), "owner-2", "Owner Two", "owner2@test.dev", "Adult"));
+
+        var viewModel = new OnboardingWizardViewModel(onboardingDataService, familyMembersDataService);
+        await EnsureLoadedAsync(viewModel);
+
+        viewModel.FamilyNameDraft = "Happy Path Family";
+        viewModel.SelectedCurrencyCode = "USD";
+        viewModel.SelectedTimeZoneId = "America/Chicago";
+        await viewModel.SaveFamilyProfileCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+
+        await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null); // Members
+        await WaitForIdleAsync(viewModel);
+        await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null); // Accounts
+        await WaitForIdleAsync(viewModel);
+        await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null); // Envelopes
+        await WaitForIdleAsync(viewModel);
+
+        viewModel.SelectedPayFrequency = "BiWeekly";
+        viewModel.SelectedBudgetingStyle = "ZeroBased";
+        viewModel.HouseholdMonthlyIncomeDraft = "6500";
+        await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null); // Budget
+        await WaitForIdleAsync(viewModel);
+
+        viewModel.PlaidAccountLinks.Add(new PlaidAccountLinkItemViewModel(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Checking",
+            "plai****1234",
+            DateTimeOffset.UtcNow.ToString("yyyy-MM-dd HH:mm")));
+        await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null); // Plaid
+        await WaitForIdleAsync(viewModel);
+
+        viewModel.StripeProvisioningItems.Add(new OnboardingStripeProvisioningItemViewModel(
+            Guid.NewGuid(),
+            "Groceries",
+            "Groceries",
+            false,
+            "Provisioned",
+            "fa_****1234"));
+        await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null); // Stripe
+        await WaitForIdleAsync(viewModel);
+
+        viewModel.OnboardingIssuedCards.Add(new PaymentCardItemViewModel(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Stripe",
+            "card_****1111",
+            "Virtual",
+            "Active",
+            "Visa",
+            "1111",
+            "2026-03-06 10:00",
+            "2026-03-06 10:00"));
+        await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null); // Cards
+        await WaitForIdleAsync(viewModel);
+
+        viewModel.OnboardingAutomationRules.Add(new AutomationRuleListItemViewModel(
+            Guid.NewGuid(),
+            "Auto Rule",
+            "Categorization",
+            1,
+            true,
+            "{}",
+            "{}",
+            "2026-03-06 10:00"));
+        await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null); // Automation
+        await WaitForIdleAsync(viewModel);
+
+        var launchRequested = false;
+        viewModel.LaunchDashboardRequested += () => launchRequested = true;
+        viewModel.LaunchDashboardCommand.Execute(null);
+
+        Assert.False(viewModel.HasError);
+        Assert.Equal(9, viewModel.CurrentStepIndex);
+        Assert.True(onboardingDataService.Profile.IsCompleted);
+        Assert.True(launchRequested);
+    }
+
     private static async Task EnsureLoadedAsync(OnboardingWizardViewModel viewModel)
     {
         await WaitForIdleAsync(viewModel);
