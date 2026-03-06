@@ -8,6 +8,15 @@ public interface IFamilyService
 
     Task<FamilyDetails?> GetByIdAsync(Guid familyId, CancellationToken cancellationToken = default);
 
+    Task<FamilyProfileDetails?> GetProfileAsync(Guid familyId, CancellationToken cancellationToken = default);
+
+    Task<FamilyProfileDetails> UpdateProfileAsync(
+        Guid familyId,
+        string name,
+        string currencyCode,
+        string timeZoneId,
+        CancellationToken cancellationToken = default);
+
     Task<FamilyMemberDetails> AddMemberAsync(
         Guid familyId,
         string keycloakUserId,

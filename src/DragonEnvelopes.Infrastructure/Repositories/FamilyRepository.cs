@@ -26,6 +26,12 @@ public sealed class FamilyRepository(DragonEnvelopesDbContext dbContext) : IFami
             .FirstOrDefaultAsync(x => x.Id == familyId, cancellationToken);
     }
 
+    public Task<Family?> GetFamilyByIdForUpdateAsync(Guid familyId, CancellationToken cancellationToken = default)
+    {
+        return dbContext.Families
+            .FirstOrDefaultAsync(x => x.Id == familyId, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<FamilyMember>> ListMembersAsync(Guid familyId, CancellationToken cancellationToken = default)
     {
         return await dbContext.FamilyMembers
@@ -40,6 +46,11 @@ public sealed class FamilyRepository(DragonEnvelopesDbContext dbContext) : IFami
         return dbContext.Families
             .AsNoTracking()
             .AnyAsync(x => EF.Functions.ILike(x.Name, name), cancellationToken);
+    }
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        return dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public Task<bool> MemberKeycloakUserIdExistsAsync(

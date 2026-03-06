@@ -28,9 +28,18 @@ internal sealed class FakeOnboardingDataService : IOnboardingDataService
             AccountsCreated: 1,
             EnvelopesCreated: 1,
             BudgetCreated: true);
+
+        FamilyProfile = new FamilyProfileData(
+            familyId,
+            "Test Family",
+            "USD",
+            "America/Chicago",
+            now,
+            now);
     }
 
     public OnboardingProfileData Profile { get; set; }
+    public FamilyProfileData FamilyProfile { get; set; }
 
     public OnboardingBootstrapResultData BootstrapResult { get; set; }
 
@@ -39,10 +48,16 @@ internal sealed class FakeOnboardingDataService : IOnboardingDataService
     public int BootstrapCallCount { get; private set; }
 
     public int ReconcileProfileCallCount { get; private set; }
+    public int UpdateFamilyProfileCallCount { get; private set; }
 
     public Task<OnboardingProfileData> GetProfileAsync(CancellationToken cancellationToken = default)
     {
         return Task.FromResult(Profile);
+    }
+
+    public Task<FamilyProfileData> GetFamilyProfileAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(FamilyProfile);
     }
 
     public Task<OnboardingProfileData> UpdateProfileAsync(
@@ -88,6 +103,25 @@ internal sealed class FakeOnboardingDataService : IOnboardingDataService
     {
         ReconcileProfileCallCount += 1;
         return Task.FromResult(Profile);
+    }
+
+    public Task<FamilyProfileData> UpdateFamilyProfileAsync(
+        string name,
+        string currencyCode,
+        string timeZoneId,
+        CancellationToken cancellationToken = default)
+    {
+        UpdateFamilyProfileCallCount += 1;
+        var now = DateTimeOffset.UtcNow;
+        FamilyProfile = FamilyProfile with
+        {
+            Name = name,
+            CurrencyCode = currencyCode,
+            TimeZoneId = timeZoneId,
+            UpdatedAt = now
+        };
+
+        return Task.FromResult(FamilyProfile);
     }
 
     public Task<OnboardingBootstrapResultData> BootstrapAsync(

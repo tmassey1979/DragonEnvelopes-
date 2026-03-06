@@ -94,6 +94,52 @@ internal static class FamilyEndpoints
             .WithName("GetFamilyById")
             .WithOpenApi();
 
+        v1.MapGet("/families/{familyId:guid}/profile", async (
+                Guid familyId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IFamilyService familyService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var profile = await familyService.GetProfileAsync(familyId, cancellationToken);
+                return profile is null
+                    ? Results.NotFound()
+                    : Results.Ok(EndpointMappers.MapFamilyProfileResponse(profile));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("GetFamilyProfile")
+            .WithOpenApi();
+
+        v1.MapPut("/families/{familyId:guid}/profile", async (
+                Guid familyId,
+                UpdateFamilyProfileRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IFamilyService familyService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var profile = await familyService.UpdateProfileAsync(
+                    familyId,
+                    request.Name,
+                    request.CurrencyCode,
+                    request.TimeZoneId,
+                    cancellationToken);
+                return Results.Ok(EndpointMappers.MapFamilyProfileResponse(profile));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("UpdateFamilyProfile")
+            .WithOpenApi();
+
         v1.MapPost("/families/{familyId:guid}/members", async (
                 Guid familyId,
                 AddFamilyMemberRequest request,

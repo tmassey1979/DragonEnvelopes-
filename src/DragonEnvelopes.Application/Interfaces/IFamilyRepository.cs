@@ -9,8 +9,11 @@ public interface IFamilyRepository
     Task AddMemberAsync(FamilyMember member, CancellationToken cancellationToken = default);
 
     Task<Family?> GetFamilyByIdAsync(Guid familyId, CancellationToken cancellationToken = default);
+    Task<Family?> GetFamilyByIdForUpdateAsync(Guid familyId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<FamilyMember>> ListMembersAsync(Guid familyId, CancellationToken cancellationToken = default);
+
+    Task SaveChangesAsync(CancellationToken cancellationToken = default);
 
     Task<bool> FamilyNameExistsAsync(string name, CancellationToken cancellationToken = default);
 

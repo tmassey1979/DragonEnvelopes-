@@ -34,6 +34,8 @@ public class FamilyServiceTests
         Assert.Empty(result.Members);
         Assert.NotNull(persistedFamily);
         Assert.Equal(fixture.FrozenUtcNow, persistedFamily!.CreatedAt);
+        Assert.Equal("USD", persistedFamily.CurrencyCode);
+        Assert.Equal("America/Chicago", persistedFamily.TimeZoneId);
     }
 
     [Fact]
@@ -102,5 +104,33 @@ public class FamilyServiceTests
             "Terry",
             "terry@example.com",
             "UnknownRole"));
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_Updates_Profile_Fields_And_Saves()
+    {
+        var fixture = new ApplicationTestFixture();
+        var clock = fixture.CreateClockMock();
+        var repository = new Mock<IFamilyRepository>();
+        var familyId = Guid.NewGuid();
+        var family = new Family(familyId, "Household", fixture.FrozenUtcNow);
+
+        repository.Setup(x => x.GetFamilyByIdForUpdateAsync(familyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(family);
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = new FamilyService(repository.Object, clock.Object);
+
+        var updated = await service.UpdateProfileAsync(
+            familyId,
+            "Household Prime",
+            "EUR",
+            "Europe/Berlin");
+
+        Assert.Equal("Household Prime", updated.Name);
+        Assert.Equal("EUR", updated.CurrencyCode);
+        Assert.Equal("Europe/Berlin", updated.TimeZoneId);
+        Assert.Equal(fixture.FrozenUtcNow, updated.UpdatedAt);
     }
 }

@@ -2,18 +2,41 @@ namespace DragonEnvelopes.Domain.Entities;
 
 public sealed class Family
 {
+    public const string DefaultCurrencyCode = "USD";
+    public const string DefaultTimeZoneId = "America/Chicago";
+
     private readonly List<FamilyMember> _members = [];
     private readonly List<Account> _accounts = [];
     private readonly List<Envelope> _envelopes = [];
 
     public Guid Id { get; }
     public string Name { get; private set; }
+    public string CurrencyCode { get; private set; }
+    public string TimeZoneId { get; private set; }
     public DateTimeOffset CreatedAt { get; }
+    public DateTimeOffset UpdatedAt { get; private set; }
     public IReadOnlyCollection<FamilyMember> Members => _members.AsReadOnly();
     public IReadOnlyCollection<Account> Accounts => _accounts.AsReadOnly();
     public IReadOnlyCollection<Envelope> Envelopes => _envelopes.AsReadOnly();
 
     public Family(Guid id, string name, DateTimeOffset createdAt)
+        : this(
+            id,
+            name,
+            createdAt,
+            DefaultCurrencyCode,
+            DefaultTimeZoneId,
+            createdAt)
+    {
+    }
+
+    public Family(
+        Guid id,
+        string name,
+        DateTimeOffset createdAt,
+        string currencyCode,
+        string timeZoneId,
+        DateTimeOffset updatedAt)
     {
         if (id == Guid.Empty)
         {
@@ -22,12 +45,27 @@ public sealed class Family
 
         Id = id;
         Name = ValidateText(name, "Family name");
+        CurrencyCode = ValidateCurrencyCode(currencyCode);
+        TimeZoneId = ValidateTimeZoneId(timeZoneId);
         CreatedAt = createdAt;
+        UpdatedAt = updatedAt;
     }
 
     public void Rename(string name)
     {
         Name = ValidateText(name, "Family name");
+    }
+
+    public void UpdateProfile(
+        string name,
+        string currencyCode,
+        string timeZoneId,
+        DateTimeOffset updatedAt)
+    {
+        Name = ValidateText(name, "Family name");
+        CurrencyCode = ValidateCurrencyCode(currencyCode);
+        TimeZoneId = ValidateTimeZoneId(timeZoneId);
+        UpdatedAt = updatedAt;
     }
 
     public void AddMember(FamilyMember member)
@@ -84,5 +122,30 @@ public sealed class Family
 
         return value.Trim();
     }
-}
 
+    private static string ValidateCurrencyCode(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new DomainValidationException("Currency code is required.");
+        }
+
+        var normalized = value.Trim().ToUpperInvariant();
+        if (normalized.Length != 3 || !normalized.All(static c => char.IsAsciiLetter(c)))
+        {
+            throw new DomainValidationException("Currency code must be a 3-letter code.");
+        }
+
+        return normalized;
+    }
+
+    private static string ValidateTimeZoneId(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new DomainValidationException("Time zone is required.");
+        }
+
+        return value.Trim();
+    }
+}

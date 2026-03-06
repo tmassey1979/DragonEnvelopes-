@@ -34,15 +34,16 @@ public sealed class OnboardingWizardViewModelTests
         await EnsureLoadedAsync(viewModel);
 
         Assert.False(viewModel.HasError);
-        Assert.Equal(2, viewModel.CurrentStepIndex);
+        Assert.Equal(3, viewModel.CurrentStepIndex);
         Assert.Equal("Envelopes", viewModel.CurrentStepTitle);
-        Assert.Equal(25, viewModel.ProgressPercent);
-        Assert.Equal(9, viewModel.StepItems.Count);
+        Assert.Equal(33, viewModel.ProgressPercent);
+        Assert.Equal(10, viewModel.StepItems.Count);
         Assert.True(viewModel.StepItems[0].IsCompleted);
         Assert.True(viewModel.StepItems[1].IsCompleted);
-        Assert.False(viewModel.StepItems[2].IsCompleted);
-        Assert.True(viewModel.StepItems[2].IsCurrent);
-        Assert.Equal("Current", viewModel.StepItems[2].StatusLabel);
+        Assert.True(viewModel.StepItems[2].IsCompleted);
+        Assert.False(viewModel.StepItems[3].IsCompleted);
+        Assert.True(viewModel.StepItems[3].IsCurrent);
+        Assert.Equal("Current", viewModel.StepItems[3].StatusLabel);
     }
 
     [Fact]
@@ -72,7 +73,7 @@ public sealed class OnboardingWizardViewModelTests
         var viewModel = new OnboardingWizardViewModel(onboardingDataService);
         await EnsureLoadedAsync(viewModel);
 
-        Assert.Equal(4, viewModel.CurrentStepIndex);
+        Assert.Equal(5, viewModel.CurrentStepIndex);
         Assert.Equal("Plaid Connection", viewModel.CurrentStepTitle);
 
         await viewModel.MarkCurrentStepCompleteCommand.ExecuteAsync(null);
@@ -81,12 +82,12 @@ public sealed class OnboardingWizardViewModelTests
         Assert.False(viewModel.HasError);
         Assert.Equal(1, onboardingDataService.UpdateProfileCallCount);
         Assert.True(viewModel.PlaidCompleted);
-        Assert.Equal(5, viewModel.CurrentStepIndex);
+        Assert.Equal(6, viewModel.CurrentStepIndex);
         Assert.Equal("Progress saved.", viewModel.StatusMessage);
-        Assert.Equal(63, viewModel.ProgressPercent);
-        Assert.True(viewModel.StepItems[4].IsCompleted);
-        Assert.False(viewModel.StepItems[4].IsCurrent);
-        Assert.True(viewModel.StepItems[5].IsCurrent);
+        Assert.Equal(67, viewModel.ProgressPercent);
+        Assert.True(viewModel.StepItems[5].IsCompleted);
+        Assert.False(viewModel.StepItems[5].IsCurrent);
+        Assert.True(viewModel.StepItems[6].IsCurrent);
     }
 
     [Fact]
@@ -122,7 +123,43 @@ public sealed class OnboardingWizardViewModelTests
         Assert.False(viewModel.HasError);
         Assert.Equal(1, onboardingDataService.ReconcileProfileCallCount);
         Assert.Equal("Onboarding reconciled from current family data.", viewModel.StatusMessage);
-        Assert.Equal(3, viewModel.CurrentStepIndex);
+        Assert.Equal(4, viewModel.CurrentStepIndex);
+    }
+
+    [Fact]
+    public async Task SaveFamilyProfileCommand_Persists_Profile_And_Advances_To_Members_Step()
+    {
+        var familyId = Guid.Parse("10000000-0000-0000-0000-000000000004");
+        var now = DateTimeOffset.UtcNow;
+        var onboardingDataService = new FakeOnboardingDataService(familyId)
+        {
+            FamilyProfile = new FamilyProfileData(
+                familyId,
+                string.Empty,
+                "USD",
+                "America/Chicago",
+                now,
+                now)
+        };
+
+        var viewModel = new OnboardingWizardViewModel(onboardingDataService);
+        await EnsureLoadedAsync(viewModel);
+
+        Assert.Equal(0, viewModel.CurrentStepIndex);
+        Assert.False(viewModel.FamilyProfileCompleted);
+
+        viewModel.FamilyNameDraft = "Household Prime";
+        viewModel.SelectedCurrencyCode = "USD";
+        viewModel.SelectedTimeZoneId = "America/Chicago";
+
+        await viewModel.SaveFamilyProfileCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.False(viewModel.HasError);
+        Assert.True(viewModel.FamilyProfileCompleted);
+        Assert.Equal(1, onboardingDataService.UpdateFamilyProfileCallCount);
+        Assert.Equal(1, viewModel.CurrentStepIndex);
+        Assert.Equal("Family profile saved.", viewModel.StatusMessage);
     }
 
     private static async Task EnsureLoadedAsync(OnboardingWizardViewModel viewModel)

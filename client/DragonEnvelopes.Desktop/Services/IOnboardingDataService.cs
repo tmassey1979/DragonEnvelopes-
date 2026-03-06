@@ -4,6 +4,8 @@ public interface IOnboardingDataService
 {
     Task<OnboardingProfileData> GetProfileAsync(CancellationToken cancellationToken = default);
 
+    Task<FamilyProfileData> GetFamilyProfileAsync(CancellationToken cancellationToken = default);
+
     Task<OnboardingProfileData> UpdateProfileAsync(
         bool membersCompleted,
         bool accountsCompleted,
@@ -13,6 +15,12 @@ public interface IOnboardingDataService
         bool stripeAccountsCompleted,
         bool cardsCompleted,
         bool automationCompleted,
+        CancellationToken cancellationToken = default);
+
+    Task<FamilyProfileData> UpdateFamilyProfileAsync(
+        string name,
+        string currencyCode,
+        string timeZoneId,
         CancellationToken cancellationToken = default);
 
     Task<OnboardingProfileData> ReconcileProfileAsync(CancellationToken cancellationToken = default);

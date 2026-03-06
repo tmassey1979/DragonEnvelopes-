@@ -226,6 +226,68 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Get_And_Update_Own_Family_Profile()
+    {
+        var familyId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.Families.Add(new Family(familyId, "Profile Family", now));
+            dbContext.FamilyMembers.Add(new FamilyMember(
+                Guid.NewGuid(),
+                familyId,
+                TestApiFactory.UserAId,
+                "Owner User",
+                EmailAddress.Parse($"profile-owner-{familyId:N}@test.dev"),
+                MemberRole.Parent));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var getResponse = await client.GetAsync($"/api/v1/families/{familyId}/profile");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+        var initial = await getResponse.Content.ReadFromJsonAsync<FamilyProfileResponse>();
+        Assert.NotNull(initial);
+        Assert.Equal("Profile Family", initial!.Name);
+        Assert.Equal("USD", initial.CurrencyCode);
+        Assert.Equal("America/Chicago", initial.TimeZoneId);
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/v1/families/{familyId}/profile", new
+        {
+            name = "Profile Family Updated",
+            currencyCode = "EUR",
+            timeZoneId = "Europe/Berlin"
+        });
+
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        var updated = await updateResponse.Content.ReadFromJsonAsync<FamilyProfileResponse>();
+        Assert.NotNull(updated);
+        Assert.Equal("Profile Family Updated", updated!.Name);
+        Assert.Equal("EUR", updated.CurrencyCode);
+        Assert.Equal("Europe/Berlin", updated.TimeZoneId);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Update_FamilyB_Family_Profile()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PutAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/profile", new
+        {
+            name = "Blocked",
+            currencyCode = "USD",
+            timeZoneId = "America/Chicago"
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Invite_Can_Be_Accepted_Anonymously_By_Token()
     {
         using var authorizedClient = _factory.CreateClient();

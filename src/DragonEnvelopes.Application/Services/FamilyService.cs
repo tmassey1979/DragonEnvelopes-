@@ -10,6 +10,9 @@ public sealed class FamilyService(
     IFamilyRepository familyRepository,
     IClock clock) : IFamilyService
 {
+    private const string DefaultCurrencyCode = Family.DefaultCurrencyCode;
+    private const string DefaultTimeZoneId = Family.DefaultTimeZoneId;
+
     public async Task<FamilyDetails> CreateAsync(string name, CancellationToken cancellationToken = default)
     {
         var normalizedName = string.IsNullOrWhiteSpace(name)
@@ -21,7 +24,13 @@ public sealed class FamilyService(
             throw new DomainValidationException("A family with the same name already exists.");
         }
 
-        var family = new Family(Guid.NewGuid(), normalizedName, clock.UtcNow);
+        var family = new Family(
+            Guid.NewGuid(),
+            normalizedName,
+            clock.UtcNow,
+            DefaultCurrencyCode,
+            DefaultTimeZoneId,
+            clock.UtcNow);
         await familyRepository.AddFamilyAsync(family, cancellationToken);
         return Map(family, []);
     }
@@ -36,6 +45,36 @@ public sealed class FamilyService(
 
         var members = await familyRepository.ListMembersAsync(familyId, cancellationToken);
         return Map(family, members);
+    }
+
+    public async Task<FamilyProfileDetails?> GetProfileAsync(Guid familyId, CancellationToken cancellationToken = default)
+    {
+        var family = await familyRepository.GetFamilyByIdAsync(familyId, cancellationToken);
+        if (family is null)
+        {
+            return null;
+        }
+
+        return MapProfile(family);
+    }
+
+    public async Task<FamilyProfileDetails> UpdateProfileAsync(
+        Guid familyId,
+        string name,
+        string currencyCode,
+        string timeZoneId,
+        CancellationToken cancellationToken = default)
+    {
+        var family = await familyRepository.GetFamilyByIdForUpdateAsync(familyId, cancellationToken);
+        if (family is null)
+        {
+            throw new DomainValidationException("Family was not found.");
+        }
+
+        family.UpdateProfile(name, currencyCode, timeZoneId, clock.UtcNow);
+        await familyRepository.SaveChangesAsync(cancellationToken);
+
+        return MapProfile(family);
     }
 
     public async Task<FamilyMemberDetails> AddMemberAsync(
@@ -100,6 +139,17 @@ public sealed class FamilyService(
             family.CreatedAt,
             members.Select(MapMember)
                 .ToArray());
+    }
+
+    private static FamilyProfileDetails MapProfile(Family family)
+    {
+        return new FamilyProfileDetails(
+            family.Id,
+            family.Name,
+            family.CurrencyCode,
+            family.TimeZoneId,
+            family.CreatedAt,
+            family.UpdatedAt);
     }
 
     private static FamilyMemberDetails MapMember(FamilyMember member)

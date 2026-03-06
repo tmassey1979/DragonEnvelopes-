@@ -7,8 +7,12 @@ namespace DragonEnvelopes.Desktop.ViewModels;
 
 public sealed partial class OnboardingWizardViewModel : ObservableObject
 {
+    private const string DefaultCurrencyCode = "USD";
+    private const string DefaultTimeZoneId = "America/Chicago";
+
     private static readonly string[] StepTitles =
     [
+        "Family Profile",
         "Family Members",
         "Accounts",
         "Envelopes",
@@ -19,8 +23,19 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         "Automation Rules",
         "Review"
     ];
+
     private static readonly string[] AccountTypes = ["Checking", "Savings", "Cash", "Credit"];
-    private const int MilestoneCount = 8;
+    private static readonly string[] CurrencyCodes = ["USD", "CAD", "EUR", "GBP"];
+    private static readonly string[] TimeZoneIds =
+    [
+        "America/Chicago",
+        "America/New_York",
+        "America/Denver",
+        "America/Los_Angeles",
+        "UTC"
+    ];
+
+    private const int MilestoneCount = 9;
 
     private readonly IOnboardingDataService _onboardingDataService;
 
@@ -32,6 +47,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         PreviousStepCommand = new RelayCommand(PreviousStep);
         MarkCurrentStepCompleteCommand = new AsyncRelayCommand(MarkCurrentStepCompleteAsync);
         ReconcileProgressCommand = new AsyncRelayCommand(ReconcileProgressAsync);
+        SaveFamilyProfileCommand = new AsyncRelayCommand(SaveFamilyProfileAsync);
         AddAccountRowCommand = new RelayCommand(AddAccountRow);
         RemoveAccountRowCommand = new RelayCommand<OnboardingAccountDraftViewModel?>(RemoveAccountRow);
         AddEnvelopeRowCommand = new RelayCommand(AddEnvelopeRow);
@@ -42,10 +58,13 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         {
             StepItems.Add(new OnboardingStepItemViewModel(index, title));
         }
+
         AddAccountRow();
         AddEnvelopeRow();
         BudgetMonth = DateTime.UtcNow.ToString("yyyy-MM");
         BudgetIncome = "0";
+        SelectedCurrencyCode = DefaultCurrencyCode;
+        SelectedTimeZoneId = DefaultTimeZoneId;
         RefreshStepItems();
         _ = LoadCommand.ExecuteAsync(null);
     }
@@ -55,6 +74,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     public IRelayCommand PreviousStepCommand { get; }
     public IAsyncRelayCommand MarkCurrentStepCompleteCommand { get; }
     public IAsyncRelayCommand ReconcileProgressCommand { get; }
+    public IAsyncRelayCommand SaveFamilyProfileCommand { get; }
     public IRelayCommand AddAccountRowCommand { get; }
     public IRelayCommand<OnboardingAccountDraftViewModel?> RemoveAccountRowCommand { get; }
     public IRelayCommand AddEnvelopeRowCommand { get; }
@@ -64,12 +84,17 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
 
     public IReadOnlyList<string> Steps { get; } = StepTitles;
     public IReadOnlyList<string> AccountTypeOptions { get; } = AccountTypes;
+    public IReadOnlyList<string> CurrencyOptions { get; } = CurrencyCodes;
+    public IReadOnlyList<string> TimeZoneOptions { get; } = TimeZoneIds;
 
     [ObservableProperty]
     private int currentStepIndex;
 
     [ObservableProperty]
     private ObservableCollection<OnboardingStepItemViewModel> stepItems = [];
+
+    [ObservableProperty]
+    private bool familyProfileCompleted;
 
     [ObservableProperty]
     private bool membersCompleted;
@@ -119,12 +144,22 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     [ObservableProperty]
     private string budgetIncome = "0";
 
+    [ObservableProperty]
+    private string familyNameDraft = string.Empty;
+
+    [ObservableProperty]
+    private string selectedCurrencyCode = DefaultCurrencyCode;
+
+    [ObservableProperty]
+    private string selectedTimeZoneId = DefaultTimeZoneId;
+
     public string CurrentStepTitle => Steps[Math.Clamp(CurrentStepIndex, 0, Steps.Count - 1)];
 
     public bool IsFirstStep => CurrentStepIndex == 0;
     public bool IsLastStep => CurrentStepIndex == Steps.Count - 1;
     public bool CanGoBack => !IsFirstStep;
     public bool CanGoNext => !IsLastStep;
+    public bool IsFamilyProfileStep => CurrentStepIndex == 0;
 
     public int ProgressPercent
     {
@@ -148,7 +183,12 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
 
         try
         {
-            var profile = await _onboardingDataService.GetProfileAsync(cancellationToken);
+            var profileTask = _onboardingDataService.GetProfileAsync(cancellationToken);
+            var familyProfileTask = _onboardingDataService.GetFamilyProfileAsync(cancellationToken);
+            await Task.WhenAll(profileTask, familyProfileTask);
+
+            ApplyFamilyProfile(await familyProfileTask);
+            var profile = await profileTask;
             ApplyProfile(profile);
 
             StatusMessage = profile.IsCompleted
@@ -185,6 +225,17 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
 
     private async Task MarkCurrentStepCompleteAsync(CancellationToken cancellationToken)
     {
+        if (CurrentStepIndex == 0)
+        {
+            var saved = await SaveFamilyProfileCoreAsync(cancellationToken);
+            if (saved && CurrentStepIndex == 0)
+            {
+                CurrentStepIndex = 1;
+            }
+
+            return;
+        }
+
         var nextMembers = MembersCompleted;
         var nextAccounts = AccountsCompleted;
         var nextEnvelopes = EnvelopesCompleted;
@@ -196,28 +247,28 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
 
         switch (CurrentStepIndex)
         {
-            case 0:
+            case 1:
                 nextMembers = true;
                 break;
-            case 1:
+            case 2:
                 nextAccounts = true;
                 break;
-            case 2:
+            case 3:
                 nextEnvelopes = true;
                 break;
-            case 3:
+            case 4:
                 nextBudget = true;
                 break;
-            case 4:
+            case 5:
                 nextPlaid = true;
                 break;
-            case 5:
+            case 6:
                 nextStripeAccounts = true;
                 break;
-            case 6:
+            case 7:
                 nextCards = true;
                 break;
-            case 7:
+            case 8:
                 nextAutomation = true;
                 break;
         }
@@ -265,6 +316,68 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
             HasError = true;
             ErrorMessage = $"Unable to reconcile onboarding progress: {ex.Message}";
         }
+    }
+
+    private async Task SaveFamilyProfileAsync(CancellationToken cancellationToken)
+    {
+        var saved = await SaveFamilyProfileCoreAsync(cancellationToken);
+        if (saved && CurrentStepIndex == 0)
+        {
+            CurrentStepIndex = 1;
+        }
+    }
+
+    private async Task<bool> SaveFamilyProfileCoreAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        var validationError = ValidateFamilyProfileDraft();
+        if (!string.IsNullOrWhiteSpace(validationError))
+        {
+            HasError = true;
+            ErrorMessage = validationError;
+            return false;
+        }
+
+        try
+        {
+            var updated = await _onboardingDataService.UpdateFamilyProfileAsync(
+                FamilyNameDraft.Trim(),
+                SelectedCurrencyCode.Trim().ToUpperInvariant(),
+                SelectedTimeZoneId.Trim(),
+                cancellationToken);
+
+            ApplyFamilyProfile(updated);
+            StatusMessage = "Family profile saved.";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to save family profile: {ex.Message}";
+            return false;
+        }
+    }
+
+    private string? ValidateFamilyProfileDraft()
+    {
+        if (string.IsNullOrWhiteSpace(FamilyNameDraft))
+        {
+            return "Family name is required.";
+        }
+
+        if (string.IsNullOrWhiteSpace(SelectedCurrencyCode))
+        {
+            return "Currency is required.";
+        }
+
+        if (string.IsNullOrWhiteSpace(SelectedTimeZoneId))
+        {
+            return "Time zone is required.";
+        }
+
+        return null;
     }
 
     private async Task SubmitBootstrapAsync(CancellationToken cancellationToken)
@@ -386,52 +499,66 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         OnPropertyChanged(nameof(IsLastStep));
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(CanGoNext));
+        OnPropertyChanged(nameof(IsFamilyProfileStep));
         RefreshStepItems();
     }
 
-    private static int DetermineCurrentStepIndex(OnboardingProfileData profile)
+    private static int DetermineCurrentStepIndex(bool familyProfileCompleted, OnboardingProfileData profile)
     {
-        if (!profile.MembersCompleted)
+        if (!familyProfileCompleted)
         {
             return 0;
         }
 
-        if (!profile.AccountsCompleted)
+        if (!profile.MembersCompleted)
         {
             return 1;
         }
 
-        if (!profile.EnvelopesCompleted)
+        if (!profile.AccountsCompleted)
         {
             return 2;
         }
 
-        if (!profile.BudgetCompleted)
+        if (!profile.EnvelopesCompleted)
         {
             return 3;
         }
 
-        if (!profile.PlaidCompleted)
+        if (!profile.BudgetCompleted)
         {
             return 4;
         }
 
-        if (!profile.StripeAccountsCompleted)
+        if (!profile.PlaidCompleted)
         {
             return 5;
         }
 
-        if (!profile.CardsCompleted)
+        if (!profile.StripeAccountsCompleted)
         {
             return 6;
         }
 
-        if (!profile.AutomationCompleted)
+        if (!profile.CardsCompleted)
         {
             return 7;
         }
 
-        return 8;
+        if (!profile.AutomationCompleted)
+        {
+            return 8;
+        }
+
+        return 9;
+    }
+
+    private void ApplyFamilyProfile(FamilyProfileData profile)
+    {
+        FamilyNameDraft = profile.Name;
+        SelectedCurrencyCode = NormalizeCurrency(profile.CurrencyCode);
+        SelectedTimeZoneId = NormalizeTimeZone(profile.TimeZoneId);
+        FamilyProfileCompleted = IsFamilyProfileComplete(FamilyNameDraft, SelectedCurrencyCode, SelectedTimeZoneId);
     }
 
     private void ApplyProfile(OnboardingProfileData profile)
@@ -444,7 +571,7 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         StripeAccountsCompleted = profile.StripeAccountsCompleted;
         CardsCompleted = profile.CardsCompleted;
         AutomationCompleted = profile.AutomationCompleted;
-        CurrentStepIndex = DetermineCurrentStepIndex(profile);
+        CurrentStepIndex = DetermineCurrentStepIndex(FamilyProfileCompleted, profile);
         RefreshStepItems();
     }
 
@@ -461,14 +588,15 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     {
         return stepIndex switch
         {
-            0 => MembersCompleted,
-            1 => AccountsCompleted,
-            2 => EnvelopesCompleted,
-            3 => BudgetCompleted,
-            4 => PlaidCompleted,
-            5 => StripeAccountsCompleted,
-            6 => CardsCompleted,
-            7 => AutomationCompleted,
+            0 => FamilyProfileCompleted,
+            1 => MembersCompleted,
+            2 => AccountsCompleted,
+            3 => EnvelopesCompleted,
+            4 => BudgetCompleted,
+            5 => PlaidCompleted,
+            6 => StripeAccountsCompleted,
+            7 => CardsCompleted,
+            8 => AutomationCompleted,
             _ => CountCompletedMilestones() == MilestoneCount
         };
     }
@@ -476,6 +604,11 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
     private int CountCompletedMilestones()
     {
         var completed = 0;
+        if (FamilyProfileCompleted)
+        {
+            completed++;
+        }
+
         if (MembersCompleted)
         {
             completed++;
@@ -519,6 +652,44 @@ public sealed partial class OnboardingWizardViewModel : ObservableObject
         return completed;
     }
 
+    private static bool IsFamilyProfileComplete(string? name, string? currencyCode, string? timeZoneId)
+    {
+        return !string.IsNullOrWhiteSpace(name)
+               && !string.IsNullOrWhiteSpace(currencyCode)
+               && !string.IsNullOrWhiteSpace(timeZoneId);
+    }
+
+    private string NormalizeCurrency(string? currencyCode)
+    {
+        if (!string.IsNullOrWhiteSpace(currencyCode))
+        {
+            var normalized = currencyCode.Trim().ToUpperInvariant();
+            if (CurrencyOptions.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+            {
+                return normalized;
+            }
+        }
+
+        return DefaultCurrencyCode;
+    }
+
+    private string NormalizeTimeZone(string? timeZoneId)
+    {
+        if (!string.IsNullOrWhiteSpace(timeZoneId))
+        {
+            var normalized = timeZoneId.Trim();
+            if (TimeZoneOptions.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+            {
+                return normalized;
+            }
+
+            return normalized;
+        }
+
+        return DefaultTimeZoneId;
+    }
+
+    partial void OnFamilyProfileCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
     partial void OnMembersCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
     partial void OnAccountsCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));
     partial void OnEnvelopesCompletedChanged(bool value) => OnPropertyChanged(nameof(ProgressPercent));

@@ -31,6 +31,17 @@ internal static class EndpointMappers
                 .ToArray());
     }
 
+    public static FamilyProfileResponse MapFamilyProfileResponse(FamilyProfileDetails family)
+    {
+        return new FamilyProfileResponse(
+            family.Id,
+            family.Name,
+            family.CurrencyCode,
+            family.TimeZoneId,
+            family.CreatedAt,
+            family.UpdatedAt);
+    }
+
     public static FamilyMemberResponse MapFamilyMemberResponse(FamilyMemberDetails member)
     {
         return new FamilyMemberResponse(

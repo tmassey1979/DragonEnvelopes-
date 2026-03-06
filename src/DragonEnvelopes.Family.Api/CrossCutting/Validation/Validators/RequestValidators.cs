@@ -50,6 +50,25 @@ public sealed class CompleteFamilyOnboardingRequestValidator : AbstractValidator
     }
 }
 
+public sealed class UpdateFamilyProfileRequestValidator : AbstractValidator<UpdateFamilyProfileRequest>
+{
+    public UpdateFamilyProfileRequestValidator()
+    {
+        RuleFor(static request => request.Name)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(static request => request.CurrencyCode)
+            .NotEmpty()
+            .Length(3)
+            .Matches("^[A-Za-z]{3}$");
+
+        RuleFor(static request => request.TimeZoneId)
+            .NotEmpty()
+            .MaximumLength(100);
+    }
+}
+
 public sealed class AddFamilyMemberRequestValidator : AbstractValidator<AddFamilyMemberRequest>
 {
     private static readonly string[] AllowedRoles = ["Parent", "Adult", "Teen", "Child"];

@@ -19,7 +19,18 @@ public sealed class FamilyConfiguration : IEntityTypeConfiguration<Family>
             .HasMaxLength(200)
             .IsRequired();
 
+        builder.Property(x => x.CurrencyCode)
+            .HasMaxLength(3)
+            .IsRequired();
+
+        builder.Property(x => x.TimeZoneId)
+            .HasMaxLength(100)
+            .IsRequired();
+
         builder.Property(x => x.CreatedAt)
+            .IsRequired();
+
+        builder.Property(x => x.UpdatedAt)
             .IsRequired();
 
         builder.Ignore(x => x.Members);
@@ -27,4 +38,3 @@ public sealed class FamilyConfiguration : IEntityTypeConfiguration<Family>
         builder.Ignore(x => x.Envelopes);
     }
 }
-
