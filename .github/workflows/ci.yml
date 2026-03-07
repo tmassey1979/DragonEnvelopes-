@@ -28,6 +28,17 @@ jobs:
         shell: pwsh
         run: ./eng/verify-architecture.ps1 -RepoRoot .
 
+      - name: Verify API and desktop contract drift
+        shell: pwsh
+        run: ./eng/verify-contract-drift.ps1 -RepoRoot .
+
+      - name: Upload contract drift report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-drift-report
+          path: artifacts/contract-drift/contract-drift-report.md
+
       - name: Build
         run: dotnet build DragonEnvelopes.sln --configuration Release --no-restore
 
