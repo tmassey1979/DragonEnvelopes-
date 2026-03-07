@@ -21,5 +21,5 @@ Use this checklist at the start and end of every task.
 ## Session Run Log
 - Active task: `TBD`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#208` Ledger API modularization: split automation endpoint mapping by concern.
+- Previous completed task: `#209` Architecture guardrails: verify Family/Ledger API dependency boundaries.
 - Last updated: `2026-03-06`.

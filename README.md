@@ -9,17 +9,24 @@ Initial implementation uses .NET 8 with a Clean Architecture layout.
 - `src/DragonEnvelopes.Application`
 - `src/DragonEnvelopes.Infrastructure`
 - `src/DragonEnvelopes.Api`
+- `src/DragonEnvelopes.Family.Api`
+- `src/DragonEnvelopes.Ledger.Api`
 - `src/DragonEnvelopes.Contracts`
+- `src/DragonEnvelopes.ProviderClients`
 - `client/DragonEnvelopes.Desktop`
 - `tests/DragonEnvelopes.Domain.Tests`
 - `tests/DragonEnvelopes.Application.Tests`
+- `tests/DragonEnvelopes.Api.IntegrationTests`
+- `tests/DragonEnvelopes.Desktop.Tests`
 
 ## Architecture Dependencies
 
 - Domain: no project references.
+- Contracts: no project references.
 - Application: references Domain.
+- ProviderClients: references Application and Domain.
 - Infrastructure: references Application and Domain.
-- API: references Application, Infrastructure, and Contracts.
+- API/Family API/Ledger API: reference Application, Infrastructure, Contracts, and ProviderClients.
 - Desktop: references Contracts only.
 - Tests: reference only the layer they validate.
 
