@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `TBD`.
+- Active task: `#214` Observability: enable Grafana Loki logging for Family and Ledger APIs.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
 - Previous completed task: `#213` Integration coverage: add Family API and Ledger API smoke test projects.
-- Last updated: `2026-03-06`.
+- Last updated: `2026-03-07`.

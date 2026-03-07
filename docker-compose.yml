@@ -123,6 +123,8 @@ services:
       Authentication__Authority: http://keycloak:8080/realms/${KEYCLOAK_REALM:-dragonenvelopes}
       Authentication__PublicAuthority: http://localhost:${KEYCLOAK_PORT:-18080}/realms/${KEYCLOAK_REALM:-dragonenvelopes}
       Authentication__Audience: ${KEYCLOAK_CLIENT_ID:-dragonenvelopes-api}
+      Observability__EnableLokiSink: ${OBSERVABILITY_ENABLE_LOKI_SINK:-false}
+      Observability__LokiUrl: ${OBSERVABILITY_LOKI_URL:-http://loki:3100}
       Keycloak__ServerUrl: http://keycloak:8080
       Keycloak__Realm: ${KEYCLOAK_REALM:-dragonenvelopes}
       Keycloak__AdminRealm: ${KEYCLOAK_ADMIN_REALM:-master}
@@ -158,6 +160,8 @@ services:
       Authentication__Authority: http://keycloak:8080/realms/${KEYCLOAK_REALM:-dragonenvelopes}
       Authentication__PublicAuthority: http://localhost:${KEYCLOAK_PORT:-18080}/realms/${KEYCLOAK_REALM:-dragonenvelopes}
       Authentication__Audience: ${KEYCLOAK_CLIENT_ID:-dragonenvelopes-api}
+      Observability__EnableLokiSink: ${OBSERVABILITY_ENABLE_LOKI_SINK:-false}
+      Observability__LokiUrl: ${OBSERVABILITY_LOKI_URL:-http://loki:3100}
     ports:
       - "${LEDGER_API_PORT:-18090}:8080"
     healthcheck:

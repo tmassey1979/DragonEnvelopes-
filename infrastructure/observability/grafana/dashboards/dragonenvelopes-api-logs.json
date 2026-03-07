@@ -90,13 +90,13 @@
             "uid": "dragonenvelopes-loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({application=\"dragonenvelopes-api\"} |= \"HTTP\" | json | StatusCode=~\"5..\" [5m]))",
-          "legendFormat": "5xx responses",
+          "expr": "sum by (application) (count_over_time({application=~\"dragonenvelopes-(api|family-api|ledger-api)\"} |= \"HTTP\" | json | StatusCode=~\"5..\" [5m]))",
+          "legendFormat": "{{application}} 5xx responses",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "API 5xx Count (5m)",
+      "title": "Service 5xx Count (5m)",
       "type": "timeseries"
     },
     {
@@ -128,12 +128,12 @@
             "uid": "dragonenvelopes-loki"
           },
           "editorMode": "code",
-          "expr": "{application=\"dragonenvelopes-api\"} | json | line_format \"{{.level}} {{.CorrelationId}} {{.RequestPath}} {{.StatusCode}} {{.ExceptionType}} {{.message}}\"",
+          "expr": "{application=~\"dragonenvelopes-(api|family-api|ledger-api)\"} | json | line_format \"{{.application}} {{.level}} {{.CorrelationId}} {{.RequestPath}} {{.StatusCode}} {{.ExceptionType}} {{.message}}\"",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "API Request and Exception Trace Logs",
+      "title": "Service Request and Exception Trace Logs",
       "type": "logs"
     }
   ],
@@ -143,6 +143,8 @@
   "tags": [
     "dragonenvelopes",
     "api",
+    "family-api",
+    "ledger-api",
     "logs"
   ],
   "templating": {
@@ -154,8 +156,8 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "DragonEnvelopes API Logs",
+  "title": "DragonEnvelopes Service Logs",
   "uid": "dragonenvelopes-api-logs",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

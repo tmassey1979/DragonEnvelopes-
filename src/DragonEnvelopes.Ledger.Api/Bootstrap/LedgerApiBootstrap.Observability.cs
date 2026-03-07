@@ -2,6 +2,7 @@
 using DragonEnvelopes.Ledger.Api.CrossCutting.OpenApi;
 using Microsoft.OpenApi.Models;
 using Serilog;
+using Serilog.Sinks.Grafana.Loki;
 
 namespace DragonEnvelopes.Ledger.Api.Bootstrap;
 
@@ -11,12 +12,33 @@ internal static partial class LedgerApiBootstrap
     {
         builder.Host.UseSerilog((context, services, configuration) =>
         {
+            var enableLokiSink = context.Configuration.GetValue<bool>("Observability:EnableLokiSink");
+            var lokiUrl = context.Configuration["Observability:LokiUrl"];
+
             configuration
                 .ReadFrom.Configuration(context.Configuration)
                 .ReadFrom.Services(services)
                 .Enrich.FromLogContext()
                 .Enrich.WithProperty("Application", "DragonEnvelopes.Ledger.Api")
                 .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName);
+
+            if (enableLokiSink && !string.IsNullOrWhiteSpace(lokiUrl))
+            {
+                configuration.WriteTo.GrafanaLoki(
+                    lokiUrl,
+                    labels:
+                    [
+                        new LokiLabel { Key = "application", Value = "dragonenvelopes-ledger-api" },
+                        new LokiLabel { Key = "environment", Value = context.HostingEnvironment.EnvironmentName.ToLowerInvariant() }
+                    ],
+                    propertiesAsLabels:
+                    [
+                        "CorrelationId",
+                        "RequestPath",
+                        "StatusCode",
+                        "ExceptionType"
+                    ]);
+            }
         });
     }
 

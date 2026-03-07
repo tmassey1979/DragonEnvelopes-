@@ -79,8 +79,8 @@ docker compose --profile microservices up -d --build
 - `KEYCLOAK_CLIENT_ID`: Client/audience used by API auth config.
 - `KEYCLOAK_ADMIN_REALM`: Realm used for Keycloak admin token flow (typically `master`).
 - `KEYCLOAK_ADMIN_CLIENT_ID`: Admin client id for token acquisition (typically `admin-cli`).
-- `OBSERVABILITY_ENABLE_LOKI_SINK`: Enables direct API -> Loki sink (`true` or `false`).
-- `OBSERVABILITY_LOKI_URL`: Loki base URL used by API sink.
+- `OBSERVABILITY_ENABLE_LOKI_SINK`: Enables direct API -> Loki sink for API, Family API, and Ledger API (`true` or `false`).
+- `OBSERVABILITY_LOKI_URL`: Loki base URL used by all API sinks.
 - `LOKI_PORT`: Host port mapped to Loki container `3100` (observability profile).
 - `GRAFANA_PORT`: Host port mapped to Grafana container `3000` (observability profile).
 - `GRAFANA_ADMIN_USER`: Grafana admin username (observability profile).
@@ -122,11 +122,11 @@ API health endpoints:
 
 ### Observability Profile (Grafana + Loki + Promtail)
 
-Start with API log shipping enabled:
+Start with service log shipping enabled:
 
 ```powershell
 $env:OBSERVABILITY_ENABLE_LOKI_SINK='true'
-docker compose --profile observability up -d
+docker compose --profile observability --profile microservices up -d
 ```
 
 Default observability endpoints:
@@ -143,35 +143,39 @@ Grafana defaults (from `.env`):
 Provisioned Grafana assets:
 
 - Loki datasource: `DragonEnvelopes Loki`
-- Dashboard: `DragonEnvelopes API Logs`
+- Dashboard: `DragonEnvelopes Service Logs`
 
 Saved log query patterns:
 
-- API error rate (5xx over 5 minutes):
-  - `sum(count_over_time({application="dragonenvelopes-api"} |= "HTTP" | json | StatusCode=~"5.." [5m]))`
-- API trace + exception details:
-  - `{application="dragonenvelopes-api"} | json | line_format "{{.level}} {{.CorrelationId}} {{.RequestPath}} {{.StatusCode}} {{.ExceptionType}} {{.message}}"`
+- Service error rate (5xx over 5 minutes):
+  - `sum by (application) (count_over_time({application=~"dragonenvelopes-(api|family-api|ledger-api)"} |= "HTTP" | json | StatusCode=~"5.." [5m]))`
+- Service trace + exception details:
+  - `{application=~"dragonenvelopes-(api|family-api|ledger-api)"} | json | line_format "{{.application}} {{.level}} {{.CorrelationId}} {{.RequestPath}} {{.StatusCode}} {{.ExceptionType}} {{.message}}"`
 
 Verification flow:
 
-1. Start stack with observability profile.
+1. Start stack with observability + microservices profiles.
 2. Generate API traffic:
    - `Invoke-WebRequest http://localhost:18088/health/live`
+   - `Invoke-WebRequest http://localhost:18089/health/live`
+   - `Invoke-WebRequest http://localhost:18090/health/live`
    - `Invoke-WebRequest http://localhost:18088/api/v1/weatherforecast`
 3. Open Grafana Explore and run:
-   - `{application="dragonenvelopes-api"}`
+   - `{application=~"dragonenvelopes-(api|family-api|ledger-api)"}`
 4. Confirm logs include `CorrelationId`, `RequestPath`, and `StatusCode`.
 
 Troubleshooting:
 
-- If no logs appear, verify API sink flag:
+- If no logs appear, verify sink flag:
   - `OBSERVABILITY_ENABLE_LOKI_SINK=true`
 - Check Loki ingestion health:
   - `Invoke-WebRequest http://localhost:3100/ready`
 - Validate promtail targets:
   - `docker compose logs promtail`
-- Confirm API container can resolve Loki service:
+- Confirm API containers can resolve Loki service:
   - `docker compose exec api printenv Observability__LokiUrl`
+  - `docker compose exec family-api printenv Observability__LokiUrl`
+  - `docker compose exec ledger-api printenv Observability__LokiUrl`
 
 ## Keycloak Bootstrap
 
