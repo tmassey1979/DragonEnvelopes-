@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#237 CI: contract drift guard between APIs and desktop client contracts`.
+- Active task: `#238 End-to-end smoke workflow in CI (auth -> family -> import -> report)`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#236` Family member bulk import (CSV) with preview and validation.
+- Previous completed task: `#237` CI contract drift guard between APIs and desktop client contracts.
 - Last updated: `2026-03-07`.

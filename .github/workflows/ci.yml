@@ -168,9 +168,29 @@ jobs:
           wait_for "Family API" "http://localhost:18089/health/ready"
           wait_for "Ledger API" "http://localhost:18090/health/ready"
 
+      - name: Run end-to-end smoke scenario
+        shell: bash
+        run: bash ./eng/run-e2e-smoke.sh
+
+      - name: Capture compose logs on smoke failure
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p artifacts/e2e-smoke
+          docker compose --profile microservices ps > artifacts/e2e-smoke/compose-ps.txt || true
+          docker compose --profile microservices logs --no-color api family-api ledger-api keycloak postgres > artifacts/e2e-smoke/compose-logs.txt || true
+
       - name: Stop compose services
         if: always()
         run: docker compose --profile microservices down -v --remove-orphans
+
+      - name: Upload e2e smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-smoke-artifacts
+          path: artifacts/e2e-smoke/**
+          if-no-files-found: warn
 
   observability-compose-smoke:
     runs-on: ubuntu-latest
