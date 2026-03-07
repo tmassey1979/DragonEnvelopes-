@@ -115,9 +115,29 @@ services:
       Observability__EnableLokiSink: ${OBSERVABILITY_ENABLE_LOKI_SINK:-false}
       Observability__LokiUrl: ${OBSERVABILITY_LOKI_URL:-http://loki:3100}
     ports:
-      - "${API_PORT:-18088}:8080"
+      - "${MONOLITH_API_PORT:-18092}:8080"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - dragonenvelopes_net
+
+  api-gateway:
+    image: nginx:1.27-alpine
+    container_name: dragonenvelopes-api-gateway
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "${API_PORT:-18088}:8080"
+    volumes:
+      - ./infrastructure/nginx/api-gateway.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10

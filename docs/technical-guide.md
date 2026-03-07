@@ -46,7 +46,7 @@ Copy-Item .env.example .env
 docker compose up -d --build
 ```
 
-3. Start split service profile (Family/Ledger containers):
+3. Start split service profile (Family/Ledger/Financial containers behind gateway):
 
 ```powershell
 docker compose --profile microservices up -d --build
@@ -76,9 +76,11 @@ dotnet test tests/DragonEnvelopes.Desktop.Tests/DragonEnvelopes.Desktop.Tests.cs
 
 ## 5. Runtime Endpoints (Default Local)
 
-- API: `http://localhost:18088`
+- API Gateway (single base URL): `http://localhost:18088`
+- Monolith API (direct): `http://localhost:18092`
 - Family API (microservices profile): `http://localhost:18089`
 - Ledger API (microservices profile): `http://localhost:18090`
+- Financial API (microservices profile): `http://localhost:18091`
 - Keycloak: `http://localhost:18080`
 - pgAdmin: `http://localhost:5050`
 - Postgres: `localhost:5433`

@@ -75,7 +75,8 @@ docker compose --profile microservices up -d --build
 - `POSTGRES_PORT`: Host port mapped to Postgres container `5432`.
 - `PGADMIN_PORT`: Host port mapped to pgAdmin container `80`.
 - `KEYCLOAK_PORT`: Host port mapped to Keycloak container `8080`.
-- `API_PORT`: Host port mapped to API container `8080`.
+- `API_PORT`: Host port mapped to NGINX API gateway container `8080` (single desktop/API entrypoint).
+- `MONOLITH_API_PORT`: Host port mapped to monolith API container `8080` (direct access/fallback diagnostics).
 - `FAMILY_API_PORT`: Host port mapped to Family API container `8080` (microservices profile).
 - `LEDGER_API_PORT`: Host port mapped to Ledger API container `8080` (microservices profile).
 - `FINANCIAL_API_PORT`: Host port mapped to Financial API container `8080` (microservices profile).
@@ -113,7 +114,8 @@ docker compose --profile microservices up -d --build
 
 Default local endpoints:
 
-- API: `http://localhost:18088`
+- API Gateway (single base URL): `http://localhost:18088`
+- Monolith API (direct): `http://localhost:18092`
 - Family API: `http://localhost:18089` (microservices profile)
 - Ledger API: `http://localhost:18090` (microservices profile)
 - Financial API: `http://localhost:18091` (microservices profile)
@@ -136,8 +138,9 @@ Default local endpoints:
 
 API health endpoints:
 
-- Liveness: `http://localhost:18088/health/live`
-- Readiness: `http://localhost:18088/health/ready`
+- Gateway liveness: `http://localhost:18088/health/live`
+- Gateway readiness: `http://localhost:18088/health/ready`
+- Monolith API readiness (direct): `http://localhost:18092/health/ready`
 - Family API readiness: `http://localhost:18089/health/ready` (microservices profile)
 - Ledger API readiness: `http://localhost:18090/health/ready` (microservices profile)
 - Financial API readiness: `http://localhost:18091/health/ready` (microservices profile)
@@ -284,6 +287,9 @@ Troubleshooting:
   - `DRAGONENVELOPES_FAMILY_API_BASE_URL` (defaults to `DRAGONENVELOPES_API_BASE_URL` when not set)
   - `DRAGONENVELOPES_LEDGER_API_BASE_URL` (defaults to `DRAGONENVELOPES_API_BASE_URL` when not set)
   - `DRAGONENVELOPES_FINANCIAL_API_BASE_URL` (defaults to `DRAGONENVELOPES_API_BASE_URL` when not set)
+- Docker gateway routing:
+  - `http://localhost:18088` is served by NGINX and routes paths to Family/Ledger/Financial APIs.
+  - If a routed split service is unavailable, gateway falls back to monolith API (`api`) to reduce desktop outage risk.
 - Optional split-service health probe overrides used by desktop Settings:
   - `DRAGONENVELOPES_FAMILY_API_HEALTH_URL` (default `http://localhost:18089/health/ready`)
   - `DRAGONENVELOPES_LEDGER_API_HEALTH_URL` (default `http://localhost:18090/health/ready`)
