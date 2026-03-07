@@ -2383,6 +2383,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="170" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="150" />
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
@@ -2449,9 +2450,12 @@
                                             Content="Refresh Failed Notifications"
                                             Command="{Binding RefreshFailedNotificationEventsCommand}" />
                                     <Button Margin="0,0,8,8"
-                                            Content="Replay Selected Timeline Notification"
+                                            Content="Replay Selected Timeline Event"
                                             IsEnabled="{Binding CanReplaySelectedProviderTimelineEvent}"
                                             Command="{Binding ReplaySelectedTimelineNotificationDispatchEventCommand}" />
+                                    <Button Margin="0,0,8,8"
+                                            Content="Load Timeline Detail"
+                                            Command="{Binding LoadSelectedProviderTimelineEventDetailCommand}" />
                                     <Button Margin="0,0,8,8"
                                             Content="Retry Selected Failed Notification"
                                             Command="{Binding RetrySelectedFailedNotificationDispatchEventCommand}" />
@@ -2603,6 +2607,7 @@
                                     <DataGridTextColumn Header="Replay" Binding="{Binding ReplayEligibility}" Width="90" />
                                     <DataGridTextColumn Header="Summary" Binding="{Binding Summary}" Width="*" />
                                     <DataGridTextColumn Header="Stripe Event Id" Binding="{Binding StripeWebhookEventIdDisplay}" Width="250" />
+                                    <DataGridTextColumn Header="Plaid Event Id" Binding="{Binding PlaidWebhookEventIdDisplay}" Width="250" />
                                     <DataGridTextColumn Header="Notification Event Id" Binding="{Binding NotificationDispatchEventIdDisplay}" Width="250" />
                                     <DataGridTextColumn Header="Detail" Binding="{Binding Detail}" Width="220" />
                                 </DataGrid.Columns>
@@ -2614,7 +2619,29 @@
                                        Text="{Binding NotificationRetrySummary}"
                                        Style="{StaticResource CaptionTextStyle}" />
 
-                            <DataGrid Grid.Row="4"
+                            <Border Grid.Row="4"
+                                    Grid.ColumnSpan="3"
+                                    Margin="0,0,0,8"
+                                    Padding="8"
+                                    CornerRadius="8"
+                                    Background="{StaticResource PanelMutedBackgroundBrush}"
+                                    BorderBrush="{StaticResource PanelOutlineBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding ProviderTimelineEventDetailSummary}"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               TextWrapping="Wrap" />
+                                    <TextBox Margin="0,6,0,0"
+                                             MinHeight="96"
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             IsReadOnly="True"
+                                             Text="{Binding ProviderTimelineEventDetailPayload}" />
+                                </StackPanel>
+                            </Border>
+
+                            <DataGrid Grid.Row="5"
                                       Grid.ColumnSpan="3"
                                       ItemsSource="{Binding FailedNotificationDispatchEvents}"
                                       SelectedItem="{Binding SelectedFailedNotificationDispatchEvent, Mode=TwoWay}"

@@ -8,11 +8,13 @@ public sealed record ProviderTimelineEventItemViewModel(
     string Summary,
     string Detail,
     Guid? StripeWebhookEventId,
+    Guid? PlaidWebhookEventId,
     Guid? NotificationDispatchEventId,
     bool CanReplayNotification,
     bool CanReplayStripeWebhook)
 {
     public string StripeWebhookEventIdDisplay => StripeWebhookEventId?.ToString("D") ?? "-";
+    public string PlaidWebhookEventIdDisplay => PlaidWebhookEventId?.ToString("D") ?? "-";
 
     public string NotificationDispatchEventIdDisplay => NotificationDispatchEventId?.ToString("D") ?? "-";
 

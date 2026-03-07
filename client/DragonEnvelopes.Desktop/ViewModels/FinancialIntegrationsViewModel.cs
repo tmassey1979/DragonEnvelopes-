@@ -53,6 +53,8 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         ProviderHealthNotificationError = "-";
         ProviderHealthTraceId = "-";
         ProviderTimelineSummary = "No provider timeline events loaded.";
+        ProviderTimelineEventDetailSummary = "No timeline event detail loaded.";
+        ProviderTimelineEventDetailPayload = "Select a timeline event and load detail.";
         NotificationRetrySummary = "No failed notification dispatch events loaded.";
         StripeWebhookSimulationSummary = "No webhook simulation has been run.";
         PlaidWebhookSimulationSummary = "No Plaid webhook simulation has been run.";
@@ -63,6 +65,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         RefreshProviderActivityCommand = new AsyncRelayCommand(RefreshProviderActivityAsync);
         RefreshProviderTimelineCommand = new AsyncRelayCommand(RefreshProviderTimelineAsync);
         ClearProviderTimelineFiltersCommand = new AsyncRelayCommand(ClearProviderTimelineFiltersAsync);
+        LoadSelectedProviderTimelineEventDetailCommand = new AsyncRelayCommand(LoadSelectedProviderTimelineEventDetailAsync);
         RefreshFailedNotificationEventsCommand = new AsyncRelayCommand(RefreshFailedNotificationEventsAsync);
         RetrySelectedFailedNotificationDispatchEventCommand = new AsyncRelayCommand(RetrySelectedFailedNotificationDispatchEventAsync);
         ReplaySelectedTimelineNotificationDispatchEventCommand = new AsyncRelayCommand(ReplaySelectedTimelineNotificationDispatchEventAsync);
@@ -105,6 +108,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public IAsyncRelayCommand RefreshProviderActivityCommand { get; }
     public IAsyncRelayCommand RefreshProviderTimelineCommand { get; }
     public IAsyncRelayCommand ClearProviderTimelineFiltersCommand { get; }
+    public IAsyncRelayCommand LoadSelectedProviderTimelineEventDetailCommand { get; }
     public IAsyncRelayCommand RefreshFailedNotificationEventsCommand { get; }
     public IAsyncRelayCommand RetrySelectedFailedNotificationDispatchEventCommand { get; }
     public IAsyncRelayCommand ReplaySelectedTimelineNotificationDispatchEventCommand { get; }
@@ -381,6 +385,12 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     private ProviderTimelineEventItemViewModel? selectedProviderTimelineEvent;
 
     [ObservableProperty]
+    private string providerTimelineEventDetailSummary = string.Empty;
+
+    [ObservableProperty]
+    private string providerTimelineEventDetailPayload = string.Empty;
+
+    [ObservableProperty]
     private string notificationRetrySummary = string.Empty;
 
     [ObservableProperty]
@@ -494,6 +504,10 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     partial void OnSelectedProviderTimelineEventChanged(ProviderTimelineEventItemViewModel? value)
     {
         OnPropertyChanged(nameof(CanReplaySelectedProviderTimelineEvent));
+        ProviderTimelineEventDetailSummary = value is null
+            ? "No timeline event detail loaded."
+            : $"Selected {value.Source} / {value.EventType} ({value.Status}).";
+        ProviderTimelineEventDetailPayload = "Select Load Timeline Detail to fetch redacted payload and event diagnostics.";
     }
 
     private Task LoadAsync(CancellationToken cancellationToken)
@@ -563,6 +577,41 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             await LoadProviderTimelineCoreAsync(ct);
             await LoadFailedNotificationDispatchEventsCoreAsync(ct);
             StatusMessage = "Provider activity timeline filters cleared.";
+        }, cancellationToken);
+    }
+
+    private async Task LoadSelectedProviderTimelineEventDetailAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedProviderTimelineEvent is null)
+        {
+            SetValidationError("Select a timeline event to load detail.");
+            return;
+        }
+
+        var eventId = ResolveProviderTimelineEventId(SelectedProviderTimelineEvent);
+        if (!eventId.HasValue)
+        {
+            SetValidationError("Selected timeline event does not expose an event id.");
+            return;
+        }
+
+        await RunOperationAsync("Loading selected provider timeline detail...", async ct =>
+        {
+            var detail = await _financialIntegrationDataService.GetProviderTimelineEventDetailAsync(
+                SelectedProviderTimelineEvent.Source,
+                eventId.Value,
+                ct);
+            var detailMessage = string.IsNullOrWhiteSpace(detail.Detail)
+                ? "-"
+                : detail.Detail;
+            ProviderTimelineEventDetailSummary =
+                $"{detail.Source} {detail.EventType} ({detail.Status}) at {FormatDate(detail.OccurredAtUtc)}. Detail: {detailMessage}.";
+            ProviderTimelineEventDetailPayload = string.IsNullOrWhiteSpace(detail.PayloadPreviewJson)
+                ? "No payload captured for this event."
+                : detail.PayloadTruncated
+                    ? $"{detail.PayloadPreviewJson}{Environment.NewLine}{Environment.NewLine}[Payload truncated]"
+                    : detail.PayloadPreviewJson;
+            StatusMessage = "Provider timeline detail loaded.";
         }, cancellationToken);
     }
 
@@ -1480,6 +1529,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             cancellationToken: cancellationToken);
         var previousSelectedNotificationEventId = SelectedProviderTimelineEvent?.NotificationDispatchEventId;
         var previousSelectedStripeWebhookEventId = SelectedProviderTimelineEvent?.StripeWebhookEventId;
+        var previousSelectedPlaidWebhookEventId = SelectedProviderTimelineEvent?.PlaidWebhookEventId;
 
         ProviderTimelineEvents = new ObservableCollection<ProviderTimelineEventItemViewModel>(
             timeline.Events.Select(eventItem => new ProviderTimelineEventItemViewModel(
@@ -1490,6 +1540,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
                 eventItem.Summary,
                 string.IsNullOrWhiteSpace(eventItem.Detail) ? "-" : eventItem.Detail,
                 eventItem.StripeWebhookEventId,
+                eventItem.PlaidWebhookEventId,
                 eventItem.NotificationDispatchEventId,
                 eventItem.Source.Equals("NotificationDispatch", StringComparison.OrdinalIgnoreCase)
                     && eventItem.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase)
@@ -1503,6 +1554,8 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             ? ProviderTimelineEvents.FirstOrDefault(evt => evt.NotificationDispatchEventId == previousSelectedNotificationEventId.Value)
             : previousSelectedStripeWebhookEventId.HasValue
                 ? ProviderTimelineEvents.FirstOrDefault(evt => evt.StripeWebhookEventId == previousSelectedStripeWebhookEventId.Value)
+                : previousSelectedPlaidWebhookEventId.HasValue
+                    ? ProviderTimelineEvents.FirstOrDefault(evt => evt.PlaidWebhookEventId == previousSelectedPlaidWebhookEventId.Value)
                 : ProviderTimelineEvents.FirstOrDefault(evt => evt.CanReplayAny);
 
         var sourceSummary = SelectedProviderTimelineSourceFilter;
@@ -1567,6 +1620,28 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             "Notification Dispatch" => "NotificationDispatch",
             _ => null
         };
+    }
+
+    private static Guid? ResolveProviderTimelineEventId(ProviderTimelineEventItemViewModel eventItem)
+    {
+        if (eventItem.Source.Equals("StripeWebhook", StringComparison.OrdinalIgnoreCase))
+        {
+            return eventItem.StripeWebhookEventId;
+        }
+
+        if (eventItem.Source.Equals("PlaidWebhook", StringComparison.OrdinalIgnoreCase))
+        {
+            return eventItem.PlaidWebhookEventId;
+        }
+
+        if (eventItem.Source.Equals("NotificationDispatch", StringComparison.OrdinalIgnoreCase))
+        {
+            return eventItem.NotificationDispatchEventId;
+        }
+
+        return eventItem.StripeWebhookEventId
+               ?? eventItem.PlaidWebhookEventId
+               ?? eventItem.NotificationDispatchEventId;
     }
 
     private async Task LoadFailedNotificationDispatchEventsCoreAsync(CancellationToken cancellationToken)

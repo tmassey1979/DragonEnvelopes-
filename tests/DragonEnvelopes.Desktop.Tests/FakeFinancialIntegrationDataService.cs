@@ -121,6 +121,7 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
                     Summary: "Stripe webhook issuing_authorization.request -> Processed.",
                     Detail: null,
                     StripeWebhookEventId: Guid.Parse("00000000-0000-0000-0000-000000000070"),
+                    PlaidWebhookEventId: null,
                     NotificationDispatchEventId: null),
                 new ProviderTimelineEventResponse(
                     Source: "NotificationDispatch",
@@ -130,9 +131,21 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
                     Summary: "Spend notification via InApp -> Failed.",
                     Detail: "Simulated delivery failure",
                     StripeWebhookEventId: null,
+                    PlaidWebhookEventId: null,
                     NotificationDispatchEventId: Guid.Parse("00000000-0000-0000-0000-000000000060"))
             ],
             TraceId: "trace-test-002");
+        ProviderTimelineEventDetailResponse = new ProviderTimelineEventDetailResponse(
+            FamilyId: familyId,
+            Source: "StripeWebhook",
+            EventId: Guid.Parse("00000000-0000-0000-0000-000000000070"),
+            EventType: "issuing_authorization.request",
+            Status: "Processed",
+            OccurredAtUtc: now.AddMinutes(-2),
+            Summary: "Stripe webhook issuing_authorization.request -> Processed.",
+            Detail: null,
+            PayloadPreviewJson: "{\"api_secret\":\"***redacted***\"}",
+            PayloadTruncated: false);
         StripeWebhookProcessResponse = new StripeWebhookProcessResponse(
             Outcome: "Processed",
             EventId: "evt_test_001",
@@ -232,6 +245,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
 
     public ProviderActivityTimelineResponse ProviderActivityTimelineResponse { get; set; }
 
+    public ProviderTimelineEventDetailResponse ProviderTimelineEventDetailResponse { get; set; }
+
     public StripeWebhookProcessResponse StripeWebhookProcessResponse { get; set; }
 
     public PlaidWebhookProcessResponse PlaidWebhookProcessResponse { get; set; }
@@ -324,6 +339,33 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
             Events = events
         };
         return Task.FromResult(response);
+    }
+
+    public Task<ProviderTimelineEventDetailResponse> GetProviderTimelineEventDetailAsync(
+        string source,
+        Guid eventId,
+        CancellationToken cancellationToken = default)
+    {
+        var timelineEvent = ProviderActivityTimelineResponse.Events.FirstOrDefault(evt =>
+            evt.Source.Equals(source, StringComparison.OrdinalIgnoreCase)
+            && (evt.StripeWebhookEventId == eventId
+                || evt.PlaidWebhookEventId == eventId
+                || evt.NotificationDispatchEventId == eventId));
+        if (timelineEvent is null)
+        {
+            throw new InvalidOperationException("Timeline event detail was not found.");
+        }
+
+        return Task.FromResult(ProviderTimelineEventDetailResponse with
+        {
+            Source = timelineEvent.Source,
+            EventId = eventId,
+            EventType = timelineEvent.EventType,
+            Status = timelineEvent.Status,
+            OccurredAtUtc = timelineEvent.OccurredAtUtc,
+            Summary = timelineEvent.Summary,
+            Detail = timelineEvent.Detail
+        });
     }
 
     public Task<NotificationPreferenceResponse> GetNotificationPreferenceAsync(CancellationToken cancellationToken = default)

@@ -1916,6 +1916,41 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Get_Own_Stripe_Provider_Timeline_Event_Detail_With_Redacted_Payload()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/financial/provider-activity/timeline/events/StripeWebhook/{TestApiFactory.StripeWebhookRecordAFailedId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<ProviderTimelineEventDetailResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(TestApiFactory.FamilyAId, payload!.FamilyId);
+        Assert.Equal("StripeWebhook", payload.Source);
+        Assert.Equal(TestApiFactory.StripeWebhookRecordAFailedId, payload.EventId);
+        Assert.True(
+            payload.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase)
+            || payload.Status.Equals("Replayed", StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(payload.PayloadPreviewJson);
+        Assert.Contains("\"api_secret\":\"***redacted***\"", payload.PayloadPreviewJson!, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("sk_test_123", payload.PayloadPreviewJson!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Get_FamilyB_Stripe_Provider_Timeline_Event_Detail()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/financial/provider-activity/timeline/events/StripeWebhook/{TestApiFactory.StripeWebhookRecordBId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserA_Can_Filter_Own_Provider_Activity_Timeline_By_Source_And_Status()
     {
         using var client = _factory.CreateClient();
@@ -3009,7 +3044,7 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
                 cardId: null,
                 "Failed",
                 errorMessage: "Simulated Stripe processing failure",
-                "{\"id\":\"evt_stripe_family_a_failed\",\"type\":\"issuing_authorization.request\",\"data\":{\"object\":{\"amount\":100}}}",
+                "{\"id\":\"evt_stripe_family_a_failed\",\"type\":\"issuing_authorization.request\",\"api_secret\":\"sk_test_123\",\"data\":{\"object\":{\"amount\":100}}}",
                 now.AddMinutes(-20),
                 now.AddMinutes(-19)));
 

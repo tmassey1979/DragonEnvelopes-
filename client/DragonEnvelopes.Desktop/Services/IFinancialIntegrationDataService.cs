@@ -14,6 +14,11 @@ public interface IFinancialIntegrationDataService
         string? statusFilter = null,
         CancellationToken cancellationToken = default);
 
+    Task<ProviderTimelineEventDetailResponse> GetProviderTimelineEventDetailAsync(
+        string source,
+        Guid eventId,
+        CancellationToken cancellationToken = default);
+
     Task<NotificationPreferenceResponse> GetNotificationPreferenceAsync(CancellationToken cancellationToken = default);
 
     Task<NotificationPreferenceResponse> UpdateNotificationPreferenceAsync(

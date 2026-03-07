@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
 using DragonEnvelopes.Api.CrossCutting.Auth;
 using DragonEnvelopes.Contracts.Financial;
 using DragonEnvelopes.Infrastructure.Persistence;
@@ -162,6 +164,7 @@ internal static partial class FinancialIntegrationEndpoints
                             $"Stripe webhook {webhook.EventType} -> {webhook.ProcessingStatus}.",
                             webhook.ErrorMessage,
                             webhook.Id,
+                            null,
                             null))
                         .ToArrayAsync(cancellationToken);
                 }
@@ -194,6 +197,7 @@ internal static partial class FinancialIntegrationEndpoints
                                 : $"Plaid webhook {webhook.WebhookType}.{webhook.WebhookCode} -> {webhook.ProcessingStatus}.",
                             webhook.ErrorMessage,
                             null,
+                            webhook.Id,
                             null))
                         .ToArrayAsync(cancellationToken);
                 }
@@ -222,6 +226,7 @@ internal static partial class FinancialIntegrationEndpoints
                             $"Spend notification via {notification.Channel} -> {notification.Status}.",
                             notification.ErrorMessage,
                             null,
+                            null,
                             notification.Id))
                         .ToArrayAsync(cancellationToken);
                 }
@@ -244,5 +249,203 @@ internal static partial class FinancialIntegrationEndpoints
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
             .WithName("GetProviderActivityTimeline")
             .WithOpenApi();
+
+        v1.MapGet("/families/{familyId:guid}/financial/provider-activity/timeline/events/{source}/{eventId:guid}", async (
+                Guid familyId,
+                string source,
+                Guid eventId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var normalizedSource = string.IsNullOrWhiteSpace(source)
+                    ? string.Empty
+                    : source.Trim();
+                if (normalizedSource.Equals("StripeWebhook", StringComparison.OrdinalIgnoreCase))
+                {
+                    var webhook = await dbContext.StripeWebhookEvents
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(x => x.Id == eventId && x.FamilyId == familyId, cancellationToken);
+                    if (webhook is null)
+                    {
+                        return Results.NotFound();
+                    }
+
+                    var payloadPreview = BuildPayloadPreview(webhook.PayloadJson, out var isPayloadTruncated);
+                    return Results.Ok(new ProviderTimelineEventDetailResponse(
+                        FamilyId: familyId,
+                        Source: "StripeWebhook",
+                        EventId: webhook.Id,
+                        EventType: webhook.EventType,
+                        Status: webhook.ProcessingStatus,
+                        OccurredAtUtc: webhook.ProcessedAtUtc,
+                        Summary: $"Stripe webhook {webhook.EventType} -> {webhook.ProcessingStatus}.",
+                        Detail: TrimActivityError(webhook.ErrorMessage),
+                        PayloadPreviewJson: payloadPreview,
+                        PayloadTruncated: isPayloadTruncated));
+                }
+
+                if (normalizedSource.Equals("PlaidWebhook", StringComparison.OrdinalIgnoreCase))
+                {
+                    var webhook = await dbContext.PlaidWebhookEvents
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(x => x.Id == eventId && x.FamilyId == familyId, cancellationToken);
+                    if (webhook is null)
+                    {
+                        return Results.NotFound();
+                    }
+
+                    var eventType = string.IsNullOrWhiteSpace(webhook.WebhookCode)
+                        ? webhook.WebhookType
+                        : $"{webhook.WebhookType}.{webhook.WebhookCode}";
+                    var payloadPreview = BuildPayloadPreview(webhook.PayloadJson, out var isPayloadTruncated);
+                    return Results.Ok(new ProviderTimelineEventDetailResponse(
+                        FamilyId: familyId,
+                        Source: "PlaidWebhook",
+                        EventId: webhook.Id,
+                        EventType: eventType,
+                        Status: webhook.ProcessingStatus,
+                        OccurredAtUtc: webhook.ProcessedAtUtc,
+                        Summary: $"Plaid webhook {eventType} -> {webhook.ProcessingStatus}.",
+                        Detail: TrimActivityError(webhook.ErrorMessage),
+                        PayloadPreviewJson: payloadPreview,
+                        PayloadTruncated: isPayloadTruncated));
+                }
+
+                if (normalizedSource.Equals("NotificationDispatch", StringComparison.OrdinalIgnoreCase))
+                {
+                    var notification = await dbContext.SpendNotificationEvents
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(x => x.Id == eventId && x.FamilyId == familyId, cancellationToken);
+                    if (notification is null)
+                    {
+                        return Results.NotFound();
+                    }
+
+                    return Results.Ok(new ProviderTimelineEventDetailResponse(
+                        FamilyId: familyId,
+                        Source: "NotificationDispatch",
+                        EventId: notification.Id,
+                        EventType: notification.Channel,
+                        Status: notification.Status,
+                        OccurredAtUtc: notification.LastAttemptAtUtc ?? notification.CreatedAtUtc,
+                        Summary: $"Spend notification via {notification.Channel} -> {notification.Status}.",
+                        Detail: TrimActivityError(notification.ErrorMessage),
+                        PayloadPreviewJson: null,
+                        PayloadTruncated: false));
+                }
+
+                return Results.BadRequest("source must be StripeWebhook, PlaidWebhook, or NotificationDispatch.");
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("GetProviderActivityTimelineEventDetail")
+            .WithOpenApi();
+    }
+
+    private static readonly string[] SensitivePayloadKeyFragments =
+    [
+        "secret",
+        "token",
+        "password",
+        "authorization",
+        "api_key",
+        "account_number",
+        "routing_number",
+        "card_number",
+        "pan",
+        "cvv",
+        "cvc",
+        "ssn",
+        "email",
+        "phone"
+    ];
+
+    private static string? BuildPayloadPreview(string? payloadJson, out bool isTruncated)
+    {
+        isTruncated = false;
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            return null;
+        }
+
+        string redacted;
+        try
+        {
+            using var document = JsonDocument.Parse(payloadJson);
+            using var buffer = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(buffer))
+            {
+                WriteRedactedJson(document.RootElement, writer, propertyName: null);
+            }
+
+            redacted = Encoding.UTF8.GetString(buffer.ToArray());
+        }
+        catch (JsonException)
+        {
+            redacted = payloadJson.Trim();
+        }
+
+        const int maxLength = 4096;
+        if (redacted.Length <= maxLength)
+        {
+            return redacted;
+        }
+
+        isTruncated = true;
+        return $"{redacted[..maxLength]}...";
+    }
+
+    private static void WriteRedactedJson(JsonElement element, Utf8JsonWriter writer, string? propertyName)
+    {
+        if (IsSensitivePayloadKey(propertyName))
+        {
+            writer.WriteStringValue("***redacted***");
+            return;
+        }
+
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                writer.WriteStartObject();
+                foreach (var property in element.EnumerateObject())
+                {
+                    writer.WritePropertyName(property.Name);
+                    WriteRedactedJson(property.Value, writer, property.Name);
+                }
+
+                writer.WriteEndObject();
+                return;
+            case JsonValueKind.Array:
+                writer.WriteStartArray();
+                foreach (var item in element.EnumerateArray())
+                {
+                    WriteRedactedJson(item, writer, propertyName);
+                }
+
+                writer.WriteEndArray();
+                return;
+            case JsonValueKind.String:
+                writer.WriteStringValue(element.GetString());
+                return;
+            default:
+                element.WriteTo(writer);
+                return;
+        }
+    }
+
+    private static bool IsSensitivePayloadKey(string? propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(propertyName))
+        {
+            return false;
+        }
+
+        var normalized = propertyName.Trim().ToLowerInvariant();
+        return SensitivePayloadKeyFragments.Any(fragment => normalized.Contains(fragment, StringComparison.Ordinal));
     }
 }

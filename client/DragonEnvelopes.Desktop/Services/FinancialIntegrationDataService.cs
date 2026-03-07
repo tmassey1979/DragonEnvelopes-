@@ -64,6 +64,23 @@ public sealed class FinancialIntegrationDataService : IFinancialIntegrationDataS
             cancellationToken);
     }
 
+    public Task<ProviderTimelineEventDetailResponse> GetProviderTimelineEventDetailAsync(
+        string source,
+        Guid eventId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            throw new InvalidOperationException("Provider timeline source is required.");
+        }
+
+        var familyId = RequireFamilyId();
+        return GetAsync<ProviderTimelineEventDetailResponse>(
+            $"families/{familyId}/financial/provider-activity/timeline/events/{Uri.EscapeDataString(source.Trim())}/{eventId}",
+            "Loading provider timeline event detail",
+            cancellationToken);
+    }
+
     public Task<NotificationPreferenceResponse> GetNotificationPreferenceAsync(CancellationToken cancellationToken = default)
     {
         var familyId = RequireFamilyId();

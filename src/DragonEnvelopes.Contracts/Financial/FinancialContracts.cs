@@ -67,6 +67,7 @@ public sealed record ProviderTimelineEventResponse(
     string Summary,
     string? Detail,
     Guid? StripeWebhookEventId,
+    Guid? PlaidWebhookEventId,
     Guid? NotificationDispatchEventId);
 
 public sealed record ProviderActivityTimelineResponse(
@@ -75,6 +76,18 @@ public sealed record ProviderActivityTimelineResponse(
     int RequestedTake,
     IReadOnlyList<ProviderTimelineEventResponse> Events,
     string TraceId);
+
+public sealed record ProviderTimelineEventDetailResponse(
+    Guid FamilyId,
+    string Source,
+    Guid EventId,
+    string EventType,
+    string Status,
+    DateTimeOffset OccurredAtUtc,
+    string Summary,
+    string? Detail,
+    string? PayloadPreviewJson,
+    bool PayloadTruncated);
 
 public sealed record CreateStripeEnvelopeFinancialAccountRequest(
     string? DisplayName);

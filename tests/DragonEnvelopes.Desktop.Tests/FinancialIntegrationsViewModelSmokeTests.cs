@@ -399,6 +399,25 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
                    && evt.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task LoadSelectedProviderTimelineEventDetailCommand_LoadsRedactedDetailPayload()
+    {
+        var harness = CreateHarness();
+        await EnsureLoadedAsync(harness.ViewModel);
+
+        var stripeTimelineEvent = Assert.Single(
+            harness.ViewModel.ProviderTimelineEvents.Where(static evt => evt.Source.Equals("StripeWebhook", StringComparison.OrdinalIgnoreCase)));
+        harness.ViewModel.SelectedProviderTimelineEvent = stripeTimelineEvent;
+
+        await harness.ViewModel.LoadSelectedProviderTimelineEventDetailCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(harness.ViewModel);
+
+        Assert.False(harness.ViewModel.HasError);
+        Assert.Contains("StripeWebhook", harness.ViewModel.ProviderTimelineEventDetailSummary);
+        Assert.Contains("***redacted***", harness.ViewModel.ProviderTimelineEventDetailPayload);
+        Assert.Equal("Provider timeline detail loaded.", harness.ViewModel.StatusMessage);
+    }
+
     private static TestHarness CreateHarness()
     {
         var familyId = Guid.Parse("00000000-0000-0000-0000-000000000001");
