@@ -253,6 +253,10 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
 
     public int CancelCardCallCount { get; private set; }
 
+    public string? LastProviderTimelineSourceFilter { get; private set; }
+
+    public string? LastProviderTimelineStatusFilter { get; private set; }
+
     public Task<FamilyFinancialStatusResponse> GetFamilyFinancialStatusAsync(CancellationToken cancellationToken = default)
     {
         return Task.FromResult(StatusResponse);
@@ -265,10 +269,28 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
 
     public Task<ProviderActivityTimelineResponse> GetProviderActivityTimelineAsync(
         int take = 25,
+        string? sourceFilter = null,
+        string? statusFilter = null,
         CancellationToken cancellationToken = default)
     {
+        LastProviderTimelineSourceFilter = sourceFilter;
+        LastProviderTimelineStatusFilter = statusFilter;
+
         var bounded = take <= 0 ? ProviderActivityTimelineResponse.RequestedTake : take;
-        var events = ProviderActivityTimelineResponse.Events.Take(bounded).ToArray();
+        var timelineEvents = ProviderActivityTimelineResponse.Events.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(sourceFilter))
+        {
+            timelineEvents = timelineEvents.Where(evt =>
+                evt.Source.Equals(sourceFilter.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(statusFilter))
+        {
+            timelineEvents = timelineEvents.Where(evt =>
+                evt.Status.Equals(statusFilter.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        var events = timelineEvents.Take(bounded).ToArray();
         var response = ProviderActivityTimelineResponse with
         {
             RequestedTake = bounded,

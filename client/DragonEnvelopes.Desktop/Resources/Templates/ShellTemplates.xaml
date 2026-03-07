@@ -2508,11 +2508,33 @@
                                 </Border>
                             </StackPanel>
 
-                            <TextBlock Grid.Row="1"
-                                       Grid.ColumnSpan="3"
-                                       Margin="0,10,0,6"
-                                       Text="{Binding ProviderTimelineSummary}"
-                                       Style="{StaticResource CaptionTextStyle}" />
+                            <StackPanel Grid.Row="1"
+                                        Grid.ColumnSpan="3"
+                                        Margin="0,10,0,6">
+                                <WrapPanel>
+                                    <TextBlock Margin="0,0,8,0"
+                                               VerticalAlignment="Center"
+                                               Text="Source"
+                                               Style="{StaticResource CaptionTextStyle}" />
+                                    <ComboBox Width="180"
+                                              Margin="0,0,10,6"
+                                              ItemsSource="{Binding ProviderTimelineSourceFilterOptions}"
+                                              SelectedItem="{Binding SelectedProviderTimelineSourceFilter, Mode=TwoWay}" />
+                                    <TextBlock Margin="0,0,8,0"
+                                               VerticalAlignment="Center"
+                                               Text="Status"
+                                               Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBox Width="170"
+                                             Margin="0,0,10,6"
+                                             Text="{Binding ProviderTimelineStatusFilter, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Margin="0,0,0,6"
+                                            Content="Apply Filters"
+                                            Command="{Binding RefreshProviderTimelineCommand}" />
+                                </WrapPanel>
+
+                                <TextBlock Text="{Binding ProviderTimelineSummary}"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                            </StackPanel>
 
                             <DataGrid Grid.Row="2"
                                       Grid.ColumnSpan="3"

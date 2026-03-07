@@ -52,6 +52,27 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
     }
 
     [Fact]
+    public async Task RefreshProviderTimelineCommand_AppliesSourceAndStatusFilters()
+    {
+        var harness = CreateHarness();
+        await EnsureLoadedAsync(harness.ViewModel);
+
+        harness.ViewModel.SelectedProviderTimelineSourceFilter = "Notification Dispatch";
+        harness.ViewModel.ProviderTimelineStatusFilter = "failed";
+
+        await harness.ViewModel.RefreshProviderTimelineCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(harness.ViewModel);
+
+        Assert.False(harness.ViewModel.HasError);
+        Assert.Equal("NotificationDispatch", harness.FinancialDataService.LastProviderTimelineSourceFilter);
+        Assert.Equal("failed", harness.FinancialDataService.LastProviderTimelineStatusFilter);
+        var filteredEvent = Assert.Single(harness.ViewModel.ProviderTimelineEvents);
+        Assert.Equal("NotificationDispatch", filteredEvent.Source);
+        Assert.Equal("Failed", filteredEvent.Status);
+        Assert.Contains("Notification Dispatch / failed", harness.ViewModel.ProviderTimelineSummary);
+    }
+
+    [Fact]
     public async Task LaunchNativePlaidLinkCommand_CreatesTokenAndExchangesPublicToken()
     {
         var harness = CreateHarness();

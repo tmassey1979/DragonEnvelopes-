@@ -103,6 +103,8 @@ internal static partial class FinancialIntegrationEndpoints
         v1.MapGet("/families/{familyId:guid}/financial/provider-activity/timeline", async (
                 Guid familyId,
                 int? take,
+                string? source,
+                string? status,
                 ClaimsPrincipal user,
                 HttpContext httpContext,
                 DragonEnvelopesDbContext dbContext,
@@ -114,36 +116,78 @@ internal static partial class FinancialIntegrationEndpoints
                 }
 
                 var normalizedTake = Math.Clamp(take ?? 25, 1, 100);
+                var normalizedSource = string.IsNullOrWhiteSpace(source)
+                    ? null
+                    : source.Trim();
+                if (!string.IsNullOrWhiteSpace(normalizedSource)
+                    && !normalizedSource.Equals("StripeWebhook", StringComparison.OrdinalIgnoreCase)
+                    && !normalizedSource.Equals("NotificationDispatch", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Results.BadRequest("source must be StripeWebhook or NotificationDispatch.");
+                }
 
-                var webhooks = await dbContext.StripeWebhookEvents
-                    .AsNoTracking()
-                    .Where(x => x.FamilyId == familyId)
-                    .OrderByDescending(x => x.ProcessedAtUtc)
-                    .Take(normalizedTake)
-                    .Select(static webhook => new ProviderTimelineEventResponse(
-                        "StripeWebhook",
-                        webhook.EventType,
-                        webhook.ProcessingStatus,
-                        webhook.ProcessedAtUtc,
-                        $"Stripe webhook {webhook.EventType} -> {webhook.ProcessingStatus}.",
-                        webhook.ErrorMessage,
-                        null))
-                    .ToArrayAsync(cancellationToken);
+                var includeWebhooks = string.IsNullOrWhiteSpace(normalizedSource)
+                    || normalizedSource.Equals("StripeWebhook", StringComparison.OrdinalIgnoreCase);
+                var includeNotifications = string.IsNullOrWhiteSpace(normalizedSource)
+                    || normalizedSource.Equals("NotificationDispatch", StringComparison.OrdinalIgnoreCase);
+                var normalizedStatus = string.IsNullOrWhiteSpace(status)
+                    ? null
+                    : status.Trim();
+                var normalizedStatusLower = normalizedStatus?.ToLowerInvariant();
 
-                var notifications = await dbContext.SpendNotificationEvents
-                    .AsNoTracking()
-                    .Where(x => x.FamilyId == familyId)
-                    .OrderByDescending(x => x.LastAttemptAtUtc ?? x.CreatedAtUtc)
-                    .Take(normalizedTake)
-                    .Select(static notification => new ProviderTimelineEventResponse(
-                        "NotificationDispatch",
-                        notification.Channel,
-                        notification.Status,
-                        notification.LastAttemptAtUtc ?? notification.CreatedAtUtc,
-                        $"Spend notification via {notification.Channel} -> {notification.Status}.",
-                        notification.ErrorMessage,
-                        notification.Id))
-                    .ToArrayAsync(cancellationToken);
+                ProviderTimelineEventResponse[] webhooks = [];
+                if (includeWebhooks)
+                {
+                    var webhookQuery = dbContext.StripeWebhookEvents
+                        .AsNoTracking()
+                        .Where(x => x.FamilyId == familyId);
+
+                    if (!string.IsNullOrWhiteSpace(normalizedStatus))
+                    {
+                        webhookQuery = webhookQuery
+                            .Where(x => x.ProcessingStatus != null && x.ProcessingStatus.ToLower() == normalizedStatusLower);
+                    }
+
+                    webhooks = await webhookQuery
+                        .OrderByDescending(x => x.ProcessedAtUtc)
+                        .Take(normalizedTake)
+                        .Select(static webhook => new ProviderTimelineEventResponse(
+                            "StripeWebhook",
+                            webhook.EventType,
+                            webhook.ProcessingStatus,
+                            webhook.ProcessedAtUtc,
+                            $"Stripe webhook {webhook.EventType} -> {webhook.ProcessingStatus}.",
+                            webhook.ErrorMessage,
+                            null))
+                        .ToArrayAsync(cancellationToken);
+                }
+
+                ProviderTimelineEventResponse[] notifications = [];
+                if (includeNotifications)
+                {
+                    var notificationQuery = dbContext.SpendNotificationEvents
+                        .AsNoTracking()
+                        .Where(x => x.FamilyId == familyId);
+
+                    if (!string.IsNullOrWhiteSpace(normalizedStatus))
+                    {
+                        notificationQuery = notificationQuery
+                            .Where(x => x.Status != null && x.Status.ToLower() == normalizedStatusLower);
+                    }
+
+                    notifications = await notificationQuery
+                        .OrderByDescending(x => x.LastAttemptAtUtc ?? x.CreatedAtUtc)
+                        .Take(normalizedTake)
+                        .Select(static notification => new ProviderTimelineEventResponse(
+                            "NotificationDispatch",
+                            notification.Channel,
+                            notification.Status,
+                            notification.LastAttemptAtUtc ?? notification.CreatedAtUtc,
+                            $"Spend notification via {notification.Channel} -> {notification.Status}.",
+                            notification.ErrorMessage,
+                            notification.Id))
+                        .ToArrayAsync(cancellationToken);
+                }
 
                 var timeline = webhooks
                     .Concat(notifications)

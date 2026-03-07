@@ -40,12 +40,26 @@ public sealed class FinancialIntegrationDataService : IFinancialIntegrationDataS
 
     public Task<ProviderActivityTimelineResponse> GetProviderActivityTimelineAsync(
         int take = 25,
+        string? sourceFilter = null,
+        string? statusFilter = null,
         CancellationToken cancellationToken = default)
     {
         var familyId = RequireFamilyId();
         var normalizedTake = take <= 0 ? 25 : take;
+        var queryParameters = new List<string> { $"take={normalizedTake}" };
+
+        if (!string.IsNullOrWhiteSpace(sourceFilter))
+        {
+            queryParameters.Add($"source={Uri.EscapeDataString(sourceFilter.Trim())}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(statusFilter))
+        {
+            queryParameters.Add($"status={Uri.EscapeDataString(statusFilter.Trim())}");
+        }
+
         return GetAsync<ProviderActivityTimelineResponse>(
-            $"families/{familyId}/financial/provider-activity/timeline?take={normalizedTake}",
+            $"families/{familyId}/financial/provider-activity/timeline?{string.Join("&", queryParameters)}",
             "Loading provider activity timeline",
             cancellationToken);
     }

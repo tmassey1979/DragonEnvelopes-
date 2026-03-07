@@ -133,6 +133,12 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public IAsyncRelayCommand RefreshCardIssuanceCommand { get; }
     public IAsyncRelayCommand SaveCardControlsCommand { get; }
     public IAsyncRelayCommand EvaluateCardSpendCommand { get; }
+    public IReadOnlyList<string> ProviderTimelineSourceFilterOptions { get; } =
+    [
+        "All Sources",
+        "Stripe Webhooks",
+        "Notification Dispatch"
+    ];
 
     [ObservableProperty]
     private bool isLoading;
@@ -352,6 +358,12 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
 
     [ObservableProperty]
     private string providerTimelineSummary = string.Empty;
+
+    [ObservableProperty]
+    private string selectedProviderTimelineSourceFilter = "All Sources";
+
+    [ObservableProperty]
+    private string providerTimelineStatusFilter = string.Empty;
 
     [ObservableProperty]
     private ObservableCollection<ProviderTimelineEventItemViewModel> providerTimelineEvents = [];
@@ -1359,7 +1371,14 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
 
     private async Task LoadProviderTimelineCoreAsync(CancellationToken cancellationToken)
     {
-        var timeline = await _financialIntegrationDataService.GetProviderActivityTimelineAsync(cancellationToken: cancellationToken);
+        var sourceFilter = ResolveProviderTimelineSourceFilter();
+        var statusFilter = string.IsNullOrWhiteSpace(ProviderTimelineStatusFilter)
+            ? null
+            : ProviderTimelineStatusFilter.Trim();
+        var timeline = await _financialIntegrationDataService.GetProviderActivityTimelineAsync(
+            sourceFilter: sourceFilter,
+            statusFilter: statusFilter,
+            cancellationToken: cancellationToken);
         var previousSelectedEventId = SelectedProviderTimelineEvent?.NotificationDispatchEventId;
 
         ProviderTimelineEvents = new ObservableCollection<ProviderTimelineEventItemViewModel>(
@@ -1379,14 +1398,26 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             ? ProviderTimelineEvents.FirstOrDefault(evt => evt.NotificationDispatchEventId == previousSelectedEventId.Value)
             : ProviderTimelineEvents.FirstOrDefault(evt => evt.CanReplayNotification);
 
+        var sourceSummary = SelectedProviderTimelineSourceFilter;
+        var statusSummary = statusFilter ?? "Any Status";
         ProviderTimelineSummary = timeline.Events.Count == 0
-            ? "No provider timeline events recorded."
-            : $"Showing {timeline.Events.Count} recent events (requested {timeline.RequestedTake}).";
+            ? $"No provider timeline events recorded for {sourceSummary} / {statusSummary}."
+            : $"Showing {timeline.Events.Count} recent events (requested {timeline.RequestedTake}) for {sourceSummary} / {statusSummary}.";
 
         if (!string.IsNullOrWhiteSpace(timeline.TraceId))
         {
             ProviderHealthTraceId = timeline.TraceId.Trim();
         }
+    }
+
+    private string? ResolveProviderTimelineSourceFilter()
+    {
+        return SelectedProviderTimelineSourceFilter switch
+        {
+            "Stripe Webhooks" => "StripeWebhook",
+            "Notification Dispatch" => "NotificationDispatch",
+            _ => null
+        };
     }
 
     private async Task LoadFailedNotificationDispatchEventsCoreAsync(CancellationToken cancellationToken)

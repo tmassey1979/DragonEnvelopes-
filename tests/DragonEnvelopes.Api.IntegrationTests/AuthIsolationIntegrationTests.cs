@@ -1883,6 +1883,39 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Filter_Own_Provider_Activity_Timeline_By_Source_And_Status()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/financial/provider-activity/timeline?take=20&source=NotificationDispatch&status=failed");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<ProviderActivityTimelineResponse>();
+        Assert.NotNull(payload);
+        Assert.All(payload!.Events, timelineEvent =>
+        {
+            Assert.Equal("NotificationDispatch", timelineEvent.Source);
+            Assert.Equal("Failed", timelineEvent.Status, ignoreCase: true);
+        });
+        Assert.NotEmpty(payload.Events);
+        Assert.Equal(20, payload.RequestedTake);
+    }
+
+    [Fact]
+    public async Task Provider_Activity_Timeline_With_Invalid_Source_Filter_Returns400()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/financial/provider-activity/timeline?source=UnknownSource");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserA_Cannot_Get_FamilyB_Provider_Activity_Timeline()
     {
         using var client = _factory.CreateClient();
