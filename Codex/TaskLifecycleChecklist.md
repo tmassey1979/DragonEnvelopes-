@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#238 End-to-end smoke workflow in CI (auth -> family -> import -> report)`.
+- Active task: `none (all currently tracked GitHub issues are closed)`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#237` CI contract drift guard between APIs and desktop client contracts.
+- Previous completed task: `#232` Epic closeout: household management UX and operational hardening.
 - Last updated: `2026-03-07`.
