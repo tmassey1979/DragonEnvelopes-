@@ -7,18 +7,18 @@ namespace DragonEnvelopes.Infrastructure.Repositories;
 
 public sealed class FamilyInviteRepository(DragonEnvelopesDbContext dbContext) : IFamilyInviteRepository
 {
-    public async Task AddAsync(FamilyInvite invite, CancellationToken cancellationToken = default)
+    public Task AddAsync(FamilyInvite invite, CancellationToken cancellationToken = default)
     {
         dbContext.FamilyInvites.Add(invite);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
-    public async Task AddTimelineEventAsync(
+    public Task AddTimelineEventAsync(
         FamilyInviteTimelineEvent timelineEvent,
         CancellationToken cancellationToken = default)
     {
         dbContext.FamilyInviteTimelineEvents.Add(timelineEvent);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public async Task<IReadOnlyList<FamilyInvite>> ListByFamilyAsync(

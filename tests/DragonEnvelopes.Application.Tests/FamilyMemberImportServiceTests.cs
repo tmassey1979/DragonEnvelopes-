@@ -66,6 +66,8 @@ public sealed class FamilyMemberImportServiceTests
         repository.Setup(x => x.AddMemberAsync(It.IsAny<FamilyMember>(), It.IsAny<CancellationToken>()))
             .Callback<FamilyMember, CancellationToken>((member, _) => addedMembers.Add(member))
             .Returns(Task.CompletedTask);
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var service = new FamilyMemberImportService(repository.Object);
 

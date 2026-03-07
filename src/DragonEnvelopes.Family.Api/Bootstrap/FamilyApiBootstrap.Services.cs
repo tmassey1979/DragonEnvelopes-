@@ -5,6 +5,7 @@ using DragonEnvelopes.Infrastructure;
 using DragonEnvelopes.ProviderClients;
 using FluentValidation;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 
 namespace DragonEnvelopes.Family.Api.Bootstrap;
 
@@ -27,6 +28,14 @@ internal static partial class FamilyApiBootstrap
         builder.Services.AddProviderClients(builder.Configuration);
         builder.Services.AddSingleton(BuildKeycloakAdminOptions(builder.Configuration));
         builder.Services.AddHttpClient<IKeycloakProvisioningService, KeycloakProvisioningService>();
+        builder.Services.AddSingleton(Options.Create(BuildOutboxWorkerOptions(builder.Configuration)));
+
+        var enableRabbitMq = builder.Configuration.GetValue<bool>("Messaging:RabbitMq:Enabled");
+        var outboxWorkerEnabled = builder.Configuration.GetValue<bool>("Messaging:Outbox:Enabled", true);
+        if (!builder.Environment.IsEnvironment("Testing") && enableRabbitMq && outboxWorkerEnabled)
+        {
+            builder.Services.AddHostedService<FamilyOutboxDispatchWorker>();
+        }
     }
 
     public static void ConfigureHealthChecks(IServiceCollection services, string? defaultConnection)
@@ -58,6 +67,23 @@ internal static partial class FamilyApiBootstrap
             AdminClientId = configuration["Keycloak:AdminClientId"] ?? defaults.AdminClientId,
             AdminUsername = configuration["Keycloak:AdminUsername"] ?? defaults.AdminUsername,
             AdminPassword = configuration["Keycloak:AdminPassword"] ?? defaults.AdminPassword
+        };
+    }
+
+    private static FamilyOutboxDispatchWorkerOptions BuildOutboxWorkerOptions(IConfiguration configuration)
+    {
+        return new FamilyOutboxDispatchWorkerOptions
+        {
+            Enabled = !bool.TryParse(configuration["Messaging:Outbox:Enabled"], out var enabled) || enabled,
+            PollIntervalSeconds = int.TryParse(configuration["Messaging:Outbox:PollIntervalSeconds"], out var pollIntervalSeconds)
+                ? Math.Max(1, pollIntervalSeconds)
+                : 5,
+            BatchSize = int.TryParse(configuration["Messaging:Outbox:BatchSize"], out var batchSize)
+                ? Math.Clamp(batchSize, 1, 500)
+                : 50,
+            BacklogWarningThreshold = int.TryParse(configuration["Messaging:Outbox:BacklogWarningThreshold"], out var warningThreshold)
+                ? Math.Max(1, warningThreshold)
+                : 100
         };
     }
 }

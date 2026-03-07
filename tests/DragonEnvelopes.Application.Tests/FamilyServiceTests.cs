@@ -24,8 +24,10 @@ public class FamilyServiceTests
         repository.Setup(x => x.AddFamilyAsync(It.IsAny<Family>(), It.IsAny<CancellationToken>()))
             .Callback<Family, CancellationToken>((family, _) => persistedFamily = family)
             .Returns(Task.CompletedTask);
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        var service = new FamilyService(repository.Object, clock.Object);
+        var service = CreateService(repository.Object, clock);
 
         var result = await service.CreateAsync("Massey Household");
 
@@ -48,7 +50,7 @@ public class FamilyServiceTests
         repository.Setup(x => x.FamilyNameExistsAsync("Existing", It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
-        var service = new FamilyService(repository.Object, clock.Object);
+        var service = CreateService(repository.Object, clock);
 
         await Assert.ThrowsAsync<DomainValidationException>(() => service.CreateAsync("Existing"));
     }
@@ -68,8 +70,10 @@ public class FamilyServiceTests
             .ReturnsAsync(false);
         repository.Setup(x => x.AddMemberAsync(It.IsAny<FamilyMember>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        var service = new FamilyService(repository.Object, clock.Object);
+        var service = CreateService(repository.Object, clock);
 
         var member = await service.AddMemberAsync(
             familyId,
@@ -96,8 +100,10 @@ public class FamilyServiceTests
             .ReturnsAsync(family);
         repository.Setup(x => x.MemberKeycloakUserIdExistsAsync(familyId, "kc-123", It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        var service = new FamilyService(repository.Object, clock.Object);
+        var service = CreateService(repository.Object, clock);
 
         await Assert.ThrowsAsync<DomainValidationException>(() => service.AddMemberAsync(
             familyId,
@@ -121,7 +127,7 @@ public class FamilyServiceTests
         repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var service = new FamilyService(repository.Object, clock.Object);
+        var service = CreateService(repository.Object, clock);
 
         var updated = await service.UpdateProfileAsync(
             familyId,
@@ -159,7 +165,7 @@ public class FamilyServiceTests
         repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var service = new FamilyService(repository.Object, clock.Object);
+        var service = CreateService(repository.Object, clock);
 
         var updated = await service.UpdateMemberRoleAsync(familyId, memberId, "Teen");
 
@@ -192,7 +198,7 @@ public class FamilyServiceTests
         repository.Setup(x => x.CountMembersByRoleAsync(familyId, MemberRole.Parent, It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        var service = new FamilyService(repository.Object, clock.Object);
+        var service = CreateService(repository.Object, clock);
 
         await Assert.ThrowsAsync<DomainValidationException>(() => service.UpdateMemberRoleAsync(familyId, memberId, "Adult"));
     }
@@ -223,7 +229,7 @@ public class FamilyServiceTests
         repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var service = new FamilyService(repository.Object, clock.Object);
+        var service = CreateService(repository.Object, clock);
 
         await service.RemoveMemberAsync(familyId, memberId);
 
@@ -255,8 +261,17 @@ public class FamilyServiceTests
         repository.Setup(x => x.CountMembersByRoleAsync(familyId, MemberRole.Parent, It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
-        var service = new FamilyService(repository.Object, clock.Object);
+        var service = CreateService(repository.Object, clock);
 
         await Assert.ThrowsAsync<DomainValidationException>(() => service.RemoveMemberAsync(familyId, memberId));
+    }
+
+    private static FamilyService CreateService(IFamilyRepository repository, Mock<IClock> clock)
+    {
+        var outboxRepository = new Mock<IIntegrationOutboxRepository>();
+        outboxRepository.Setup(x => x.AddAsync(It.IsAny<IntegrationOutboxMessage>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        return new FamilyService(repository, outboxRepository.Object, clock.Object);
     }
 }

@@ -8,16 +8,16 @@ namespace DragonEnvelopes.Infrastructure.Repositories;
 
 public sealed class FamilyRepository(DragonEnvelopesDbContext dbContext) : IFamilyRepository
 {
-    public async Task AddFamilyAsync(Family family, CancellationToken cancellationToken = default)
+    public Task AddFamilyAsync(Family family, CancellationToken cancellationToken = default)
     {
         dbContext.Families.Add(family);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
-    public async Task AddMemberAsync(FamilyMember member, CancellationToken cancellationToken = default)
+    public Task AddMemberAsync(FamilyMember member, CancellationToken cancellationToken = default)
     {
         dbContext.FamilyMembers.Add(member);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task<Family?> GetFamilyByIdAsync(Guid familyId, CancellationToken cancellationToken = default)

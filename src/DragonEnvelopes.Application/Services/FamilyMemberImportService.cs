@@ -84,6 +84,11 @@ public sealed class FamilyMemberImportService(IFamilyRepository familyRepository
             await familyRepository.AddMemberAsync(member, cancellationToken);
         }
 
+        if (insertableRows.Length > 0)
+        {
+            await familyRepository.SaveChangesAsync(cancellationToken);
+        }
+
         return new FamilyMemberImportCommitDetails(
             rows.Count,
             rows.Count(static row => row.IsValid),

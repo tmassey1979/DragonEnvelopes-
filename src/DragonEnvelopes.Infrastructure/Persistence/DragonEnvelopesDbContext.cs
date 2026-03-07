@@ -26,6 +26,7 @@ public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbC
     public DbSet<OnboardingProfile> OnboardingProfiles => Set<OnboardingProfile>();
     public DbSet<FamilyInvite> FamilyInvites => Set<FamilyInvite>();
     public DbSet<FamilyInviteTimelineEvent> FamilyInviteTimelineEvents => Set<FamilyInviteTimelineEvent>();
+    public DbSet<IntegrationOutboxMessage> IntegrationOutboxMessages => Set<IntegrationOutboxMessage>();
     public DbSet<FamilyMember> FamilyMembers => Set<FamilyMember>();
     public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();
     public DbSet<Account> Accounts => Set<Account>();

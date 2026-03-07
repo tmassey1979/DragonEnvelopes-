@@ -1,17 +1,23 @@
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
+using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Domain;
 using DragonEnvelopes.Domain.Entities;
 using DragonEnvelopes.Domain.ValueObjects;
+using System.Diagnostics;
+using System.Text.Json;
 
 namespace DragonEnvelopes.Application.Services;
 
 public sealed class FamilyService(
     IFamilyRepository familyRepository,
+    IIntegrationOutboxRepository integrationOutboxRepository,
     IClock clock) : IFamilyService
 {
     private const string DefaultCurrencyCode = Family.DefaultCurrencyCode;
     private const string DefaultTimeZoneId = Family.DefaultTimeZoneId;
+    private const string OutboxSchemaVersion = "1.0";
+    private const string FamilySourceService = "family-api";
 
     public async Task<FamilyDetails> CreateAsync(string name, CancellationToken cancellationToken = default)
     {
@@ -32,6 +38,21 @@ public sealed class FamilyService(
             DefaultTimeZoneId,
             clock.UtcNow);
         await familyRepository.AddFamilyAsync(family, cancellationToken);
+        var createdEvent = new FamilyCreatedIntegrationEvent(
+            Guid.NewGuid(),
+            clock.UtcNow,
+            family.Id,
+            ResolveCorrelationId(),
+            family.Name,
+            family.CurrencyCode,
+            family.TimeZoneId);
+        await EnqueueOutboxAsync(
+            family.Id,
+            IntegrationEventRoutingKeys.FamilyCreatedV1,
+            FamilyIntegrationEventNames.FamilyCreated,
+            createdEvent,
+            cancellationToken);
+        await familyRepository.SaveChangesAsync(cancellationToken);
         return Map(family, []);
     }
 
@@ -150,6 +171,23 @@ public sealed class FamilyService(
             parsedRole);
 
         await familyRepository.AddMemberAsync(member, cancellationToken);
+        var addedEvent = new FamilyMemberAddedIntegrationEvent(
+            Guid.NewGuid(),
+            clock.UtcNow,
+            familyId,
+            ResolveCorrelationId(),
+            member.Id,
+            member.KeycloakUserId,
+            member.Name,
+            member.Email.Value,
+            member.Role.ToString());
+        await EnqueueOutboxAsync(
+            familyId,
+            IntegrationEventRoutingKeys.FamilyMemberAddedV1,
+            FamilyIntegrationEventNames.FamilyMemberAdded,
+            addedEvent,
+            cancellationToken);
+        await familyRepository.SaveChangesAsync(cancellationToken);
         return MapMember(member);
     }
 
@@ -216,6 +254,22 @@ public sealed class FamilyService(
 
         await EnsureParentConstraintAsync(familyId, member.Role, replacementRole: null, cancellationToken);
 
+        var removedEvent = new FamilyMemberRemovedIntegrationEvent(
+            Guid.NewGuid(),
+            clock.UtcNow,
+            familyId,
+            ResolveCorrelationId(),
+            member.Id,
+            member.KeycloakUserId,
+            member.Name,
+            member.Email.Value,
+            member.Role.ToString());
+        await EnqueueOutboxAsync(
+            familyId,
+            IntegrationEventRoutingKeys.FamilyMemberRemovedV1,
+            FamilyIntegrationEventNames.FamilyMemberRemoved,
+            removedEvent,
+            cancellationToken);
         await familyRepository.RemoveMemberAsync(member, cancellationToken);
         await familyRepository.SaveChangesAsync(cancellationToken);
     }
@@ -278,5 +332,102 @@ public sealed class FamilyService(
             member.Name,
             member.Email.Value,
             member.Role.ToString());
+    }
+
+    private async Task EnqueueOutboxAsync<TPayload>(
+        Guid familyId,
+        string routingKey,
+        string eventName,
+        TPayload payload,
+        CancellationToken cancellationToken)
+    {
+        var outboxMessage = new IntegrationOutboxMessage(
+            Guid.NewGuid(),
+            familyId,
+            ResolveEventId(payload),
+            routingKey,
+            eventName,
+            OutboxSchemaVersion,
+            FamilySourceService,
+            ResolveCorrelationId(payload),
+            causationId: null,
+            JsonSerializer.Serialize(payload),
+            ResolveOccurredAtUtc(payload),
+            clock.UtcNow);
+        await integrationOutboxRepository.AddAsync(outboxMessage, cancellationToken);
+    }
+
+    private static string ResolveCorrelationId<TPayload>(TPayload payload)
+    {
+        if (TryGetStringProperty(payload, "CorrelationId", out var correlationId))
+        {
+            return correlationId;
+        }
+
+        return ResolveCorrelationId();
+    }
+
+    private static string ResolveCorrelationId()
+    {
+        return Activity.Current?.Id ?? Guid.NewGuid().ToString("D");
+    }
+
+    private static string ResolveEventId<TPayload>(TPayload payload)
+    {
+        if (TryGetGuidProperty(payload, "EventId", out var eventId))
+        {
+            return eventId.ToString("D");
+        }
+
+        return Guid.NewGuid().ToString("D");
+    }
+
+    private static DateTimeOffset ResolveOccurredAtUtc<TPayload>(TPayload payload)
+    {
+        if (TryGetDateTimeOffsetProperty(payload, "OccurredAtUtc", out var occurredAtUtc))
+        {
+            return occurredAtUtc;
+        }
+
+        return DateTimeOffset.UtcNow;
+    }
+
+    private static bool TryGetStringProperty<TPayload>(TPayload payload, string propertyName, out string value)
+    {
+        value = string.Empty;
+        var property = payload?.GetType().GetProperty(propertyName);
+        if (property?.GetValue(payload) is not string stringValue || string.IsNullOrWhiteSpace(stringValue))
+        {
+            return false;
+        }
+
+        value = stringValue.Trim();
+        return true;
+    }
+
+    private static bool TryGetGuidProperty<TPayload>(TPayload payload, string propertyName, out Guid value)
+    {
+        value = Guid.Empty;
+        var property = payload?.GetType().GetProperty(propertyName);
+        if (property?.GetValue(payload) is not Guid guidValue || guidValue == Guid.Empty)
+        {
+            return false;
+        }
+
+        value = guidValue;
+        return true;
+    }
+
+    private static bool TryGetDateTimeOffsetProperty<TPayload>(TPayload payload, string propertyName, out DateTimeOffset value)
+    {
+        value = default;
+        var property = payload?.GetType().GetProperty(propertyName);
+        if (property?.GetValue(payload) is not DateTimeOffset dateTimeOffsetValue || dateTimeOffsetValue == default)
+        {
+            return false;
+        }
+
+        value = dateTimeOffsetValue;
+        return true;
     }
 }

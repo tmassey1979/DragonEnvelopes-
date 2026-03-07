@@ -51,14 +51,17 @@ public static class DependencyInjection
         if (rabbitMqMessagingOptions.Enabled)
         {
             services.AddSingleton<IIntegrationEventPublisher, RabbitMqIntegrationEventPublisher>();
+            services.AddSingleton<IIntegrationOutboxMessagePublisher, RabbitMqIntegrationOutboxMessagePublisher>();
         }
         else
         {
             services.AddSingleton<IIntegrationEventPublisher, NoOpIntegrationEventPublisher>();
+            services.AddSingleton<IIntegrationOutboxMessagePublisher, NoOpIntegrationOutboxMessagePublisher>();
         }
         services.AddScoped<IFamilyInviteSender, FamilyInviteSender>();
         services.AddScoped<IRepositoryMarker, RepositoryMarker>();
         services.AddScoped<IFamilyRepository, FamilyRepository>();
+        services.AddScoped<IIntegrationOutboxRepository, IntegrationOutboxRepository>();
         services.AddScoped<IApprovalPolicyRepository, ApprovalPolicyRepository>();
         services.AddScoped<IApprovalRequestRepository, ApprovalRequestRepository>();
         services.AddScoped<IFamilyInviteRepository, FamilyInviteRepository>();
@@ -105,6 +108,7 @@ public static class DependencyInjection
         var exchangeType = configuration["Messaging:RabbitMq:ExchangeType"] ?? "topic";
         var durableExchange = !bool.TryParse(configuration["Messaging:RabbitMq:DurableExchange"], out var durableValue)
             || durableValue;
+        var sourceService = configuration["Messaging:RabbitMq:SourceService"] ?? "dragonenvelopes-service";
         var enableLedgerConsumer = !bool.TryParse(configuration["Messaging:RabbitMq:EnableLedgerTransactionConsumer"], out var consumerValue)
             || consumerValue;
         var ledgerQueue = configuration["Messaging:RabbitMq:LedgerTransactionCreatedQueue"]
@@ -124,6 +128,7 @@ public static class DependencyInjection
             ExchangeName = exchangeName,
             ExchangeType = exchangeType,
             DurableExchange = durableExchange,
+            SourceService = sourceService,
             EnableLedgerTransactionConsumer = enableLedgerConsumer,
             LedgerTransactionCreatedQueue = ledgerQueue,
             ConsumerPrefetchCount = prefetchCount

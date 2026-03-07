@@ -1,5 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using System.Diagnostics;
+using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Domain;
@@ -11,10 +14,13 @@ namespace DragonEnvelopes.Application.Services;
 public sealed class FamilyInviteService(
     IFamilyRepository familyRepository,
     IFamilyInviteRepository familyInviteRepository,
+    IIntegrationOutboxRepository integrationOutboxRepository,
     IFamilyInviteSender familyInviteSender,
     IClock clock) : IFamilyInviteService
 {
     private static readonly string[] AllowedRoles = ["Parent", "Adult", "Teen", "Child"];
+    private const string OutboxSchemaVersion = "1.0";
+    private const string FamilySourceService = "family-api";
 
     public async Task<CreateFamilyInviteResult> CreateAsync(
         Guid familyId,
@@ -60,6 +66,7 @@ public sealed class FamilyInviteService(
             actorUserId,
             now,
             cancellationToken);
+        await familyInviteRepository.SaveChangesAsync(cancellationToken);
 
         try
         {
@@ -112,13 +119,13 @@ public sealed class FamilyInviteService(
         var now = clock.UtcNow;
         invite.Expire(now);
         invite.Cancel(now);
-        await familyInviteRepository.SaveChangesAsync(cancellationToken);
         await RecordTimelineEventAsync(
             invite,
             FamilyInviteTimelineEventType.Cancelled,
             actorUserId,
             now,
             cancellationToken);
+        await familyInviteRepository.SaveChangesAsync(cancellationToken);
         return Map(invite);
     }
 
@@ -144,13 +151,13 @@ public sealed class FamilyInviteService(
             now.AddHours(Math.Clamp(expiresInHours, 1, 24 * 30)),
             now);
 
-        await familyInviteRepository.SaveChangesAsync(cancellationToken);
         await RecordTimelineEventAsync(
             invite,
             FamilyInviteTimelineEventType.Resent,
             actorUserId,
             now,
             cancellationToken);
+        await familyInviteRepository.SaveChangesAsync(cancellationToken);
 
         try
         {
@@ -181,13 +188,14 @@ public sealed class FamilyInviteService(
 
         var now = clock.UtcNow;
         invite.Accept(now);
-        await familyInviteRepository.SaveChangesAsync(cancellationToken);
         await RecordTimelineEventAsync(
             invite,
             FamilyInviteTimelineEventType.Accepted,
             actorUserId,
             now,
             cancellationToken);
+        await EnqueueInviteAcceptedOutboxAsync(invite, actorUserId, now, cancellationToken);
+        await familyInviteRepository.SaveChangesAsync(cancellationToken);
         return Map(invite);
     }
 
@@ -221,13 +229,14 @@ public sealed class FamilyInviteService(
             if (invite.Status == FamilyInviteStatus.Pending)
             {
                 invite.Accept(now);
-                await familyInviteRepository.SaveChangesAsync(cancellationToken);
                 await RecordTimelineEventAsync(
                     invite,
                     FamilyInviteTimelineEventType.Redeemed,
                     normalizedUserId,
                     now,
                     cancellationToken);
+                await EnqueueInviteAcceptedOutboxAsync(invite, normalizedUserId, now, cancellationToken);
+                await familyInviteRepository.SaveChangesAsync(cancellationToken);
             }
 
             return new FamilyInviteRedemptionDetails(
@@ -260,13 +269,14 @@ public sealed class FamilyInviteService(
         await familyRepository.AddMemberAsync(member, cancellationToken);
 
         invite.Accept(now);
-        await familyInviteRepository.SaveChangesAsync(cancellationToken);
         await RecordTimelineEventAsync(
             invite,
             FamilyInviteTimelineEventType.Redeemed,
             normalizedUserId,
             now,
             cancellationToken);
+        await EnqueueInviteAcceptedOutboxAsync(invite, normalizedUserId, now, cancellationToken);
+        await familyInviteRepository.SaveChangesAsync(cancellationToken);
 
         return new FamilyInviteRedemptionDetails(
             Map(invite),
@@ -429,5 +439,43 @@ public sealed class FamilyInviteService(
         return string.IsNullOrWhiteSpace(value)
             ? null
             : value.Trim();
+    }
+
+    private async Task EnqueueInviteAcceptedOutboxAsync(
+        FamilyInvite invite,
+        string? actorUserId,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var payload = new FamilyInviteAcceptedIntegrationEvent(
+            Guid.NewGuid(),
+            occurredAtUtc,
+            invite.FamilyId,
+            ResolveCorrelationId(),
+            invite.Id,
+            invite.Email,
+            invite.Role,
+            NormalizeOptional(actorUserId));
+
+        var outboxMessage = new IntegrationOutboxMessage(
+            Guid.NewGuid(),
+            invite.FamilyId,
+            payload.EventId.ToString("D"),
+            IntegrationEventRoutingKeys.FamilyInviteAcceptedV1,
+            FamilyIntegrationEventNames.FamilyInviteAccepted,
+            OutboxSchemaVersion,
+            FamilySourceService,
+            payload.CorrelationId,
+            causationId: null,
+            JsonSerializer.Serialize(payload),
+            payload.OccurredAtUtc,
+            clock.UtcNow);
+
+        await integrationOutboxRepository.AddAsync(outboxMessage, cancellationToken);
+    }
+
+    private static string ResolveCorrelationId()
+    {
+        return Activity.Current?.Id ?? Guid.NewGuid().ToString("D");
     }
 }

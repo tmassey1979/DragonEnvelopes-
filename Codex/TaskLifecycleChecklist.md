@@ -27,7 +27,7 @@ This workflow is mandatory for both `feature` and `bug` issues.
 - [ ] Include acceptance criteria and dev notes.
 
 ## Session Run Log
-- Active task: update before starting work.
+- Active task: #292 - Implement Ledger service outbox publishing for transaction and approval events (next).
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: update when closing work.
+- Previous completed task: #291 - Family service outbox publishing for domain events.
 - Last updated: `2026-03-07`.
