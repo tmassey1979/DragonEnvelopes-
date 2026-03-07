@@ -8,10 +8,10 @@ namespace DragonEnvelopes.Infrastructure.Repositories;
 
 public sealed class BudgetRepository(DragonEnvelopesDbContext dbContext) : IBudgetRepository
 {
-    public async Task AddAsync(Budget budget, CancellationToken cancellationToken = default)
+    public Task AddAsync(Budget budget, CancellationToken cancellationToken = default)
     {
         dbContext.Budgets.Add(budget);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task<bool> FamilyExistsAsync(Guid familyId, CancellationToken cancellationToken = default)

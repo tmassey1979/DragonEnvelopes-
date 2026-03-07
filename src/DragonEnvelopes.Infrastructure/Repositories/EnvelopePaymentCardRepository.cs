@@ -52,10 +52,10 @@ public sealed class EnvelopePaymentCardRepository(DragonEnvelopesDbContext dbCon
             .ToArrayAsync(cancellationToken);
     }
 
-    public async Task AddAsync(EnvelopePaymentCard card, CancellationToken cancellationToken = default)
+    public Task AddAsync(EnvelopePaymentCard card, CancellationToken cancellationToken = default)
     {
         dbContext.EnvelopePaymentCards.Add(card);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)

@@ -2139,7 +2139,7 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         var familyId = Guid.NewGuid();
         var account1Id = Guid.NewGuid();
         var account2Id = Guid.NewGuid();
-        var snapshotTime = new DateTimeOffset(2026, 3, 7, 13, 0, 0, TimeSpan.Zero);
+        var snapshotTime = DateTimeOffset.UtcNow.AddMinutes(-2);
 
         await using (var setupScope = _factory.Services.CreateAsyncScope())
         {

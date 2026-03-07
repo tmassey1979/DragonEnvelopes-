@@ -1,4 +1,5 @@
 using DragonEnvelopes.Application;
+using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Infrastructure;
 using DragonEnvelopes.Ledger.Api.CrossCutting.Errors;
@@ -97,6 +98,10 @@ internal static partial class LedgerApiBootstrap
 
     private static LedgerOutboxDispatchWorkerOptions BuildOutboxWorkerOptions(IConfiguration configuration)
     {
+        var sourceServices = configuration
+            .GetSection("Messaging:Outbox:SourceServices")
+            .Get<string[]>();
+
         return new LedgerOutboxDispatchWorkerOptions
         {
             Enabled = !bool.TryParse(configuration["Messaging:Outbox:Enabled"], out var enabled) || enabled,
@@ -108,7 +113,10 @@ internal static partial class LedgerApiBootstrap
                 : 50,
             BacklogWarningThreshold = int.TryParse(configuration["Messaging:Outbox:BacklogWarningThreshold"], out var warningThreshold)
                 ? Math.Max(1, warningThreshold)
-                : 100
+                : 100,
+            SourceServices = sourceServices is { Length: > 0 }
+                ? sourceServices
+                : [IntegrationEventSourceServices.LedgerApi, IntegrationEventSourceServices.PlanningApi, IntegrationEventSourceServices.AutomationApi]
         };
     }
 }

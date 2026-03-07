@@ -29,10 +29,10 @@ public sealed class EnvelopeFinancialAccountRepository(DragonEnvelopesDbContext 
             .ToArrayAsync(cancellationToken);
     }
 
-    public async Task AddAsync(EnvelopeFinancialAccount account, CancellationToken cancellationToken = default)
+    public Task AddAsync(EnvelopeFinancialAccount account, CancellationToken cancellationToken = default)
     {
         dbContext.EnvelopeFinancialAccounts.Add(account);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)

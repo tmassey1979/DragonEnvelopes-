@@ -24,6 +24,8 @@ public class EnvelopeServiceTests
             .ReturnsAsync(false);
         repository.Setup(x => x.AddEnvelopeAsync(It.IsAny<Envelope>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var service = new EnvelopeService(repository.Object);
         var envelope = await service.CreateAsync(familyId, "Groceries", 500m);
@@ -34,6 +36,39 @@ public class EnvelopeServiceTests
         Assert.Equal("Full", envelope.RolloverMode);
         Assert.Null(envelope.RolloverCap);
         Assert.False(envelope.IsArchived);
+    }
+
+    [Fact]
+    public async Task CreateAsync_EnqueuesPlanningOutboxMessage()
+    {
+        var repository = new Mock<IEnvelopeRepository>();
+        var outboxRepository = new Mock<IIntegrationOutboxRepository>();
+        var familyId = Guid.NewGuid();
+        repository.Setup(x => x.FamilyExistsAsync(familyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        repository.Setup(x => x.EnvelopeNameExistsAsync(
+                familyId,
+                "Groceries",
+                null,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        repository.Setup(x => x.AddEnvelopeAsync(It.IsAny<Envelope>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = new EnvelopeService(repository.Object, outboxRepository.Object);
+        await service.CreateAsync(familyId, "Groceries", 500m);
+
+        outboxRepository.Verify(
+            x => x.AddAsync(
+                It.Is<IntegrationOutboxMessage>(message =>
+                    message.SourceService == "planning-api"
+                    && message.RoutingKey == "planning.envelope.created.v1"
+                    && message.EventName == "EnvelopeCreated"
+                    && message.FamilyId == familyId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

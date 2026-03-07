@@ -29,15 +29,23 @@ internal static partial class FinancialApiBootstrap
         builder.Services.AddProviderClients(builder.Configuration);
         builder.Services.AddSingleton(Options.Create(BuildStripeWebhookOptions(builder.Configuration)));
         builder.Services.AddSingleton(Options.Create(BuildDataRetentionOptions(builder.Configuration)));
+        builder.Services.AddSingleton(Options.Create(BuildOutboxWorkerOptions(builder.Configuration)));
 
         var enableFinancialWorkers = builder.Configuration.GetValue<bool>("FinancialWorkers:Enabled");
+        var enableRabbitMq = builder.Configuration.GetValue<bool>("Messaging:RabbitMq:Enabled");
+        var outboxWorkerEnabled = builder.Configuration.GetValue<bool>("Messaging:Outbox:Enabled", true);
         var enableLedgerTransactionConsumer =
-            builder.Configuration.GetValue<bool>("Messaging:RabbitMq:Enabled")
+            enableRabbitMq
             && builder.Configuration.GetValue<bool>("Messaging:RabbitMq:EnableLedgerTransactionConsumer");
 
         if (!builder.Environment.IsEnvironment("Testing") && enableLedgerTransactionConsumer)
         {
             builder.Services.AddHostedService<LedgerTransactionCreatedConsumer>();
+        }
+
+        if (!builder.Environment.IsEnvironment("Testing") && enableRabbitMq && outboxWorkerEnabled)
+        {
+            builder.Services.AddHostedService<FinancialOutboxDispatchWorker>();
         }
 
         if (!builder.Environment.IsEnvironment("Testing") && enableFinancialWorkers)
@@ -96,6 +104,23 @@ internal static partial class FinancialApiBootstrap
             SpendNotificationRetentionDays = int.TryParse(configuration["DataRetention:SpendNotificationRetentionDays"], out var notificationDays)
                 ? Math.Max(1, notificationDays)
                 : 90
+        };
+    }
+
+    private static FinancialOutboxDispatchWorkerOptions BuildOutboxWorkerOptions(IConfiguration configuration)
+    {
+        return new FinancialOutboxDispatchWorkerOptions
+        {
+            Enabled = !bool.TryParse(configuration["Messaging:Outbox:Enabled"], out var enabled) || enabled,
+            PollIntervalSeconds = int.TryParse(configuration["Messaging:Outbox:PollIntervalSeconds"], out var pollIntervalSeconds)
+                ? Math.Max(1, pollIntervalSeconds)
+                : 5,
+            BatchSize = int.TryParse(configuration["Messaging:Outbox:BatchSize"], out var batchSize)
+                ? Math.Clamp(batchSize, 1, 500)
+                : 50,
+            BacklogWarningThreshold = int.TryParse(configuration["Messaging:Outbox:BacklogWarningThreshold"], out var warningThreshold)
+                ? Math.Max(1, warningThreshold)
+                : 100
         };
     }
 }

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Domain;
@@ -9,7 +11,8 @@ namespace DragonEnvelopes.Application.Services;
 public sealed class EnvelopeGoalService(
     IEnvelopeGoalRepository envelopeGoalRepository,
     IEnvelopeRepository envelopeRepository,
-    IClock clock) : IEnvelopeGoalService
+    IClock clock,
+    IIntegrationOutboxRepository? integrationOutboxRepository = null) : IEnvelopeGoalService
 {
     public async Task<EnvelopeGoalDetails> CreateAsync(
         Guid familyId,
@@ -46,6 +49,23 @@ public sealed class EnvelopeGoalService(
             now);
 
         await envelopeGoalRepository.AddAsync(goal, cancellationToken);
+        await EnqueuePlanningOutboxAsync(
+            goal.FamilyId,
+            IntegrationEventRoutingKeys.PlanningEnvelopeGoalCreatedV1,
+            PlanningIntegrationEventNames.EnvelopeGoalCreated,
+            new EnvelopeGoalCreatedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                goal.FamilyId,
+                ResolveCorrelationId(),
+                goal.Id,
+                goal.EnvelopeId,
+                goal.TargetAmount.Amount,
+                goal.DueDate,
+                goal.Status.ToString()),
+            now,
+            cancellationToken);
+        await envelopeGoalRepository.SaveChangesAsync(cancellationToken);
         return await MapWithEnvelopeAsync(goal, cancellationToken);
     }
 
@@ -99,6 +119,23 @@ public sealed class EnvelopeGoalService(
             dueDate,
             ParseStatus(status),
             clock.UtcNow);
+        var now = DateTimeOffset.UtcNow;
+        await EnqueuePlanningOutboxAsync(
+            goal.FamilyId,
+            IntegrationEventRoutingKeys.PlanningEnvelopeGoalUpdatedV1,
+            PlanningIntegrationEventNames.EnvelopeGoalUpdated,
+            new EnvelopeGoalUpdatedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                goal.FamilyId,
+                ResolveCorrelationId(),
+                goal.Id,
+                goal.EnvelopeId,
+                goal.TargetAmount.Amount,
+                goal.DueDate,
+                goal.Status.ToString()),
+            now,
+            cancellationToken);
         await envelopeGoalRepository.SaveChangesAsync(cancellationToken);
         return await MapWithEnvelopeAsync(goal, cancellationToken);
     }
@@ -112,6 +149,21 @@ public sealed class EnvelopeGoalService(
         }
 
         await envelopeGoalRepository.DeleteAsync(goal, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        await EnqueuePlanningOutboxAsync(
+            goal.FamilyId,
+            IntegrationEventRoutingKeys.PlanningEnvelopeGoalDeletedV1,
+            PlanningIntegrationEventNames.EnvelopeGoalDeleted,
+            new EnvelopeGoalDeletedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                goal.FamilyId,
+                ResolveCorrelationId(),
+                goal.Id,
+                goal.EnvelopeId),
+            now,
+            cancellationToken);
+        await envelopeGoalRepository.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<EnvelopeGoalProjectionDetails>> ProjectAsync(
@@ -224,5 +276,29 @@ public sealed class EnvelopeGoalService(
         }
 
         return parsedStatus;
+    }
+
+    private static string ResolveCorrelationId()
+    {
+        return Activity.Current?.Id ?? Guid.NewGuid().ToString("D");
+    }
+
+    private Task EnqueuePlanningOutboxAsync<TPayload>(
+        Guid familyId,
+        string routingKey,
+        string eventName,
+        TPayload payload,
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken)
+    {
+        return IntegrationOutboxEnqueuer.EnqueueAsync(
+            integrationOutboxRepository,
+            familyId,
+            IntegrationEventSourceServices.PlanningApi,
+            routingKey,
+            eventName,
+            payload,
+            createdAtUtc,
+            cancellationToken);
     }
 }

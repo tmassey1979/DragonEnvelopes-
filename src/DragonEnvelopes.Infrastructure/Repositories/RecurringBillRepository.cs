@@ -7,10 +7,10 @@ namespace DragonEnvelopes.Infrastructure.Repositories;
 
 public sealed class RecurringBillRepository(DragonEnvelopesDbContext dbContext) : IRecurringBillRepository
 {
-    public async Task AddAsync(RecurringBill recurringBill, CancellationToken cancellationToken = default)
+    public Task AddAsync(RecurringBill recurringBill, CancellationToken cancellationToken = default)
     {
         dbContext.RecurringBills.Add(recurringBill);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task<bool> FamilyExistsAsync(Guid familyId, CancellationToken cancellationToken = default)
@@ -35,10 +35,10 @@ public sealed class RecurringBillRepository(DragonEnvelopesDbContext dbContext) 
             .FirstOrDefaultAsync(x => x.Id == recurringBillId, cancellationToken);
     }
 
-    public async Task DeleteAsync(RecurringBill recurringBill, CancellationToken cancellationToken = default)
+    public Task DeleteAsync(RecurringBill recurringBill, CancellationToken cancellationToken = default)
     {
         dbContext.RecurringBills.Remove(recurringBill);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)

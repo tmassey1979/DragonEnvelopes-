@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Domain;
@@ -11,7 +13,8 @@ public sealed class EnvelopePaymentCardService(
     IEnvelopePaymentCardRepository envelopePaymentCardRepository,
     IEnvelopePaymentCardShipmentRepository envelopePaymentCardShipmentRepository,
     IStripeGateway stripeGateway,
-    IClock clock) : IEnvelopePaymentCardService
+    IClock clock,
+    IIntegrationOutboxRepository? integrationOutboxRepository = null) : IEnvelopePaymentCardService
 {
     private const string StripeProvider = "Stripe";
     private const string VirtualType = "Virtual";
@@ -64,6 +67,25 @@ public sealed class EnvelopePaymentCardService(
             now);
 
         await envelopePaymentCardRepository.AddAsync(card, cancellationToken);
+        await EnqueueFinancialOutboxAsync(
+            card.FamilyId,
+            IntegrationEventRoutingKeys.FinancialCardVirtualIssuedV1,
+            FinancialIntegrationEventNames.CardVirtualIssued,
+            new CardVirtualIssuedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                card.FamilyId,
+                ResolveCorrelationId(),
+                card.EnvelopeId,
+                card.Id,
+                card.Provider,
+                card.ProviderCardId,
+                card.Status,
+                card.Brand,
+                card.Last4),
+            now,
+            cancellationToken);
+        await envelopePaymentCardRepository.SaveChangesAsync(cancellationToken);
         return Map(card);
     }
 
@@ -148,6 +170,26 @@ public sealed class EnvelopePaymentCardService(
             now,
             now);
         await envelopePaymentCardShipmentRepository.AddAsync(shipment, cancellationToken);
+        await EnqueueFinancialOutboxAsync(
+            card.FamilyId,
+            IntegrationEventRoutingKeys.FinancialCardPhysicalIssuedV1,
+            FinancialIntegrationEventNames.CardPhysicalIssued,
+            new CardPhysicalIssuedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                card.FamilyId,
+                ResolveCorrelationId(),
+                card.EnvelopeId,
+                card.Id,
+                card.Provider,
+                card.ProviderCardId,
+                card.Status,
+                shipment.Status,
+                shipment.Carrier,
+                shipment.TrackingNumber),
+            now,
+            cancellationToken);
+        await envelopePaymentCardRepository.SaveChangesAsync(cancellationToken);
 
         return new EnvelopePhysicalCardIssuanceDetails(
             Map(card),
@@ -269,6 +311,64 @@ public sealed class EnvelopePaymentCardService(
 
         await stripeGateway.UpdateCardStatusAsync(card.ProviderCardId, status, cancellationToken);
         card.ChangeStatus(status, clock.UtcNow);
+        var now = DateTimeOffset.UtcNow;
+        if (status.Equals("Inactive", StringComparison.OrdinalIgnoreCase))
+        {
+            await EnqueueFinancialOutboxAsync(
+                card.FamilyId,
+                IntegrationEventRoutingKeys.FinancialCardFrozenV1,
+                FinancialIntegrationEventNames.CardFrozen,
+                new CardFrozenIntegrationEvent(
+                    Guid.NewGuid(),
+                    now,
+                    card.FamilyId,
+                    ResolveCorrelationId(),
+                    card.EnvelopeId,
+                    card.Id,
+                    card.Provider,
+                    card.ProviderCardId,
+                    card.Status),
+                now,
+                cancellationToken);
+        }
+        else if (status.Equals("Active", StringComparison.OrdinalIgnoreCase))
+        {
+            await EnqueueFinancialOutboxAsync(
+                card.FamilyId,
+                IntegrationEventRoutingKeys.FinancialCardUnfrozenV1,
+                FinancialIntegrationEventNames.CardUnfrozen,
+                new CardUnfrozenIntegrationEvent(
+                    Guid.NewGuid(),
+                    now,
+                    card.FamilyId,
+                    ResolveCorrelationId(),
+                    card.EnvelopeId,
+                    card.Id,
+                    card.Provider,
+                    card.ProviderCardId,
+                    card.Status),
+                now,
+                cancellationToken);
+        }
+        else if (status.Equals("Canceled", StringComparison.OrdinalIgnoreCase))
+        {
+            await EnqueueFinancialOutboxAsync(
+                card.FamilyId,
+                IntegrationEventRoutingKeys.FinancialCardCancelledV1,
+                FinancialIntegrationEventNames.CardCancelled,
+                new CardCancelledIntegrationEvent(
+                    Guid.NewGuid(),
+                    now,
+                    card.FamilyId,
+                    ResolveCorrelationId(),
+                    card.EnvelopeId,
+                    card.Id,
+                    card.Provider,
+                    card.ProviderCardId,
+                    card.Status),
+                now,
+                cancellationToken);
+        }
         await envelopePaymentCardRepository.SaveChangesAsync(cancellationToken);
 
         return Map(card);
@@ -310,5 +410,29 @@ public sealed class EnvelopePaymentCardService(
             shipment.TrackingNumber,
             shipment.RequestedAtUtc,
             shipment.UpdatedAtUtc);
+    }
+
+    private static string ResolveCorrelationId()
+    {
+        return Activity.Current?.Id ?? Guid.NewGuid().ToString("D");
+    }
+
+    private Task EnqueueFinancialOutboxAsync<TPayload>(
+        Guid familyId,
+        string routingKey,
+        string eventName,
+        TPayload payload,
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken)
+    {
+        return IntegrationOutboxEnqueuer.EnqueueAsync(
+            integrationOutboxRepository,
+            familyId,
+            IntegrationEventSourceServices.FinancialApi,
+            routingKey,
+            eventName,
+            payload,
+            createdAtUtc,
+            cancellationToken);
     }
 }

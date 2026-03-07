@@ -263,4 +263,107 @@ public sealed class NotificationServicesTests
         Assert.Equal(1, result.AttemptCount);
         Assert.Equal(sentAt, result.SentAtUtc);
     }
+
+    [Fact]
+    public async Task DispatchPendingAsync_EnqueuesFailedOutboxEvent_WhenDispatchBecomesTerminalFailure()
+    {
+        var now = new DateTimeOffset(2026, 3, 6, 22, 0, 0, TimeSpan.Zero);
+        var failedOnThirdAttempt = new SpendNotificationEvent(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "parent-2",
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "evt_terminal",
+            "Sms",
+            15m,
+            "Walmart",
+            85m,
+            now);
+        failedOnThirdAttempt.MarkRetry("attempt 1", now.AddMinutes(1), 3);
+        failedOnThirdAttempt.MarkRetry("attempt 2", now.AddMinutes(2), 3);
+
+        var eventRepository = new Mock<ISpendNotificationEventRepository>();
+        eventRepository
+            .Setup(x => x.ListDispatchableAsync(3, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([failedOnThirdAttempt]);
+        eventRepository
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(now.AddMinutes(3));
+        var outboxRepository = new Mock<IIntegrationOutboxRepository>();
+
+        var service = new SpendNotificationDispatchService(
+            eventRepository.Object,
+            clock.Object,
+            Mock.Of<ILogger<SpendNotificationDispatchService>>(),
+            outboxRepository.Object);
+
+        await service.DispatchPendingAsync();
+
+        outboxRepository.Verify(
+            x => x.AddAsync(
+                It.Is<IntegrationOutboxMessage>(message =>
+                    message.SourceService == "financial-api"
+                    && message.RoutingKey == "financial.provider-notification.dispatch-failed.v1"
+                    && message.EventName == "ProviderNotificationDispatchFailed"
+                    && message.FamilyId == failedOnThirdAttempt.FamilyId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task RetryFailedEventAsync_EnqueuesRetriedOutboxEvent_WhenDeliverySucceeds()
+    {
+        var familyId = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+        var failed = new SpendNotificationEvent(
+            eventId,
+            familyId,
+            "parent-1",
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "evt_retry",
+            "Email",
+            14m,
+            "Grocery",
+            86m,
+            DateTimeOffset.UtcNow.AddMinutes(-10));
+        failed.MarkRetry("attempt 1", DateTimeOffset.UtcNow.AddMinutes(-9), 3);
+        failed.MarkRetry("attempt 2", DateTimeOffset.UtcNow.AddMinutes(-8), 3);
+        failed.MarkRetry("attempt 3", DateTimeOffset.UtcNow.AddMinutes(-7), 3);
+
+        var eventRepository = new Mock<ISpendNotificationEventRepository>();
+        eventRepository
+            .Setup(x => x.GetByFamilyAndIdForUpdateAsync(familyId, eventId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(failed);
+        eventRepository
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var now = DateTimeOffset.UtcNow;
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(now);
+        var outboxRepository = new Mock<IIntegrationOutboxRepository>();
+
+        var service = new SpendNotificationDispatchService(
+            eventRepository.Object,
+            clock.Object,
+            Mock.Of<ILogger<SpendNotificationDispatchService>>(),
+            outboxRepository.Object);
+
+        await service.RetryFailedEventAsync(familyId, eventId);
+
+        outboxRepository.Verify(
+            x => x.AddAsync(
+                It.Is<IntegrationOutboxMessage>(message =>
+                    message.SourceService == "financial-api"
+                    && message.RoutingKey == "financial.provider-notification.dispatch-retried.v1"
+                    && message.EventName == "ProviderNotificationDispatchRetried"
+                    && message.FamilyId == familyId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
 }

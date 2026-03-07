@@ -9,4 +9,11 @@ public sealed class LedgerOutboxDispatchWorkerOptions
     public int BatchSize { get; set; } = 50;
 
     public int BacklogWarningThreshold { get; set; } = 100;
+
+    public string[] SourceServices { get; set; } =
+    [
+        "ledger-api",
+        "planning-api",
+        "automation-api"
+    ];
 }

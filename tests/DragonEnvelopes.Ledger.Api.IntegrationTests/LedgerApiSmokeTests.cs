@@ -5,6 +5,7 @@ using System.Text.Encodings.Web;
 using DragonEnvelopes.Contracts.Accounts;
 using DragonEnvelopes.Contracts.Approvals;
 using DragonEnvelopes.Contracts.Anomalies;
+using DragonEnvelopes.Contracts.Automation;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.EnvelopeGoals;
 using DragonEnvelopes.Contracts.Envelopes;
@@ -371,6 +372,109 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
 
         Assert.Contains(outboxMessages, message => message.EventName == "TransactionCreated");
         Assert.Contains(outboxMessages, message => message.RoutingKey == "ledger.transaction.created.v1");
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Planning_Writes_Emit_Planning_Outbox_Messages()
+    {
+        var userId = "ledger-outbox-planning-user-a";
+        var ownFamilyId = Guid.Parse("e1263000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e1263000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAndAccountAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        Guid ownEnvelopeId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            ownEnvelopeId = await dbContext.Envelopes
+                .Where(envelope => envelope.FamilyId == ownFamilyId)
+                .Select(envelope => envelope.Id)
+                .FirstAsync();
+        }
+
+        var createEnvelopeResponse = await client.PostAsJsonAsync(
+            "/api/v1/envelopes",
+            new CreateEnvelopeRequest(ownFamilyId, "Planning Outbox Envelope", 125m));
+        Assert.Equal(HttpStatusCode.Created, createEnvelopeResponse.StatusCode);
+
+        var createBudgetResponse = await client.PostAsJsonAsync(
+            "/api/v1/budgets",
+            new CreateBudgetRequest(ownFamilyId, "2026-04", 4800m));
+        Assert.Equal(HttpStatusCode.Created, createBudgetResponse.StatusCode);
+
+        var createRecurringResponse = await client.PostAsJsonAsync(
+            "/api/v1/recurring-bills",
+            new CreateRecurringBillRequest(
+                ownFamilyId,
+                "Planning Outbox Recurring",
+                "Utility Co",
+                88m,
+                "Monthly",
+                8,
+                new DateOnly(2026, 4, 1),
+                null,
+                true));
+        Assert.Equal(HttpStatusCode.Created, createRecurringResponse.StatusCode);
+
+        var createGoalResponse = await client.PostAsJsonAsync(
+            "/api/v1/envelope-goals",
+            new CreateEnvelopeGoalRequest(
+                ownFamilyId,
+                ownEnvelopeId,
+                500m,
+                new DateOnly(2026, 12, 1),
+                "Active"));
+        Assert.Equal(HttpStatusCode.Created, createGoalResponse.StatusCode);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDbContext = verifyScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var outboxMessages = await verifyDbContext.IntegrationOutboxMessages
+            .AsNoTracking()
+            .Where(message => message.FamilyId == ownFamilyId && message.SourceService == "planning-api")
+            .Select(message => new { message.EventName, message.RoutingKey })
+            .ToArrayAsync();
+
+        Assert.Contains(outboxMessages, message => message.EventName == "EnvelopeCreated" && message.RoutingKey == "planning.envelope.created.v1");
+        Assert.Contains(outboxMessages, message => message.EventName == "BudgetCreated" && message.RoutingKey == "planning.budget.created.v1");
+        Assert.Contains(outboxMessages, message => message.EventName == "RecurringBillCreated" && message.RoutingKey == "planning.recurring-bill.created.v1");
+        Assert.Contains(outboxMessages, message => message.EventName == "EnvelopeGoalCreated" && message.RoutingKey == "planning.envelope-goal.created.v1");
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Automation_Write_Emits_Automation_Outbox_Message()
+    {
+        var userId = "ledger-outbox-automation-user-a";
+        var ownFamilyId = Guid.Parse("e1264000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e1264000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAndAccountAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/automation/rules",
+            new CreateAutomationRuleRequest(
+                ownFamilyId,
+                "Groceries Categorization",
+                "Categorization",
+                1,
+                true,
+                """{"merchantContains":"market"}""",
+                """{"setCategory":"Food"}"""));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDbContext = verifyScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var outboxMessages = await verifyDbContext.IntegrationOutboxMessages
+            .AsNoTracking()
+            .Where(message => message.FamilyId == ownFamilyId && message.SourceService == "automation-api")
+            .Select(message => new { message.EventName, message.RoutingKey })
+            .ToArrayAsync();
+
+        Assert.Contains(outboxMessages, message => message.EventName == "AutomationRuleCreated" && message.RoutingKey == "automation.rule.created.v1");
     }
 
     [Fact]

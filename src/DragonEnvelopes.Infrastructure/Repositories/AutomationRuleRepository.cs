@@ -8,10 +8,10 @@ namespace DragonEnvelopes.Infrastructure.Repositories;
 
 public sealed class AutomationRuleRepository(DragonEnvelopesDbContext dbContext) : IAutomationRuleRepository
 {
-    public async Task AddAsync(AutomationRule rule, CancellationToken cancellationToken = default)
+    public Task AddAsync(AutomationRule rule, CancellationToken cancellationToken = default)
     {
         dbContext.AutomationRules.Add(rule);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task<bool> FamilyExistsAsync(Guid familyId, CancellationToken cancellationToken = default)
@@ -60,10 +60,10 @@ public sealed class AutomationRuleRepository(DragonEnvelopesDbContext dbContext)
             .ToArrayAsync(cancellationToken);
     }
 
-    public async Task DeleteAsync(AutomationRule rule, CancellationToken cancellationToken = default)
+    public Task DeleteAsync(AutomationRule rule, CancellationToken cancellationToken = default)
     {
         dbContext.AutomationRules.Remove(rule);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)

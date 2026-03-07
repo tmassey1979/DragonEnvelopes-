@@ -7,10 +7,10 @@ namespace DragonEnvelopes.Infrastructure.Repositories;
 
 public sealed class EnvelopeGoalRepository(DragonEnvelopesDbContext dbContext) : IEnvelopeGoalRepository
 {
-    public async Task AddAsync(EnvelopeGoal goal, CancellationToken cancellationToken = default)
+    public Task AddAsync(EnvelopeGoal goal, CancellationToken cancellationToken = default)
     {
         dbContext.EnvelopeGoals.Add(goal);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task<bool> FamilyExistsAsync(Guid familyId, CancellationToken cancellationToken = default)
@@ -69,10 +69,10 @@ public sealed class EnvelopeGoalRepository(DragonEnvelopesDbContext dbContext) :
             .ToArrayAsync(cancellationToken);
     }
 
-    public async Task DeleteAsync(EnvelopeGoal goal, CancellationToken cancellationToken = default)
+    public Task DeleteAsync(EnvelopeGoal goal, CancellationToken cancellationToken = default)
     {
         dbContext.EnvelopeGoals.Remove(goal);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)

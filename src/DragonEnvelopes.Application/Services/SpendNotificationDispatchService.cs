@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Domain;
@@ -8,7 +10,8 @@ namespace DragonEnvelopes.Application.Services;
 public sealed class SpendNotificationDispatchService(
     ISpendNotificationEventRepository spendNotificationEventRepository,
     IClock clock,
-    ILogger<SpendNotificationDispatchService> logger) : ISpendNotificationDispatchService
+    ILogger<SpendNotificationDispatchService> logger,
+    IIntegrationOutboxRepository? integrationOutboxRepository = null) : ISpendNotificationDispatchService
 {
     private const int MaxAttempts = 3;
     private const int BatchSize = 100;
@@ -30,13 +33,58 @@ public sealed class SpendNotificationDispatchService(
         {
             try
             {
+                var priorAttemptCount = notification.AttemptCount;
                 await DeliverAsync(notification, cancellationToken);
-                notification.MarkSent(clock.UtcNow);
+                var sentAtUtc = clock.UtcNow;
+                notification.MarkSent(sentAtUtc);
+                if (priorAttemptCount > 0)
+                {
+                    await EnqueueFinancialOutboxAsync(
+                        notification.FamilyId,
+                        IntegrationEventRoutingKeys.FinancialProviderNotificationDispatchRetriedV1,
+                        FinancialIntegrationEventNames.ProviderNotificationDispatchRetried,
+                        new ProviderNotificationDispatchRetriedIntegrationEvent(
+                            Guid.NewGuid(),
+                            sentAtUtc,
+                            notification.FamilyId,
+                            ResolveCorrelationId(),
+                            notification.Id,
+                            notification.UserId,
+                            notification.Channel,
+                            notification.Amount,
+                            notification.Merchant,
+                            notification.AttemptCount,
+                            notification.Status),
+                        sentAtUtc,
+                        cancellationToken);
+                }
                 sent += 1;
             }
             catch (Exception ex)
             {
-                notification.MarkRetry(ex.Message, clock.UtcNow, MaxAttempts);
+                var attemptedAtUtc = clock.UtcNow;
+                notification.MarkRetry(ex.Message, attemptedAtUtc, MaxAttempts);
+                if (notification.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase))
+                {
+                    await EnqueueFinancialOutboxAsync(
+                        notification.FamilyId,
+                        IntegrationEventRoutingKeys.FinancialProviderNotificationDispatchFailedV1,
+                        FinancialIntegrationEventNames.ProviderNotificationDispatchFailed,
+                        new ProviderNotificationDispatchFailedIntegrationEvent(
+                            Guid.NewGuid(),
+                            attemptedAtUtc,
+                            notification.FamilyId,
+                            ResolveCorrelationId(),
+                            notification.Id,
+                            notification.UserId,
+                            notification.Channel,
+                            notification.Amount,
+                            notification.Merchant,
+                            notification.AttemptCount,
+                            ex.Message),
+                        attemptedAtUtc,
+                        cancellationToken);
+                }
                 failed += 1;
                 logger.LogWarning(
                     ex,
@@ -131,12 +179,57 @@ public sealed class SpendNotificationDispatchService(
 
         try
         {
+            var priorAttemptCount = notification.AttemptCount;
             await DeliverAsync(notification, cancellationToken);
-            notification.MarkSent(clock.UtcNow);
+            var sentAtUtc = clock.UtcNow;
+            notification.MarkSent(sentAtUtc);
+            if (priorAttemptCount > 0)
+            {
+                await EnqueueFinancialOutboxAsync(
+                    notification.FamilyId,
+                    IntegrationEventRoutingKeys.FinancialProviderNotificationDispatchRetriedV1,
+                    FinancialIntegrationEventNames.ProviderNotificationDispatchRetried,
+                    new ProviderNotificationDispatchRetriedIntegrationEvent(
+                        Guid.NewGuid(),
+                        sentAtUtc,
+                        notification.FamilyId,
+                        ResolveCorrelationId(),
+                        notification.Id,
+                        notification.UserId,
+                        notification.Channel,
+                        notification.Amount,
+                        notification.Merchant,
+                        notification.AttemptCount,
+                        notification.Status),
+                    sentAtUtc,
+                    cancellationToken);
+            }
         }
         catch (Exception ex)
         {
-            notification.MarkRetry(ex.Message, clock.UtcNow, MaxAttempts + 1);
+            var attemptedAtUtc = clock.UtcNow;
+            notification.MarkRetry(ex.Message, attemptedAtUtc, MaxAttempts + 1);
+            if (notification.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase))
+            {
+                await EnqueueFinancialOutboxAsync(
+                    notification.FamilyId,
+                    IntegrationEventRoutingKeys.FinancialProviderNotificationDispatchFailedV1,
+                    FinancialIntegrationEventNames.ProviderNotificationDispatchFailed,
+                    new ProviderNotificationDispatchFailedIntegrationEvent(
+                        Guid.NewGuid(),
+                        attemptedAtUtc,
+                        notification.FamilyId,
+                        ResolveCorrelationId(),
+                        notification.Id,
+                        notification.UserId,
+                        notification.Channel,
+                        notification.Amount,
+                        notification.Merchant,
+                        notification.AttemptCount,
+                        ex.Message),
+                    attemptedAtUtc,
+                    cancellationToken);
+            }
             logger.LogWarning(
                 ex,
                 "Manual notification retry failed. NotificationId={NotificationId}, Channel={Channel}, Attempt={Attempt}",
@@ -186,5 +279,29 @@ public sealed class SpendNotificationDispatchService(
             notification.LastAttemptAtUtc,
             notification.SentAtUtc,
             notification.ErrorMessage);
+    }
+
+    private static string ResolveCorrelationId()
+    {
+        return Activity.Current?.Id ?? Guid.NewGuid().ToString("D");
+    }
+
+    private Task EnqueueFinancialOutboxAsync<TPayload>(
+        Guid familyId,
+        string routingKey,
+        string eventName,
+        TPayload payload,
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken)
+    {
+        return IntegrationOutboxEnqueuer.EnqueueAsync(
+            integrationOutboxRepository,
+            familyId,
+            IntegrationEventSourceServices.FinancialApi,
+            routingKey,
+            eventName,
+            payload,
+            createdAtUtc,
+            cancellationToken);
     }
 }

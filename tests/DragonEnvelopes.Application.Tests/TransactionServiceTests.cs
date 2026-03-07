@@ -1,6 +1,7 @@
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Application.DTOs;
+using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Domain;
 using DragonEnvelopes.Domain.Entities;
 using DragonEnvelopes.Domain.ValueObjects;
@@ -273,6 +274,73 @@ public class TransactionServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_WhenCategoryAutoAssigned_EnqueuesCategorizationExecutionOutboxMessage()
+    {
+        var transactionRepository = new Mock<ITransactionRepository>();
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
+        var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
+        var outboxRepository = new Mock<IIntegrationOutboxRepository>();
+        var accountId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+
+        transactionRepository.Setup(x => x.GetAccountFamilyIdAsync(accountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(familyId);
+        categorizationEngine.Setup(x => x.EvaluateAsync(
+                familyId,
+                "AMZN Mktp US*123",
+                "Amazon",
+                -45.22m,
+                null,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Shopping");
+        transactionRepository.Setup(x => x.AddTransactionAsync(
+                It.IsAny<Transaction>(),
+                It.IsAny<IReadOnlyList<TransactionSplitEntry>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = new TransactionService(
+            transactionRepository.Object,
+            envelopeRepository.Object,
+            categorizationEngine.Object,
+            incomeAllocationEngine.Object,
+            spendAnomalyService: null,
+            integrationOutboxRepository: outboxRepository.Object);
+        await service.CreateAsync(
+            accountId,
+            -45.22m,
+            "AMZN Mktp US*123",
+            "Amazon",
+            DateTimeOffset.UtcNow,
+            null,
+            null,
+            false,
+            null);
+
+        outboxRepository.Verify(
+            x => x.AddAsync(
+                It.Is<IntegrationOutboxMessage>(message =>
+                    message.SourceService == IntegrationEventSourceServices.AutomationApi
+                    && message.RoutingKey == IntegrationEventRoutingKeys.AutomationRuleExecutedV1
+                    && message.EventName == AutomationIntegrationEventNames.AutomationRuleExecuted
+                    && message.FamilyId == familyId
+                    && message.PayloadJson.Contains("\"ExecutionType\":\"Categorization\"")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        outboxRepository.Verify(
+            x => x.AddAsync(
+                It.Is<IntegrationOutboxMessage>(message =>
+                    message.SourceService == "ledger-api"
+                    && message.RoutingKey == IntegrationEventRoutingKeys.LedgerTransactionCreatedV1
+                    && message.EventName == LedgerIntegrationEventNames.TransactionCreated
+                    && message.FamilyId == familyId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task CreateAsync_WhenCategoryProvided_SkipsCategorizationRule()
     {
         var transactionRepository = new Mock<ITransactionRepository>();
@@ -368,6 +436,82 @@ public class TransactionServiceTests
         Assert.Single(savedSplits!);
         Assert.Equal(120m, savedSplits![0].Amount.Amount);
         Assert.Equal(220m, envelope.CurrentBalance.Amount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenAutoAllocationUsed_EnqueuesAllocationExecutionOutboxMessage()
+    {
+        var transactionRepository = new Mock<ITransactionRepository>();
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
+        var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
+        var outboxRepository = new Mock<IIntegrationOutboxRepository>();
+        var accountId = Guid.NewGuid();
+        var familyId = Guid.NewGuid();
+        var envelopeId = Guid.NewGuid();
+        var envelope = new Envelope(
+            envelopeId,
+            familyId,
+            "Savings",
+            Money.FromDecimal(500m),
+            Money.FromDecimal(100m));
+
+        transactionRepository.Setup(x => x.GetAccountFamilyIdAsync(accountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(familyId);
+        incomeAllocationEngine.Setup(x => x.AllocateAsync(
+                familyId,
+                "Paycheck",
+                "Employer",
+                200m,
+                "Income",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new TransactionSplitCreateDetails(envelopeId, 120m, "Income", "Auto allocation")]);
+        envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(envelopeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(envelope);
+        transactionRepository.Setup(x => x.AddTransactionAsync(
+                It.IsAny<Transaction>(),
+                It.IsAny<IReadOnlyList<TransactionSplitEntry>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = new TransactionService(
+            transactionRepository.Object,
+            envelopeRepository.Object,
+            categorizationEngine.Object,
+            incomeAllocationEngine.Object,
+            spendAnomalyService: null,
+            integrationOutboxRepository: outboxRepository.Object);
+        await service.CreateAsync(
+            accountId,
+            200m,
+            "Paycheck",
+            "Employer",
+            DateTimeOffset.UtcNow,
+            "Income",
+            null,
+            false,
+            null);
+
+        outboxRepository.Verify(
+            x => x.AddAsync(
+                It.Is<IntegrationOutboxMessage>(message =>
+                    message.SourceService == IntegrationEventSourceServices.AutomationApi
+                    && message.RoutingKey == IntegrationEventRoutingKeys.AutomationRuleExecutedV1
+                    && message.EventName == AutomationIntegrationEventNames.AutomationRuleExecuted
+                    && message.FamilyId == familyId
+                    && message.PayloadJson.Contains("\"ExecutionType\":\"Allocation\"")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        outboxRepository.Verify(
+            x => x.AddAsync(
+                It.Is<IntegrationOutboxMessage>(message =>
+                    message.SourceService == "ledger-api"
+                    && message.RoutingKey == IntegrationEventRoutingKeys.LedgerTransactionCreatedV1
+                    && message.EventName == LedgerIntegrationEventNames.TransactionCreated
+                    && message.FamilyId == familyId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

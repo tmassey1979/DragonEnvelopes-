@@ -22,6 +22,8 @@ public class AutomationRuleServiceTests
             .ReturnsAsync(true);
         repository.Setup(x => x.AddAsync(It.IsAny<AutomationRule>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var service = new AutomationRuleService(repository.Object, clock.Object);
         var result = await service.CreateAsync(
@@ -116,5 +118,48 @@ public class AutomationRuleServiceTests
         var service = new AutomationRuleService(repository.Object, clock.Object);
 
         await Assert.ThrowsAsync<DomainValidationException>(() => service.DeleteAsync(ruleId));
+    }
+
+    [Fact]
+    public async Task DisableAsync_EnqueuesAutomationOutboxMessage()
+    {
+        var fixture = new ApplicationTestFixture();
+        var clock = fixture.CreateClockMock();
+        var repository = new Mock<IAutomationRuleRepository>();
+        var familyId = Guid.NewGuid();
+        var rule = new AutomationRule(
+            Guid.NewGuid(),
+            familyId,
+            "Disable Rule",
+            AutomationRuleType.Categorization,
+            1,
+            true,
+            "{}",
+            "{}",
+            fixture.FrozenUtcNow,
+            fixture.FrozenUtcNow);
+        var outboxRepository = new Mock<IIntegrationOutboxRepository>();
+
+        repository.Setup(x => x.GetByIdForUpdateAsync(rule.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(rule);
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = new AutomationRuleService(
+            repository.Object,
+            clock.Object,
+            outboxRepository.Object);
+
+        await service.DisableAsync(rule.Id);
+
+        outboxRepository.Verify(
+            x => x.AddAsync(
+                It.Is<IntegrationOutboxMessage>(message =>
+                    message.SourceService == "automation-api"
+                    && message.RoutingKey == "automation.rule.disabled.v1"
+                    && message.EventName == "AutomationRuleDisabled"
+                    && message.FamilyId == familyId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }

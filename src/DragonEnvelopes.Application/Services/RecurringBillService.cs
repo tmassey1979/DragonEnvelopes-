@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Domain;
@@ -8,7 +10,8 @@ namespace DragonEnvelopes.Application.Services;
 
 public sealed class RecurringBillService(
     IRecurringBillRepository recurringBillRepository,
-    IRecurringBillExecutionRepository recurringBillExecutionRepository) : IRecurringBillService
+    IRecurringBillExecutionRepository recurringBillExecutionRepository,
+    IIntegrationOutboxRepository? integrationOutboxRepository = null) : IRecurringBillService
 {
     public async Task<RecurringBillDetails> CreateAsync(
         Guid familyId,
@@ -41,7 +44,30 @@ public sealed class RecurringBillService(
             isActive);
 
         await recurringBillRepository.AddAsync(recurringBill, cancellationToken);
-        return Map(recurringBill);
+        var created = Map(recurringBill);
+        var now = DateTimeOffset.UtcNow;
+        await EnqueuePlanningOutboxAsync(
+            recurringBill.FamilyId,
+            IntegrationEventRoutingKeys.PlanningRecurringBillCreatedV1,
+            PlanningIntegrationEventNames.RecurringBillCreated,
+            new RecurringBillCreatedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                recurringBill.FamilyId,
+                ResolveCorrelationId(),
+                recurringBill.Id,
+                recurringBill.Name,
+                recurringBill.Merchant,
+                recurringBill.Amount.Amount,
+                recurringBill.Frequency.ToString(),
+                recurringBill.DayOfMonth,
+                recurringBill.StartDate,
+                recurringBill.EndDate,
+                recurringBill.IsActive),
+            now,
+            cancellationToken);
+        await recurringBillRepository.SaveChangesAsync(cancellationToken);
+        return created;
     }
 
     public async Task<IReadOnlyList<RecurringBillDetails>> ListByFamilyAsync(
@@ -79,6 +105,27 @@ public sealed class RecurringBillService(
             startDate,
             endDate,
             isActive);
+        var now = DateTimeOffset.UtcNow;
+        await EnqueuePlanningOutboxAsync(
+            recurringBill.FamilyId,
+            IntegrationEventRoutingKeys.PlanningRecurringBillUpdatedV1,
+            PlanningIntegrationEventNames.RecurringBillUpdated,
+            new RecurringBillUpdatedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                recurringBill.FamilyId,
+                ResolveCorrelationId(),
+                recurringBill.Id,
+                recurringBill.Name,
+                recurringBill.Merchant,
+                recurringBill.Amount.Amount,
+                recurringBill.Frequency.ToString(),
+                recurringBill.DayOfMonth,
+                recurringBill.StartDate,
+                recurringBill.EndDate,
+                recurringBill.IsActive),
+            now,
+            cancellationToken);
         await recurringBillRepository.SaveChangesAsync(cancellationToken);
         return Map(recurringBill);
     }
@@ -92,6 +139,24 @@ public sealed class RecurringBillService(
         }
 
         await recurringBillRepository.DeleteAsync(recurringBill, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        await EnqueuePlanningOutboxAsync(
+            recurringBill.FamilyId,
+            IntegrationEventRoutingKeys.PlanningRecurringBillDeletedV1,
+            PlanningIntegrationEventNames.RecurringBillDeleted,
+            new RecurringBillDeletedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                recurringBill.FamilyId,
+                ResolveCorrelationId(),
+                recurringBill.Id,
+                recurringBill.Name,
+                recurringBill.Merchant,
+                recurringBill.Amount.Amount,
+                recurringBill.Frequency.ToString()),
+            now,
+            cancellationToken);
+        await recurringBillRepository.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<RecurringBillExecutionDetails>> ListExecutionsAsync(
@@ -308,5 +373,29 @@ public sealed class RecurringBillService(
     private static DateOnly Min(DateOnly left, DateOnly right)
     {
         return left <= right ? left : right;
+    }
+
+    private static string ResolveCorrelationId()
+    {
+        return Activity.Current?.Id ?? Guid.NewGuid().ToString("D");
+    }
+
+    private Task EnqueuePlanningOutboxAsync<TPayload>(
+        Guid familyId,
+        string routingKey,
+        string eventName,
+        TPayload payload,
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken)
+    {
+        return IntegrationOutboxEnqueuer.EnqueueAsync(
+            integrationOutboxRepository,
+            familyId,
+            IntegrationEventSourceServices.PlanningApi,
+            routingKey,
+            eventName,
+            payload,
+            createdAtUtc,
+            cancellationToken);
     }
 }

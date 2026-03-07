@@ -25,6 +25,8 @@ public class BudgetServiceTests
             .ReturnsAsync(false);
         repository.Setup(x => x.AddAsync(It.IsAny<Budget>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         envelopeRepository.Setup(x => x.ListByFamilyAsync(familyId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
@@ -78,6 +80,47 @@ public class BudgetServiceTests
         Assert.NotNull(result);
         Assert.Equal(500m, result!.AllocatedAmount);
         Assert.Equal(500m, result.RemainingAmount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_EnqueuesPlanningOutboxMessage()
+    {
+        var repository = new Mock<IBudgetRepository>();
+        var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var outboxRepository = new Mock<IIntegrationOutboxRepository>();
+        var calculator = new RemainingBudgetCalculator();
+        var familyId = Guid.NewGuid();
+        repository.Setup(x => x.FamilyExistsAsync(familyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        repository.Setup(x => x.ExistsForMonthAsync(
+                familyId,
+                BudgetMonth.Parse("2026-03"),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        repository.Setup(x => x.AddAsync(It.IsAny<Budget>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        envelopeRepository.Setup(x => x.ListByFamilyAsync(familyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var service = new BudgetService(
+            repository.Object,
+            envelopeRepository.Object,
+            calculator,
+            outboxRepository.Object);
+
+        await service.CreateAsync(familyId, "2026-03", 1234m);
+
+        outboxRepository.Verify(
+            x => x.AddAsync(
+                It.Is<DragonEnvelopes.Domain.Entities.IntegrationOutboxMessage>(message =>
+                    message.SourceService == "planning-api"
+                    && message.RoutingKey == "planning.budget.created.v1"
+                    && message.EventName == "BudgetCreated"
+                    && message.FamilyId == familyId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     private static Envelope CreateArchivedEnvelope(Guid familyId, string name, decimal monthlyBudget)

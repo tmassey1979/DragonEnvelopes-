@@ -158,4 +158,58 @@ public class EnvelopeGoalServiceTests
             new DateOnly(2026, 6, 1),
             "Active"));
     }
+
+    [Fact]
+    public async Task CreateAsync_EnqueuesPlanningOutboxMessage()
+    {
+        var fixture = new ApplicationTestFixture();
+        var clock = fixture.CreateClockMock();
+        var goalRepository = new Mock<IEnvelopeGoalRepository>();
+        var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var outboxRepository = new Mock<IIntegrationOutboxRepository>();
+        var familyId = Guid.NewGuid();
+        var envelopeId = Guid.NewGuid();
+
+        goalRepository.Setup(x => x.FamilyExistsAsync(familyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        goalRepository.Setup(x => x.EnvelopeExistsAsync(envelopeId, familyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        goalRepository.Setup(x => x.ExistsForEnvelopeAsync(envelopeId, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        goalRepository.Setup(x => x.AddAsync(It.IsAny<EnvelopeGoal>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        goalRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        envelopeRepository.Setup(x => x.GetByIdAsync(envelopeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Envelope(
+                envelopeId,
+                familyId,
+                "Emergency",
+                Money.FromDecimal(300m),
+                Money.FromDecimal(140m)));
+
+        var service = new EnvelopeGoalService(
+            goalRepository.Object,
+            envelopeRepository.Object,
+            clock.Object,
+            outboxRepository.Object);
+
+        await service.CreateAsync(
+            familyId,
+            envelopeId,
+            500m,
+            new DateOnly(2026, 6, 1),
+            "Active");
+
+        outboxRepository.Verify(
+            x => x.AddAsync(
+                It.Is<IntegrationOutboxMessage>(message =>
+                    message.SourceService == "planning-api"
+                    && message.RoutingKey == "planning.envelope-goal.created.v1"
+                    && message.EventName == "EnvelopeGoalCreated"
+                    && message.FamilyId == familyId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
 }

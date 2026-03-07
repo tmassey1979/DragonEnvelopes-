@@ -20,10 +20,10 @@ public sealed class EnvelopePaymentCardShipmentRepository(DragonEnvelopesDbConte
             .FirstOrDefaultAsync(x => x.CardId == cardId, cancellationToken);
     }
 
-    public async Task AddAsync(EnvelopePaymentCardShipment shipment, CancellationToken cancellationToken = default)
+    public Task AddAsync(EnvelopePaymentCardShipment shipment, CancellationToken cancellationToken = default)
     {
         dbContext.EnvelopePaymentCardShipments.Add(shipment);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)

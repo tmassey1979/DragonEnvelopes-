@@ -8,8 +8,8 @@ public sealed class LedgerOutboxDispatchWorker(
     IOptions<LedgerOutboxDispatchWorkerOptions> optionsAccessor,
     ILogger<LedgerOutboxDispatchWorker> logger) : BackgroundService
 {
-    private const string LedgerSourceService = "ledger-api";
     private readonly LedgerOutboxDispatchWorkerOptions _options = optionsAccessor.Value;
+    private readonly string[] _sourceServices = ResolveSourceServices(optionsAccessor.Value.SourceServices);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -25,27 +25,32 @@ public sealed class LedgerOutboxDispatchWorker(
             {
                 using var scope = scopeFactory.CreateScope();
                 var dispatchService = scope.ServiceProvider.GetRequiredService<IIntegrationOutboxDispatchService>();
-                var result = await dispatchService.DispatchPendingAsync(
-                    LedgerSourceService,
-                    Math.Clamp(_options.BatchSize, 1, 500),
-                    stoppingToken);
-
-                if (result.LoadedCount > 0 || result.PendingCount > 0)
+                foreach (var sourceService in _sourceServices)
                 {
-                    logger.LogInformation(
-                        "Ledger outbox dispatch cycle completed. Loaded={Loaded}, Published={Published}, Failed={Failed}, Pending={Pending}",
-                        result.LoadedCount,
-                        result.PublishedCount,
-                        result.FailedCount,
-                        result.PendingCount);
-                }
+                    var result = await dispatchService.DispatchPendingAsync(
+                        sourceService,
+                        Math.Clamp(_options.BatchSize, 1, 500),
+                        stoppingToken);
 
-                if (result.PendingCount >= Math.Max(1, _options.BacklogWarningThreshold))
-                {
-                    logger.LogWarning(
-                        "Ledger outbox backlog threshold exceeded. Pending={Pending}, Threshold={Threshold}",
-                        result.PendingCount,
-                        _options.BacklogWarningThreshold);
+                    if (result.LoadedCount > 0 || result.PendingCount > 0)
+                    {
+                        logger.LogInformation(
+                            "Ledger outbox dispatch cycle completed. Source={Source}, Loaded={Loaded}, Published={Published}, Failed={Failed}, Pending={Pending}",
+                            sourceService,
+                            result.LoadedCount,
+                            result.PublishedCount,
+                            result.FailedCount,
+                            result.PendingCount);
+                    }
+
+                    if (result.PendingCount >= Math.Max(1, _options.BacklogWarningThreshold))
+                    {
+                        logger.LogWarning(
+                            "Ledger outbox backlog threshold exceeded. Source={Source}, Pending={Pending}, Threshold={Threshold}",
+                            sourceService,
+                            result.PendingCount,
+                            _options.BacklogWarningThreshold);
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -68,5 +73,18 @@ public sealed class LedgerOutboxDispatchWorker(
                 break;
             }
         }
+    }
+
+    private static string[] ResolveSourceServices(IEnumerable<string>? configuredSourceServices)
+    {
+        var normalized = (configuredSourceServices ?? [])
+            .Where(static source => !string.IsNullOrWhiteSpace(source))
+            .Select(static source => source.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return normalized.Length == 0
+            ? ["ledger-api"]
+            : normalized;
     }
 }

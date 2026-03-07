@@ -38,6 +38,7 @@ public sealed class TransactionService(
             throw new DomainValidationException("Account was not found.");
         }
 
+        var categoryAssignedByAutomation = false;
         if (string.IsNullOrWhiteSpace(category))
         {
             category = await categorizationRuleEngine.EvaluateAsync(
@@ -47,6 +48,7 @@ public sealed class TransactionService(
                 amount,
                 category,
                 cancellationToken);
+            categoryAssignedByAutomation = !string.IsNullOrWhiteSpace(category);
         }
 
         var hasManualSplitItems = hasSplits && splits is { Count: > 0 };
@@ -171,9 +173,50 @@ public sealed class TransactionService(
         await transactionRepository.AddTransactionAsync(transaction, splitEntries, cancellationToken);
         if (integrationOutboxRepository is not null)
         {
+            var eventTimestamp = DateTimeOffset.UtcNow;
+            if (categoryAssignedByAutomation)
+            {
+                await EnqueueAutomationOutboxAsync(
+                    familyId.Value,
+                    IntegrationEventRoutingKeys.AutomationRuleExecutedV1,
+                    AutomationIntegrationEventNames.AutomationRuleExecuted,
+                    new AutomationRuleExecutedIntegrationEvent(
+                        Guid.NewGuid(),
+                        eventTimestamp,
+                        familyId.Value,
+                        ResolveCorrelationId(),
+                        transaction.Id,
+                        ExecutionType: "Categorization",
+                        AssignedCategory: category,
+                        AppliedSplits: false,
+                        SplitCount: 0),
+                    eventTimestamp,
+                    cancellationToken);
+            }
+
+            if (usedAutomaticAllocation)
+            {
+                await EnqueueAutomationOutboxAsync(
+                    familyId.Value,
+                    IntegrationEventRoutingKeys.AutomationRuleExecutedV1,
+                    AutomationIntegrationEventNames.AutomationRuleExecuted,
+                    new AutomationRuleExecutedIntegrationEvent(
+                        Guid.NewGuid(),
+                        eventTimestamp,
+                        familyId.Value,
+                        ResolveCorrelationId(),
+                        transaction.Id,
+                        ExecutionType: "Allocation",
+                        AssignedCategory: category,
+                        AppliedSplits: splitEntries.Count > 0,
+                        SplitCount: splitEntries.Count),
+                    eventTimestamp,
+                    cancellationToken);
+            }
+
             var createdEvent = new LedgerTransactionCreatedIntegrationEvent(
                 Guid.NewGuid(),
-                DateTimeOffset.UtcNow,
+                eventTimestamp,
                 familyId.Value,
                 transaction.Id,
                 transaction.AccountId,
@@ -188,7 +231,7 @@ public sealed class TransactionService(
                 IntegrationEventRoutingKeys.LedgerTransactionCreatedV1,
                 LedgerIntegrationEventNames.TransactionCreated,
                 createdEvent,
-                cancellationToken);
+            cancellationToken);
         }
         await transactionRepository.SaveChangesAsync(cancellationToken);
 
@@ -616,6 +659,25 @@ public sealed class TransactionService(
             ResolveOccurredAtUtc(payload),
             DateTimeOffset.UtcNow);
         await integrationOutboxRepository.AddAsync(outboxMessage, cancellationToken);
+    }
+
+    private Task EnqueueAutomationOutboxAsync<TPayload>(
+        Guid familyId,
+        string routingKey,
+        string eventName,
+        TPayload payload,
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken)
+    {
+        return IntegrationOutboxEnqueuer.EnqueueAsync(
+            integrationOutboxRepository,
+            familyId,
+            IntegrationEventSourceServices.AutomationApi,
+            routingKey,
+            eventName,
+            payload,
+            createdAtUtc,
+            cancellationToken);
     }
 
     private static string ResolveCorrelationId<TPayload>(TPayload payload)

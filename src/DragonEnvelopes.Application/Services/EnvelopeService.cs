@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Domain;
@@ -6,7 +8,9 @@ using DragonEnvelopes.Domain.ValueObjects;
 
 namespace DragonEnvelopes.Application.Services;
 
-public sealed class EnvelopeService(IEnvelopeRepository envelopeRepository) : IEnvelopeService
+public sealed class EnvelopeService(
+    IEnvelopeRepository envelopeRepository,
+    IIntegrationOutboxRepository? integrationOutboxRepository = null) : IEnvelopeService
 {
     public async Task<EnvelopeDetails> CreateAsync(
         Guid familyId,
@@ -37,6 +41,26 @@ public sealed class EnvelopeService(IEnvelopeRepository envelopeRepository) : IE
             ParseRolloverCap(rolloverCap));
 
         await envelopeRepository.AddEnvelopeAsync(envelope, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        await EnqueuePlanningOutboxAsync(
+            familyId,
+            IntegrationEventRoutingKeys.PlanningEnvelopeCreatedV1,
+            PlanningIntegrationEventNames.EnvelopeCreated,
+            new EnvelopeCreatedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                familyId,
+                ResolveCorrelationId(),
+                envelope.Id,
+                envelope.Name,
+                envelope.MonthlyBudget.Amount,
+                envelope.CurrentBalance.Amount,
+                envelope.RolloverMode.ToString(),
+                envelope.RolloverCap?.Amount,
+                envelope.IsArchived),
+            now,
+            cancellationToken);
+        await envelopeRepository.SaveChangesAsync(cancellationToken);
         return Map(envelope);
     }
 
@@ -69,6 +93,8 @@ public sealed class EnvelopeService(IEnvelopeRepository envelopeRepository) : IE
             throw new DomainValidationException("Envelope was not found.");
         }
 
+        var wasArchived = envelope.IsArchived;
+        var hasChanges = false;
         var normalizedName = string.IsNullOrWhiteSpace(name) ? string.Empty : name.Trim();
         if (!string.Equals(envelope.Name, normalizedName, StringComparison.OrdinalIgnoreCase)
             && await envelopeRepository.EnvelopeNameExistsAsync(
@@ -83,17 +109,20 @@ public sealed class EnvelopeService(IEnvelopeRepository envelopeRepository) : IE
         if (!string.Equals(envelope.Name, normalizedName, StringComparison.Ordinal))
         {
             envelope.Rename(normalizedName);
+            hasChanges = true;
         }
 
         var budget = Money.FromDecimal(monthlyBudget).EnsureNonNegative("MonthlyBudget");
         if (envelope.MonthlyBudget != budget)
         {
             envelope.SetMonthlyBudget(budget);
+            hasChanges = true;
         }
 
         if (isArchived && !envelope.IsArchived)
         {
             envelope.Archive();
+            hasChanges = true;
         }
         else if (!isArchived)
         {
@@ -103,6 +132,50 @@ public sealed class EnvelopeService(IEnvelopeRepository envelopeRepository) : IE
                 || envelope.RolloverCap?.Amount != parsedRolloverCap?.Amount)
             {
                 envelope.UpdateRolloverPolicy(parsedRolloverMode, parsedRolloverCap);
+                hasChanges = true;
+            }
+        }
+
+        if (hasChanges)
+        {
+            var now = DateTimeOffset.UtcNow;
+            if (!wasArchived && envelope.IsArchived)
+            {
+                await EnqueuePlanningOutboxAsync(
+                    envelope.FamilyId,
+                    IntegrationEventRoutingKeys.PlanningEnvelopeArchivedV1,
+                    PlanningIntegrationEventNames.EnvelopeArchived,
+                    new EnvelopeArchivedIntegrationEvent(
+                        Guid.NewGuid(),
+                        now,
+                        envelope.FamilyId,
+                        ResolveCorrelationId(),
+                        envelope.Id,
+                        envelope.Name,
+                        envelope.CurrentBalance.Amount),
+                    now,
+                    cancellationToken);
+            }
+            else
+            {
+                await EnqueuePlanningOutboxAsync(
+                    envelope.FamilyId,
+                    IntegrationEventRoutingKeys.PlanningEnvelopeUpdatedV1,
+                    PlanningIntegrationEventNames.EnvelopeUpdated,
+                    new EnvelopeUpdatedIntegrationEvent(
+                        Guid.NewGuid(),
+                        now,
+                        envelope.FamilyId,
+                        ResolveCorrelationId(),
+                        envelope.Id,
+                        envelope.Name,
+                        envelope.MonthlyBudget.Amount,
+                        envelope.CurrentBalance.Amount,
+                        envelope.RolloverMode.ToString(),
+                        envelope.RolloverCap?.Amount,
+                        envelope.IsArchived),
+                    now,
+                    cancellationToken);
             }
         }
 
@@ -121,6 +194,21 @@ public sealed class EnvelopeService(IEnvelopeRepository envelopeRepository) : IE
         if (!envelope.IsArchived)
         {
             envelope.Archive();
+            var now = DateTimeOffset.UtcNow;
+            await EnqueuePlanningOutboxAsync(
+                envelope.FamilyId,
+                IntegrationEventRoutingKeys.PlanningEnvelopeArchivedV1,
+                PlanningIntegrationEventNames.EnvelopeArchived,
+                new EnvelopeArchivedIntegrationEvent(
+                    Guid.NewGuid(),
+                    now,
+                    envelope.FamilyId,
+                    ResolveCorrelationId(),
+                    envelope.Id,
+                    envelope.Name,
+                    envelope.CurrentBalance.Amount),
+                now,
+                cancellationToken);
             await envelopeRepository.SaveChangesAsync(cancellationToken);
         }
 
@@ -142,8 +230,47 @@ public sealed class EnvelopeService(IEnvelopeRepository envelopeRepository) : IE
         envelope.UpdateRolloverPolicy(
             ParseRolloverMode(rolloverMode),
             ParseRolloverCap(rolloverCap));
+        var now = DateTimeOffset.UtcNow;
+        await EnqueuePlanningOutboxAsync(
+            envelope.FamilyId,
+            IntegrationEventRoutingKeys.PlanningEnvelopeRolloverPolicyUpdatedV1,
+            PlanningIntegrationEventNames.EnvelopeRolloverPolicyUpdated,
+            new EnvelopeRolloverPolicyUpdatedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                envelope.FamilyId,
+                ResolveCorrelationId(),
+                envelope.Id,
+                envelope.RolloverMode.ToString(),
+                envelope.RolloverCap?.Amount),
+            now,
+            cancellationToken);
         await envelopeRepository.SaveChangesAsync(cancellationToken);
         return Map(envelope);
+    }
+
+    private static string ResolveCorrelationId()
+    {
+        return Activity.Current?.Id ?? Guid.NewGuid().ToString("D");
+    }
+
+    private Task EnqueuePlanningOutboxAsync<TPayload>(
+        Guid familyId,
+        string routingKey,
+        string eventName,
+        TPayload payload,
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken)
+    {
+        return IntegrationOutboxEnqueuer.EnqueueAsync(
+            integrationOutboxRepository,
+            familyId,
+            IntegrationEventSourceServices.PlanningApi,
+            routingKey,
+            eventName,
+            payload,
+            createdAtUtc,
+            cancellationToken);
     }
 
     private static EnvelopeDetails Map(Envelope envelope)

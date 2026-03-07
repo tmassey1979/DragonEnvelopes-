@@ -7,10 +7,10 @@ namespace DragonEnvelopes.Infrastructure.Repositories;
 
 public sealed class EnvelopeRepository(DragonEnvelopesDbContext dbContext) : IEnvelopeRepository
 {
-    public async Task AddEnvelopeAsync(Envelope envelope, CancellationToken cancellationToken = default)
+    public Task AddEnvelopeAsync(Envelope envelope, CancellationToken cancellationToken = default)
     {
         dbContext.Envelopes.Add(envelope);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task<bool> FamilyExistsAsync(Guid familyId, CancellationToken cancellationToken = default)
@@ -26,13 +26,25 @@ public sealed class EnvelopeRepository(DragonEnvelopesDbContext dbContext) : IEn
         Guid? excludeEnvelopeId = null,
         CancellationToken cancellationToken = default)
     {
-        return dbContext.Envelopes
+        var normalizedName = string.IsNullOrWhiteSpace(name)
+            ? string.Empty
+            : name.Trim();
+        var query = dbContext.Envelopes
             .AsNoTracking()
-            .AnyAsync(
-                x => x.FamilyId == familyId
-                    && (!excludeEnvelopeId.HasValue || x.Id != excludeEnvelopeId.Value)
-                    && EF.Functions.ILike(x.Name, name),
+            .Where(x =>
+                x.FamilyId == familyId
+                && (!excludeEnvelopeId.HasValue || x.Id != excludeEnvelopeId.Value));
+
+        if (dbContext.Database.IsNpgsql())
+        {
+            return query.AnyAsync(
+                x => EF.Functions.ILike(x.Name, normalizedName),
                 cancellationToken);
+        }
+
+        return query.AnyAsync(
+            x => x.Name.ToLower() == normalizedName.ToLower(),
+            cancellationToken);
     }
 
     public Task<Envelope?> GetByIdAsync(Guid envelopeId, CancellationToken cancellationToken = default)

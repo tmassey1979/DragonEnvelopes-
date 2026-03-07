@@ -37,6 +37,9 @@ public sealed class EnvelopePaymentCardServiceTests
         envelopePaymentCardRepository
             .Setup(x => x.AddAsync(It.IsAny<EnvelopePaymentCard>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        envelopePaymentCardRepository
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var envelopePaymentCardShipmentRepository = new Mock<IEnvelopePaymentCardShipmentRepository>();
 
@@ -149,6 +152,9 @@ public sealed class EnvelopePaymentCardServiceTests
         var envelopePaymentCardRepository = new Mock<IEnvelopePaymentCardRepository>();
         envelopePaymentCardRepository
             .Setup(x => x.AddAsync(It.IsAny<EnvelopePaymentCard>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        envelopePaymentCardRepository
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var envelopePaymentCardShipmentRepository = new Mock<IEnvelopePaymentCardShipmentRepository>();
@@ -287,5 +293,70 @@ public sealed class EnvelopePaymentCardServiceTests
         Assert.Equal("shipped", result.Shipment.Status);
         Assert.Equal("UPS", result.Shipment.Carrier);
         envelopePaymentCardRepository.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CancelCardAsync_EnqueuesFinancialOutboxMessage()
+    {
+        var now = new DateTimeOffset(2026, 3, 6, 20, 0, 0, TimeSpan.Zero);
+        var familyId = Guid.NewGuid();
+        var envelopeId = Guid.NewGuid();
+        var cardId = Guid.NewGuid();
+        var outboxRepository = new Mock<IIntegrationOutboxRepository>();
+
+        var envelopeRepository = new Mock<IEnvelopeRepository>(MockBehavior.Strict);
+        var envelopeFinancialAccountRepository = new Mock<IEnvelopeFinancialAccountRepository>(MockBehavior.Strict);
+
+        var card = new EnvelopePaymentCard(
+            cardId,
+            familyId,
+            envelopeId,
+            Guid.NewGuid(),
+            "Stripe",
+            "card_123",
+            "Virtual",
+            "Active",
+            "Visa",
+            "4242",
+            now,
+            now);
+
+        var envelopePaymentCardRepository = new Mock<IEnvelopePaymentCardRepository>();
+        envelopePaymentCardRepository
+            .Setup(x => x.GetByIdForUpdateAsync(cardId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(card);
+        envelopePaymentCardRepository
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var envelopePaymentCardShipmentRepository = new Mock<IEnvelopePaymentCardShipmentRepository>(MockBehavior.Strict);
+        var stripeGateway = new Mock<IStripeGateway>();
+        stripeGateway
+            .Setup(x => x.UpdateCardStatusAsync("card_123", "Canceled", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var clock = new Mock<IClock>();
+        clock.SetupGet(x => x.UtcNow).Returns(now.AddMinutes(2));
+
+        var service = new EnvelopePaymentCardService(
+            envelopeRepository.Object,
+            envelopeFinancialAccountRepository.Object,
+            envelopePaymentCardRepository.Object,
+            envelopePaymentCardShipmentRepository.Object,
+            stripeGateway.Object,
+            clock.Object,
+            outboxRepository.Object);
+
+        await service.CancelCardAsync(familyId, envelopeId, cardId);
+
+        outboxRepository.Verify(
+            x => x.AddAsync(
+                It.Is<IntegrationOutboxMessage>(message =>
+                    message.SourceService == "financial-api"
+                    && message.RoutingKey == "financial.card.cancelled.v1"
+                    && message.EventName == "CardCancelled"
+                    && message.FamilyId == familyId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }

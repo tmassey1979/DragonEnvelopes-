@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using DragonEnvelopes.Application.Cqrs.Messaging;
 using System.Text.Json;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
@@ -9,7 +11,8 @@ namespace DragonEnvelopes.Application.Services;
 
 public sealed class AutomationRuleService(
     IAutomationRuleRepository repository,
-    IClock clock) : IAutomationRuleService
+    IClock clock,
+    IIntegrationOutboxRepository? integrationOutboxRepository = null) : IAutomationRuleService
 {
     public async Task<AutomationRuleDetails> CreateAsync(
         Guid familyId,
@@ -47,6 +50,23 @@ public sealed class AutomationRuleService(
             now);
 
         await repository.AddAsync(rule, cancellationToken);
+        await EnqueueAutomationOutboxAsync(
+            rule.FamilyId,
+            IntegrationEventRoutingKeys.AutomationRuleCreatedV1,
+            AutomationIntegrationEventNames.AutomationRuleCreated,
+            new AutomationRuleCreatedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                rule.FamilyId,
+                ResolveCorrelationId(),
+                rule.Id,
+                rule.Name,
+                rule.RuleType.ToString(),
+                rule.Priority,
+                rule.IsEnabled),
+            now,
+            cancellationToken);
+        await repository.SaveChangesAsync(cancellationToken);
         return Map(rule);
     }
 
@@ -95,6 +115,23 @@ public sealed class AutomationRuleService(
         ValidateJsonObject(conditionsJson, nameof(conditionsJson));
         ValidateJsonObject(actionJson, nameof(actionJson));
         rule.Update(name, priority, isEnabled, conditionsJson, actionJson, clock.UtcNow);
+        var now = DateTimeOffset.UtcNow;
+        await EnqueueAutomationOutboxAsync(
+            rule.FamilyId,
+            IntegrationEventRoutingKeys.AutomationRuleUpdatedV1,
+            AutomationIntegrationEventNames.AutomationRuleUpdated,
+            new AutomationRuleUpdatedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                rule.FamilyId,
+                ResolveCorrelationId(),
+                rule.Id,
+                rule.Name,
+                rule.RuleType.ToString(),
+                rule.Priority,
+                rule.IsEnabled),
+            now,
+            cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
         return Map(rule);
     }
@@ -108,6 +145,22 @@ public sealed class AutomationRuleService(
         }
 
         rule.Enable(clock.UtcNow);
+        var now = DateTimeOffset.UtcNow;
+        await EnqueueAutomationOutboxAsync(
+            rule.FamilyId,
+            IntegrationEventRoutingKeys.AutomationRuleEnabledV1,
+            AutomationIntegrationEventNames.AutomationRuleEnabled,
+            new AutomationRuleEnabledIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                rule.FamilyId,
+                ResolveCorrelationId(),
+                rule.Id,
+                rule.Name,
+                rule.RuleType.ToString(),
+                rule.Priority),
+            now,
+            cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
     }
 
@@ -120,6 +173,22 @@ public sealed class AutomationRuleService(
         }
 
         rule.Disable(clock.UtcNow);
+        var now = DateTimeOffset.UtcNow;
+        await EnqueueAutomationOutboxAsync(
+            rule.FamilyId,
+            IntegrationEventRoutingKeys.AutomationRuleDisabledV1,
+            AutomationIntegrationEventNames.AutomationRuleDisabled,
+            new AutomationRuleDisabledIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                rule.FamilyId,
+                ResolveCorrelationId(),
+                rule.Id,
+                rule.Name,
+                rule.RuleType.ToString(),
+                rule.Priority),
+            now,
+            cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
     }
 
@@ -132,6 +201,24 @@ public sealed class AutomationRuleService(
         }
 
         await repository.DeleteAsync(rule, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        await EnqueueAutomationOutboxAsync(
+            rule.FamilyId,
+            IntegrationEventRoutingKeys.AutomationRuleDeletedV1,
+            AutomationIntegrationEventNames.AutomationRuleDeleted,
+            new AutomationRuleDeletedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                rule.FamilyId,
+                ResolveCorrelationId(),
+                rule.Id,
+                rule.Name,
+                rule.RuleType.ToString(),
+                rule.Priority,
+                rule.IsEnabled),
+            now,
+            cancellationToken);
+        await repository.SaveChangesAsync(cancellationToken);
     }
 
     private static AutomationRuleDetails Map(AutomationRule rule)
@@ -163,5 +250,29 @@ public sealed class AutomationRuleService(
         {
             throw new DomainValidationException($"{fieldName} must be valid JSON.");
         }
+    }
+
+    private static string ResolveCorrelationId()
+    {
+        return Activity.Current?.Id ?? Guid.NewGuid().ToString("D");
+    }
+
+    private Task EnqueueAutomationOutboxAsync<TPayload>(
+        Guid familyId,
+        string routingKey,
+        string eventName,
+        TPayload payload,
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken)
+    {
+        return IntegrationOutboxEnqueuer.EnqueueAsync(
+            integrationOutboxRepository,
+            familyId,
+            IntegrationEventSourceServices.AutomationApi,
+            routingKey,
+            eventName,
+            payload,
+            createdAtUtc,
+            cancellationToken);
     }
 }

@@ -319,4 +319,46 @@ public class RecurringBillServiceTests
         var service = new RecurringBillService(repository.Object, executionRepository.Object);
         await Assert.ThrowsAsync<DomainValidationException>(() => service.ListExecutionsAsync(Guid.NewGuid()));
     }
+
+    [Fact]
+    public async Task CreateAsync_EnqueuesPlanningOutboxMessage()
+    {
+        var repository = new Mock<IRecurringBillRepository>();
+        var executionRepository = new Mock<IRecurringBillExecutionRepository>();
+        var outboxRepository = new Mock<IIntegrationOutboxRepository>();
+        var familyId = Guid.NewGuid();
+
+        repository.Setup(x => x.FamilyExistsAsync(familyId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        repository.Setup(x => x.AddAsync(It.IsAny<RecurringBill>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = new RecurringBillService(
+            repository.Object,
+            executionRepository.Object,
+            outboxRepository.Object);
+
+        await service.CreateAsync(
+            familyId,
+            "Phone",
+            "Carrier",
+            80m,
+            "Monthly",
+            10,
+            new DateOnly(2026, 1, 1),
+            null,
+            true);
+
+        outboxRepository.Verify(
+            x => x.AddAsync(
+                It.Is<IntegrationOutboxMessage>(message =>
+                    message.SourceService == "planning-api"
+                    && message.RoutingKey == "planning.recurring-bill.created.v1"
+                    && message.EventName == "RecurringBillCreated"
+                    && message.FamilyId == familyId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
 }

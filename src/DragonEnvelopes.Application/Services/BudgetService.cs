@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Domain;
@@ -9,7 +11,8 @@ namespace DragonEnvelopes.Application.Services;
 public sealed class BudgetService(
     IBudgetRepository budgetRepository,
     IEnvelopeRepository envelopeRepository,
-    IRemainingBudgetCalculator remainingBudgetCalculator) : IBudgetService
+    IRemainingBudgetCalculator remainingBudgetCalculator,
+    IIntegrationOutboxRepository? integrationOutboxRepository = null) : IBudgetService
 {
     public async Task<BudgetDetails> CreateAsync(
         Guid familyId,
@@ -35,7 +38,26 @@ public sealed class BudgetService(
             Money.FromDecimal(totalIncome).EnsureNonNegative("TotalIncome"));
 
         await budgetRepository.AddAsync(budget, cancellationToken);
-        return await MapAsync(budget, cancellationToken);
+        var details = await MapAsync(budget, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        await EnqueuePlanningOutboxAsync(
+            familyId,
+            IntegrationEventRoutingKeys.PlanningBudgetCreatedV1,
+            PlanningIntegrationEventNames.BudgetCreated,
+            new BudgetCreatedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                familyId,
+                ResolveCorrelationId(),
+                budget.Id,
+                details.Month,
+                details.TotalIncome,
+                details.AllocatedAmount,
+                details.RemainingAmount),
+            now,
+            cancellationToken);
+        await budgetRepository.SaveChangesAsync(cancellationToken);
+        return details;
     }
 
     public async Task<BudgetDetails?> GetByMonthAsync(
@@ -60,8 +82,50 @@ public sealed class BudgetService(
         }
 
         budget.SetTotalIncome(Money.FromDecimal(totalIncome).EnsureNonNegative("TotalIncome"));
+        var details = await MapAsync(budget, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        await EnqueuePlanningOutboxAsync(
+            budget.FamilyId,
+            IntegrationEventRoutingKeys.PlanningBudgetUpdatedV1,
+            PlanningIntegrationEventNames.BudgetUpdated,
+            new BudgetUpdatedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                budget.FamilyId,
+                ResolveCorrelationId(),
+                budget.Id,
+                details.Month,
+                details.TotalIncome,
+                details.AllocatedAmount,
+                details.RemainingAmount),
+            now,
+            cancellationToken);
         await budgetRepository.SaveChangesAsync(cancellationToken);
-        return await MapAsync(budget, cancellationToken);
+        return details;
+    }
+
+    private static string ResolveCorrelationId()
+    {
+        return Activity.Current?.Id ?? Guid.NewGuid().ToString("D");
+    }
+
+    private Task EnqueuePlanningOutboxAsync<TPayload>(
+        Guid familyId,
+        string routingKey,
+        string eventName,
+        TPayload payload,
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken)
+    {
+        return IntegrationOutboxEnqueuer.EnqueueAsync(
+            integrationOutboxRepository,
+            familyId,
+            IntegrationEventSourceServices.PlanningApi,
+            routingKey,
+            eventName,
+            payload,
+            createdAtUtc,
+            cancellationToken);
     }
 
     private async Task<BudgetDetails> MapAsync(Budget budget, CancellationToken cancellationToken)

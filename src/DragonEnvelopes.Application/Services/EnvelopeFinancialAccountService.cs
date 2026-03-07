@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Domain;
@@ -10,7 +12,8 @@ public sealed class EnvelopeFinancialAccountService(
     IEnvelopeFinancialAccountRepository envelopeFinancialAccountRepository,
     IFamilyFinancialProfileRepository familyFinancialProfileRepository,
     IStripeGateway stripeGateway,
-    IClock clock) : IEnvelopeFinancialAccountService
+    IClock clock,
+    IIntegrationOutboxRepository? integrationOutboxRepository = null) : IEnvelopeFinancialAccountService
 {
     private const string StripeProvider = "Stripe";
 
@@ -63,10 +66,44 @@ public sealed class EnvelopeFinancialAccountService(
                 now,
                 now);
             await envelopeFinancialAccountRepository.AddAsync(linked, cancellationToken);
+            await EnqueueFinancialOutboxAsync(
+                linked.FamilyId,
+                IntegrationEventRoutingKeys.FinancialStripeFinancialAccountProvisionedV1,
+                FinancialIntegrationEventNames.StripeFinancialAccountProvisioned,
+                new StripeFinancialAccountProvisionedIntegrationEvent(
+                    Guid.NewGuid(),
+                    now,
+                    linked.FamilyId,
+                    ResolveCorrelationId(),
+                    linked.EnvelopeId,
+                    linked.Id,
+                    linked.Provider,
+                    linked.ProviderFinancialAccountId,
+                    IsRebind: false),
+                now,
+                cancellationToken);
+            await envelopeFinancialAccountRepository.SaveChangesAsync(cancellationToken);
             return Map(linked);
         }
 
         existing.Rebind(StripeProvider, stripeFinancialAccountId, clock.UtcNow);
+        var rebindingTime = DateTimeOffset.UtcNow;
+        await EnqueueFinancialOutboxAsync(
+            existing.FamilyId,
+            IntegrationEventRoutingKeys.FinancialStripeFinancialAccountProvisionedV1,
+            FinancialIntegrationEventNames.StripeFinancialAccountProvisioned,
+            new StripeFinancialAccountProvisionedIntegrationEvent(
+                Guid.NewGuid(),
+                rebindingTime,
+                existing.FamilyId,
+                ResolveCorrelationId(),
+                existing.EnvelopeId,
+                existing.Id,
+                existing.Provider,
+                existing.ProviderFinancialAccountId,
+                IsRebind: true),
+            rebindingTime,
+            cancellationToken);
         await envelopeFinancialAccountRepository.SaveChangesAsync(cancellationToken);
         return Map(existing);
     }
@@ -108,5 +145,29 @@ public sealed class EnvelopeFinancialAccountService(
             account.ProviderFinancialAccountId,
             account.CreatedAtUtc,
             account.UpdatedAtUtc);
+    }
+
+    private static string ResolveCorrelationId()
+    {
+        return Activity.Current?.Id ?? Guid.NewGuid().ToString("D");
+    }
+
+    private Task EnqueueFinancialOutboxAsync<TPayload>(
+        Guid familyId,
+        string routingKey,
+        string eventName,
+        TPayload payload,
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken)
+    {
+        return IntegrationOutboxEnqueuer.EnqueueAsync(
+            integrationOutboxRepository,
+            familyId,
+            IntegrationEventSourceServices.FinancialApi,
+            routingKey,
+            eventName,
+            payload,
+            createdAtUtc,
+            cancellationToken);
     }
 }
