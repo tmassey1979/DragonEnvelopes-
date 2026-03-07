@@ -22,6 +22,11 @@ public interface ITransactionRepository
         Guid? accountId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<Transaction>> ListDeletedTransactionsByFamilyAsync(
+        Guid familyId,
+        DateTimeOffset deletedSinceUtc,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<TransactionSplitEntry>> ListTransactionSplitsAsync(
         IReadOnlyCollection<Guid> transactionIds,
         CancellationToken cancellationToken = default);

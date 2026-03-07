@@ -129,7 +129,7 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
-    public async Task UserA_Can_Delete_Own_Transaction_And_Rebalance_Envelope()
+    public async Task UserA_Can_SoftDelete_Own_Transaction_And_Rebalance_Envelope()
     {
         var envelopeId = Guid.NewGuid();
         var transactionId = Guid.NewGuid();
@@ -165,11 +165,13 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
 
         await using var verifyScope = _factory.Services.CreateAsyncScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
-        var transactionExists = await verifyDb.Transactions.AnyAsync(x => x.Id == transactionId);
+        var transaction = await verifyDb.Transactions.FirstOrDefaultAsync(x => x.Id == transactionId);
         var splitCount = await verifyDb.TransactionSplits.CountAsync(x => x.TransactionId == transactionId);
         var envelope = await verifyDb.Envelopes.FirstAsync(x => x.Id == envelopeId);
 
-        Assert.False(transactionExists);
+        Assert.NotNull(transaction);
+        Assert.NotNull(transaction!.DeletedAtUtc);
+        Assert.Equal(TestApiFactory.UserAId, transaction.DeletedByUserId);
         Assert.Equal(0, splitCount);
         Assert.Equal(100m, envelope.CurrentBalance.Amount);
     }
@@ -183,6 +185,103 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         var response = await client.DeleteAsync($"/api/v1/transactions/{TestApiFactory.TransactionBId}");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserA_Can_Restore_Own_SoftDeleted_Transaction_And_Reapply_Envelope()
+    {
+        var envelopeId = Guid.NewGuid();
+        var transactionId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.Envelopes.Add(new Envelope(
+                envelopeId,
+                TestApiFactory.FamilyAId,
+                "Restore Test Envelope",
+                Money.FromDecimal(200m),
+                Money.FromDecimal(90m)));
+            dbContext.Transactions.Add(new Transaction(
+                transactionId,
+                TestApiFactory.AccountAId,
+                Money.FromDecimal(-10m),
+                "Restore Me",
+                "Restore Merchant",
+                now,
+                "Misc",
+                envelopeId));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var deleteResponse = await client.DeleteAsync($"/api/v1/transactions/{transactionId}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        var restoreResponse = await client.PostAsync($"/api/v1/transactions/{transactionId}/restore", null);
+        Assert.Equal(HttpStatusCode.OK, restoreResponse.StatusCode);
+        var restoredPayload = await restoreResponse.Content.ReadFromJsonAsync<TransactionResponse>();
+        Assert.NotNull(restoredPayload);
+        Assert.Null(restoredPayload!.DeletedAtUtc);
+        Assert.Null(restoredPayload.DeletedByUserId);
+
+        await using var verifyScope = _factory.Services.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var transaction = await verifyDb.Transactions.FirstAsync(x => x.Id == transactionId);
+        var envelope = await verifyDb.Envelopes.FirstAsync(x => x.Id == envelopeId);
+
+        Assert.Null(transaction.DeletedAtUtc);
+        Assert.Null(transaction.DeletedByUserId);
+        Assert.Equal(90m, envelope.CurrentBalance.Amount);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Restore_FamilyB_Transaction()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsync($"/api/v1/transactions/{TestApiFactory.TransactionBId}/restore", null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserA_Can_List_Recently_Deleted_Transactions_For_Own_Family()
+    {
+        var transactionId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            var transaction = new Transaction(
+                transactionId,
+                TestApiFactory.AccountAId,
+                Money.FromDecimal(-12m),
+                "Deleted Listing",
+                "Deleted Merchant",
+                now,
+                "Misc",
+                envelopeId: null);
+            transaction.SoftDelete(now.AddDays(-1), TestApiFactory.UserAId);
+            dbContext.Transactions.Add(transaction);
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var ownResponse = await client.GetAsync($"/api/v1/transactions/deleted?familyId={TestApiFactory.FamilyAId}&days=30");
+        Assert.Equal(HttpStatusCode.OK, ownResponse.StatusCode);
+        var ownPayload = await ownResponse.Content.ReadFromJsonAsync<List<TransactionResponse>>();
+        Assert.NotNull(ownPayload);
+        Assert.Contains(ownPayload!, transaction => transaction.Id == transactionId && transaction.DeletedAtUtc.HasValue);
+
+        var otherResponse = await client.GetAsync($"/api/v1/transactions/deleted?familyId={TestApiFactory.FamilyBId}&days=30");
+        Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
     }
 
     [Fact]

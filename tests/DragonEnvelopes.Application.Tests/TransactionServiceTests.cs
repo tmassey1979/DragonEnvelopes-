@@ -411,7 +411,7 @@ public class TransactionServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_WithSingleEnvelope_ReversesEnvelopeAndDeletesTransaction()
+    public async Task DeleteAsync_WithSingleEnvelope_ReversesEnvelopeAndSoftDeletesTransaction()
     {
         var transactionRepository = new Mock<ITransactionRepository>();
         var envelopeRepository = new Mock<IEnvelopeRepository>();
@@ -442,21 +442,21 @@ public class TransactionServiceTests
             .ReturnsAsync([]);
         envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(envelopeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(envelope);
-        transactionRepository.Setup(x => x.DeleteTransactionAsync(transactionId, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
         transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var service = new TransactionService(transactionRepository.Object, envelopeRepository.Object, categorizationEngine.Object, incomeAllocationEngine.Object);
-        await service.DeleteAsync(transactionId);
+        await service.DeleteAsync(transactionId, "user-a");
 
         Assert.Equal(100m, envelope.CurrentBalance.Amount);
-        transactionRepository.Verify(x => x.DeleteTransactionAsync(transactionId, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.NotNull(transaction.DeletedAtUtc);
+        Assert.Equal("user-a", transaction.DeletedByUserId);
+        transactionRepository.Verify(x => x.DeleteTransactionAsync(transactionId, It.IsAny<CancellationToken>()), Times.Never);
         transactionRepository.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task DeleteAsync_WithSplits_ReversesEachSplitEnvelopeAndDeletesTransaction()
+    public async Task DeleteAsync_WithSplits_ReversesEachSplitEnvelopeAndSoftDeletesTransaction()
     {
         var transactionRepository = new Mock<ITransactionRepository>();
         var envelopeRepository = new Mock<IEnvelopeRepository>();
@@ -500,17 +500,17 @@ public class TransactionServiceTests
             .ReturnsAsync(envelopeA);
         envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(envelopeBId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(envelopeB);
-        transactionRepository.Setup(x => x.DeleteTransactionAsync(transactionId, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
         transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var service = new TransactionService(transactionRepository.Object, envelopeRepository.Object, categorizationEngine.Object, incomeAllocationEngine.Object);
-        await service.DeleteAsync(transactionId);
+        await service.DeleteAsync(transactionId, "user-a");
 
         Assert.Equal(100m, envelopeA.CurrentBalance.Amount);
         Assert.Equal(100m, envelopeB.CurrentBalance.Amount);
-        transactionRepository.Verify(x => x.DeleteTransactionAsync(transactionId, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.NotNull(transaction.DeletedAtUtc);
+        Assert.Equal("user-a", transaction.DeletedByUserId);
+        transactionRepository.Verify(x => x.DeleteTransactionAsync(transactionId, It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -527,6 +527,94 @@ public class TransactionServiceTests
 
         var service = new TransactionService(transactionRepository.Object, envelopeRepository.Object, categorizationEngine.Object, incomeAllocationEngine.Object);
 
-        await Assert.ThrowsAsync<DomainValidationException>(() => service.DeleteAsync(transactionId));
+        await Assert.ThrowsAsync<DomainValidationException>(() => service.DeleteAsync(transactionId, "user-a"));
+    }
+
+    [Fact]
+    public async Task RestoreAsync_WithSingleEnvelope_ReappliesEnvelopeAndClearsDeleteMarker()
+    {
+        var transactionRepository = new Mock<ITransactionRepository>();
+        var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
+        var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
+        var envelopeId = Guid.NewGuid();
+        var transactionId = Guid.NewGuid();
+        var occurredAt = DateTimeOffset.UtcNow;
+        var envelope = new Envelope(
+            envelopeId,
+            Guid.NewGuid(),
+            "Groceries",
+            Money.FromDecimal(300m),
+            Money.FromDecimal(100m));
+        var transaction = new Transaction(
+            transactionId,
+            Guid.NewGuid(),
+            Money.FromDecimal(-10m),
+            "Groceries",
+            "Store",
+            occurredAt,
+            "Food",
+            envelopeId);
+        transaction.SoftDelete(DateTimeOffset.UtcNow.AddMinutes(-5), "user-a");
+
+        transactionRepository.Setup(x => x.GetTransactionByIdForUpdateAsync(transactionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction);
+        transactionRepository.Setup(x => x.ListTransactionSplitsByTransactionIdAsync(transactionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        transactionRepository.Setup(x => x.ListTransactionSplitsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(envelopeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(envelope);
+
+        var service = new TransactionService(transactionRepository.Object, envelopeRepository.Object, categorizationEngine.Object, incomeAllocationEngine.Object);
+        var restored = await service.RestoreAsync(transactionId);
+
+        Assert.Equal(90m, envelope.CurrentBalance.Amount);
+        Assert.Null(transaction.DeletedAtUtc);
+        Assert.Null(transaction.DeletedByUserId);
+        Assert.Null(restored.DeletedAtUtc);
+    }
+
+    [Fact]
+    public async Task ListDeletedAsync_ClampsDaysWindow_AndMapsDeletedMetadata()
+    {
+        var transactionRepository = new Mock<ITransactionRepository>();
+        var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
+        var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
+        var familyId = Guid.NewGuid();
+        var transactionId = Guid.NewGuid();
+        var accountId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        DateTimeOffset? capturedDeletedSince = null;
+
+        var transaction = new Transaction(
+            transactionId,
+            accountId,
+            Money.FromDecimal(-15m),
+            "Deleted transaction",
+            "Store",
+            now.AddDays(-3),
+            "Misc",
+            envelopeId: null);
+        transaction.SoftDelete(now.AddDays(-2), "user-a");
+
+        transactionRepository.Setup(x => x.ListDeletedTransactionsByFamilyAsync(familyId, It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid, DateTimeOffset, CancellationToken>((_, deletedSinceUtc, _) => capturedDeletedSince = deletedSinceUtc)
+            .ReturnsAsync([transaction]);
+        transactionRepository.Setup(x => x.ListTransactionSplitsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var service = new TransactionService(transactionRepository.Object, envelopeRepository.Object, categorizationEngine.Object, incomeAllocationEngine.Object);
+        var deleted = await service.ListDeletedAsync(familyId, 500);
+
+        Assert.NotNull(capturedDeletedSince);
+        Assert.InRange(capturedDeletedSince!.Value, now.AddDays(-91), now.AddDays(-89));
+        Assert.Single(deleted);
+        Assert.Equal(transactionId, deleted[0].Id);
+        Assert.NotNull(deleted[0].DeletedAtUtc);
+        Assert.Equal("user-a", deleted[0].DeletedByUserId);
     }
 }

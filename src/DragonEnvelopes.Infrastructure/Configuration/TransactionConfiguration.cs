@@ -44,6 +44,15 @@ public sealed class TransactionConfiguration : IEntityTypeConfiguration<Transact
         builder.Property(x => x.EnvelopeId)
             .IsRequired(false);
 
+        builder.Property(x => x.DeletedAtUtc)
+            .IsRequired(false);
+
+        builder.Property(x => x.DeletedByUserId)
+            .HasMaxLength(128)
+            .IsRequired(false);
+
+        builder.HasIndex(x => x.DeletedAtUtc);
+
         builder.Ignore(x => x.Splits);
 
         builder.HasOne<Account>()
@@ -57,4 +66,3 @@ public sealed class TransactionConfiguration : IEntityTypeConfiguration<Transact
             .OnDelete(DeleteBehavior.SetNull);
     }
 }
-

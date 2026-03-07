@@ -132,7 +132,9 @@ internal static class EndpointMappers
                     split.Amount,
                     split.Category,
                     split.Notes))
-                .ToArray());
+                .ToArray(),
+            transaction.DeletedAtUtc,
+            transaction.DeletedByUserId);
     }
 
     public static EnvelopeResponse MapEnvelopeResponse(EnvelopeDetails envelope)

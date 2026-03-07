@@ -51,7 +51,9 @@ public sealed class TransactionRepository(DragonEnvelopesDbContext dbContext) : 
         Guid? accountId,
         CancellationToken cancellationToken = default)
     {
-        var query = dbContext.Transactions.AsNoTracking();
+        var query = dbContext.Transactions
+            .AsNoTracking()
+            .Where(x => !x.DeletedAtUtc.HasValue);
         if (accountId.HasValue)
         {
             query = query.Where(x => x.AccountId == accountId.Value);
@@ -60,6 +62,26 @@ public sealed class TransactionRepository(DragonEnvelopesDbContext dbContext) : 
         return await query
             .OrderByDescending(x => x.OccurredAt)
             .ThenByDescending(x => x.Id)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Transaction>> ListDeletedTransactionsByFamilyAsync(
+        Guid familyId,
+        DateTimeOffset deletedSinceUtc,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Transactions
+            .AsNoTracking()
+            .Where(transaction => transaction.DeletedAtUtc.HasValue && transaction.DeletedAtUtc.Value >= deletedSinceUtc)
+            .Join(
+                dbContext.Accounts.AsNoTracking(),
+                transaction => transaction.AccountId,
+                account => account.Id,
+                (transaction, account) => new { transaction, account })
+            .Where(x => x.account.FamilyId == familyId)
+            .OrderByDescending(x => x.transaction.DeletedAtUtc)
+            .ThenByDescending(x => x.transaction.Id)
+            .Select(x => x.transaction)
             .ToArrayAsync(cancellationToken);
     }
 

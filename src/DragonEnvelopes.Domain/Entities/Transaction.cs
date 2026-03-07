@@ -14,6 +14,8 @@ public sealed class Transaction
     public DateTimeOffset OccurredAt { get; }
     public string? Category { get; private set; }
     public Guid? EnvelopeId { get; private set; }
+    public DateTimeOffset? DeletedAtUtc { get; private set; }
+    public string? DeletedByUserId { get; private set; }
     public IReadOnlyCollection<TransactionSplit> Splits => _splits.AsReadOnly();
 
     public Transaction(
@@ -49,6 +51,8 @@ public sealed class Transaction
         OccurredAt = occurredAt;
         Category = NormalizeOptional(category);
         EnvelopeId = envelopeId;
+        DeletedAtUtc = null;
+        DeletedByUserId = null;
 
     }
 
@@ -116,6 +120,28 @@ public sealed class Transaction
         _splits.Clear();
         _splits.AddRange(splitList);
         EnvelopeId = null;
+    }
+
+    public void SoftDelete(DateTimeOffset deletedAtUtc, string? deletedByUserId)
+    {
+        if (DeletedAtUtc.HasValue)
+        {
+            throw new DomainValidationException("Transaction is already deleted.");
+        }
+
+        DeletedAtUtc = deletedAtUtc;
+        DeletedByUserId = NormalizeOptional(deletedByUserId);
+    }
+
+    public void Restore()
+    {
+        if (!DeletedAtUtc.HasValue)
+        {
+            throw new DomainValidationException("Transaction is not deleted.");
+        }
+
+        DeletedAtUtc = null;
+        DeletedByUserId = null;
     }
 
     private static string ValidateText(string value, string fieldName)

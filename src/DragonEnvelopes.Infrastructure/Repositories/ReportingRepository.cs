@@ -38,6 +38,7 @@ public sealed class ReportingRepository(DragonEnvelopesDbContext dbContext) : IR
                 account => account.Id,
                 (transaction, account) => new { transaction, account })
             .Where(x => x.account.FamilyId == familyId)
+            .Where(x => !x.transaction.DeletedAtUtc.HasValue)
             .Where(x => x.transaction.OccurredAt >= fromInclusive && x.transaction.OccurredAt <= toInclusive)
             .Select(x => new TransactionReportRow(
                 x.transaction.Amount.Amount,

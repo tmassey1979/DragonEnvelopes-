@@ -9,7 +9,9 @@ public sealed record TransactionDetails(
     DateTimeOffset OccurredAt,
     string? Category,
     Guid? EnvelopeId,
-    IReadOnlyList<TransactionSplitDetails> Splits);
+    IReadOnlyList<TransactionSplitDetails> Splits,
+    DateTimeOffset? DeletedAtUtc = null,
+    string? DeletedByUserId = null);
 
 public sealed record TransactionSplitDetails(
     Guid Id,

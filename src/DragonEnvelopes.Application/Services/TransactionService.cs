@@ -200,6 +200,11 @@ public sealed class TransactionService(
             throw new DomainValidationException("Transaction was not found.");
         }
 
+        if (transaction.DeletedAtUtc.HasValue)
+        {
+            throw new DomainValidationException("Deleted transactions cannot be updated.");
+        }
+
         if (replaceAllocation)
         {
             if (envelopeId.HasValue && splits is { Count: > 0 })
@@ -251,6 +256,7 @@ public sealed class TransactionService(
 
     public async Task DeleteAsync(
         Guid transactionId,
+        string? deletedByUserId,
         CancellationToken cancellationToken = default)
     {
         var transaction = await transactionRepository.GetTransactionByIdForUpdateAsync(transactionId, cancellationToken);
@@ -285,8 +291,83 @@ public sealed class TransactionService(
             ApplyReverseAmountToEnvelope(envelope, transaction.Amount.Amount, transaction.OccurredAt);
         }
 
-        await transactionRepository.DeleteTransactionAsync(transactionId, cancellationToken);
+        transaction.SoftDelete(DateTimeOffset.UtcNow, deletedByUserId);
         await transactionRepository.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<TransactionDetails> RestoreAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default)
+    {
+        var transaction = await transactionRepository.GetTransactionByIdForUpdateAsync(transactionId, cancellationToken);
+        if (transaction is null)
+        {
+            throw new DomainValidationException("Transaction was not found.");
+        }
+
+        if (!transaction.DeletedAtUtc.HasValue)
+        {
+            throw new DomainValidationException("Transaction is not deleted.");
+        }
+
+        var existingSplits = await transactionRepository.ListTransactionSplitsByTransactionIdAsync(transactionId, cancellationToken);
+
+        if (existingSplits.Count > 0)
+        {
+            foreach (var split in existingSplits)
+            {
+                var envelope = await envelopeRepository.GetByIdForUpdateAsync(split.EnvelopeId, cancellationToken);
+                if (envelope is null)
+                {
+                    throw new DomainValidationException($"Envelope was not found for split id {split.EnvelopeId}.");
+                }
+
+                ApplyTransactionAmountToEnvelope(envelope, split.Amount.Amount, transaction.OccurredAt);
+            }
+        }
+        else if (transaction.EnvelopeId.HasValue)
+        {
+            var envelope = await envelopeRepository.GetByIdForUpdateAsync(transaction.EnvelopeId.Value, cancellationToken);
+            if (envelope is null)
+            {
+                throw new DomainValidationException("Envelope was not found.");
+            }
+
+            ApplyTransactionAmountToEnvelope(envelope, transaction.Amount.Amount, transaction.OccurredAt);
+        }
+
+        transaction.Restore();
+        await transactionRepository.SaveChangesAsync(cancellationToken);
+
+        var refreshedSplits = await transactionRepository.ListTransactionSplitsByTransactionIdAsync(transactionId, cancellationToken);
+        return Map(transaction, refreshedSplits);
+    }
+
+    public async Task<IReadOnlyList<TransactionDetails>> ListDeletedAsync(
+        Guid familyId,
+        int days,
+        CancellationToken cancellationToken = default)
+    {
+        var boundedDays = Math.Clamp(days, 1, 90);
+        var deletedSinceUtc = DateTimeOffset.UtcNow.AddDays(-boundedDays);
+        var transactions = await transactionRepository.ListDeletedTransactionsByFamilyAsync(
+            familyId,
+            deletedSinceUtc,
+            cancellationToken);
+
+        var transactionIds = transactions.Select(static transaction => transaction.Id).ToArray();
+        var splits = await transactionRepository.ListTransactionSplitsAsync(transactionIds, cancellationToken);
+        var splitsByTransaction = splits
+            .GroupBy(static split => split.TransactionId)
+            .ToDictionary(static group => group.Key, static group => group.ToArray());
+
+        return transactions
+            .Select(transaction =>
+            {
+                splitsByTransaction.TryGetValue(transaction.Id, out var transactionSplits);
+                return Map(transaction, transactionSplits ?? []);
+            })
+            .ToArray();
     }
 
     private async Task RebalanceEnvelopesForAllocationChangeAsync(
@@ -394,6 +475,8 @@ public sealed class TransactionService(
                     split.Amount.Amount,
                     split.Category,
                     split.Notes))
-                .ToArray());
+                .ToArray(),
+            transaction.DeletedAtUtc,
+            transaction.DeletedByUserId);
     }
 }

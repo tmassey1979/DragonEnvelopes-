@@ -32,5 +32,15 @@ public interface ITransactionService
 
     Task DeleteAsync(
         Guid transactionId,
+        string? deletedByUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<TransactionDetails> RestoreAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<TransactionDetails>> ListDeletedAsync(
+        Guid familyId,
+        int days,
         CancellationToken cancellationToken = default);
 }

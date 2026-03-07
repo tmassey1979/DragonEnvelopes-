@@ -7,6 +7,7 @@ using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Contracts.Reports;
+using DragonEnvelopes.Contracts.Transactions;
 using DragonEnvelopes.Ledger.Api.CrossCutting.Auth;
 using DragonEnvelopes.Domain.Entities;
 using DragonEnvelopes.Domain.ValueObjects;
@@ -145,7 +146,7 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
     }
 
     [Fact]
-    public async Task Authenticated_User_Can_Delete_Own_Family_Transaction()
+    public async Task Authenticated_User_Can_SoftDelete_Own_Family_Transaction()
     {
         var userId = "ledger-user-a";
         var ownFamilyId = Guid.Parse("e2000000-0000-0000-0000-000000000001");
@@ -161,8 +162,10 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
 
         using var scope = _factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
-        var transactionExists = await dbContext.Transactions.AnyAsync(x => x.Id == seeded.OwnTransactionId);
-        Assert.False(transactionExists);
+        var transaction = await dbContext.Transactions.FirstOrDefaultAsync(x => x.Id == seeded.OwnTransactionId);
+        Assert.NotNull(transaction);
+        Assert.NotNull(transaction!.DeletedAtUtc);
+        Assert.Equal(userId, transaction.DeletedByUserId);
     }
 
     [Fact]
@@ -179,6 +182,52 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
         var response = await client.DeleteAsync($"/api/v1/transactions/{seeded.OtherTransactionId}");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Can_Restore_Own_SoftDeleted_Transaction()
+    {
+        var userId = "ledger-user-restore-a";
+        var ownFamilyId = Guid.Parse("e3000000-0000-0000-0000-000000000011");
+        var otherFamilyId = Guid.Parse("e3000000-0000-0000-0000-000000000012");
+
+        using var client = _factory.CreateClient();
+        var seeded = await SeedFamilyMembershipAndTransactionsAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var deleteResponse = await client.DeleteAsync($"/api/v1/transactions/{seeded.OwnTransactionId}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        var restoreResponse = await client.PostAsync($"/api/v1/transactions/{seeded.OwnTransactionId}/restore", null);
+        Assert.Equal(HttpStatusCode.OK, restoreResponse.StatusCode);
+        var restoredPayload = await restoreResponse.Content.ReadFromJsonAsync<TransactionResponse>();
+        Assert.NotNull(restoredPayload);
+        Assert.Null(restoredPayload!.DeletedAtUtc);
+        Assert.Null(restoredPayload.DeletedByUserId);
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Can_List_Deleted_Transactions_For_Own_Family()
+    {
+        var userId = "ledger-user-deleted-list-a";
+        var ownFamilyId = Guid.Parse("e3000000-0000-0000-0000-000000000021");
+        var otherFamilyId = Guid.Parse("e3000000-0000-0000-0000-000000000022");
+
+        using var client = _factory.CreateClient();
+        var seeded = await SeedFamilyMembershipAndTransactionsAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var deleteResponse = await client.DeleteAsync($"/api/v1/transactions/{seeded.OwnTransactionId}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        var ownResponse = await client.GetAsync($"/api/v1/transactions/deleted?familyId={ownFamilyId}&days=30");
+        Assert.Equal(HttpStatusCode.OK, ownResponse.StatusCode);
+        var ownPayload = await ownResponse.Content.ReadFromJsonAsync<List<TransactionResponse>>();
+        Assert.NotNull(ownPayload);
+        Assert.Contains(ownPayload!, transaction => transaction.Id == seeded.OwnTransactionId && transaction.DeletedAtUtc.HasValue);
+
+        var otherResponse = await client.GetAsync($"/api/v1/transactions/deleted?familyId={otherFamilyId}&days=30");
+        Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
     }
 
     [Fact]

@@ -116,11 +116,39 @@ internal static partial class AccountAndTransactionEndpoints
                     return Results.Forbid();
                 }
 
-                await transactionService.DeleteAsync(transactionId, cancellationToken);
+                await transactionService.DeleteAsync(transactionId, user.FindFirstValue("sub"), cancellationToken);
                 return Results.NoContent();
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
             .WithName("DeleteTransaction")
+            .WithOpenApi();
+
+        v1.MapPost("/transactions/{transactionId:guid}/restore", async (
+                Guid transactionId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                ITransactionService transactionService,
+                CancellationToken cancellationToken) =>
+            {
+                var transactionFamilyId = await dbContext.Transactions
+                    .AsNoTracking()
+                    .Where(x => x.Id == transactionId)
+                    .Join(
+                        dbContext.Accounts.AsNoTracking(),
+                        transaction => transaction.AccountId,
+                        account => account.Id,
+                        (_, account) => (Guid?)account.FamilyId)
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (!transactionFamilyId.HasValue || !await EndpointAccessGuards.UserHasFamilyAccessAsync(user, transactionFamilyId.Value, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var transaction = await transactionService.RestoreAsync(transactionId, cancellationToken);
+                return Results.Ok(EndpointMappers.MapTransactionResponse(transaction));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("RestoreTransaction")
             .WithOpenApi();
 
         v1.MapGet("/transactions", async (
@@ -150,6 +178,26 @@ internal static partial class AccountAndTransactionEndpoints
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
             .WithName("ListTransactions")
+            .WithOpenApi();
+
+        v1.MapGet("/transactions/deleted", async (
+                Guid familyId,
+                int? days,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                ITransactionService transactionService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var transactions = await transactionService.ListDeletedAsync(familyId, days ?? 30, cancellationToken);
+                return Results.Ok(transactions.Select(EndpointMappers.MapTransactionResponse).ToArray());
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("ListDeletedTransactions")
             .WithOpenApi();
 
     }
