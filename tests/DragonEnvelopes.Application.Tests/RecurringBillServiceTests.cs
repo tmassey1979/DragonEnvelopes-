@@ -211,6 +211,104 @@ public class RecurringBillServiceTests
     }
 
     [Fact]
+    public async Task ListExecutionsAsync_FiltersByResult_AndExecutionDateRange()
+    {
+        var repository = new Mock<IRecurringBillRepository>();
+        var executionRepository = new Mock<IRecurringBillExecutionRepository>();
+        var familyId = Guid.NewGuid();
+        var recurringBillId = Guid.NewGuid();
+        var recurringBill = new RecurringBill(
+            recurringBillId,
+            familyId,
+            "Utilities",
+            "Utility Co",
+            Money.FromDecimal(120m),
+            RecurringBillFrequency.Monthly,
+            5,
+            new DateOnly(2026, 1, 1),
+            null,
+            true);
+
+        repository.Setup(x => x.GetByIdForUpdateAsync(recurringBillId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(recurringBill);
+        executionRepository.Setup(x => x.ListByRecurringBillAsync(recurringBillId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                new RecurringBillExecution(
+                    Guid.NewGuid(),
+                    recurringBillId,
+                    familyId,
+                    new DateOnly(2026, 3, 5),
+                    new DateTimeOffset(2026, 3, 5, 13, 0, 0, TimeSpan.Zero),
+                    null,
+                    "Failed",
+                    "gateway timeout"),
+                new RecurringBillExecution(
+                    Guid.NewGuid(),
+                    recurringBillId,
+                    familyId,
+                    new DateOnly(2026, 2, 5),
+                    new DateTimeOffset(2026, 2, 5, 13, 0, 0, TimeSpan.Zero),
+                    null,
+                    "Failed",
+                    "previous month"),
+                new RecurringBillExecution(
+                    Guid.NewGuid(),
+                    recurringBillId,
+                    familyId,
+                    new DateOnly(2026, 3, 5),
+                    new DateTimeOffset(2026, 3, 5, 15, 0, 0, TimeSpan.Zero),
+                    Guid.NewGuid(),
+                    "Posted",
+                    null)
+            ]);
+
+        var service = new RecurringBillService(repository.Object, executionRepository.Object);
+        var results = await service.ListExecutionsAsync(
+            recurringBillId,
+            take: 25,
+            result: "failed",
+            fromDate: new DateOnly(2026, 3, 1),
+            toDate: new DateOnly(2026, 3, 31));
+
+        Assert.Single(results);
+        Assert.Equal("Failed", results[0].Result);
+        Assert.Equal(new DateOnly(2026, 3, 5), results[0].DueDate);
+        Assert.Equal("gateway timeout", results[0].Notes);
+    }
+
+    [Fact]
+    public async Task ListExecutionsAsync_ThrowsWhenDateRangeIsInvalid()
+    {
+        var repository = new Mock<IRecurringBillRepository>();
+        var executionRepository = new Mock<IRecurringBillExecutionRepository>();
+        var recurringBillId = Guid.NewGuid();
+        var recurringBill = new RecurringBill(
+            recurringBillId,
+            Guid.NewGuid(),
+            "Phone",
+            "Carrier",
+            Money.FromDecimal(80m),
+            RecurringBillFrequency.Monthly,
+            10,
+            new DateOnly(2026, 1, 1),
+            null,
+            true);
+
+        repository.Setup(x => x.GetByIdForUpdateAsync(recurringBillId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(recurringBill);
+
+        var service = new RecurringBillService(repository.Object, executionRepository.Object);
+
+        await Assert.ThrowsAsync<DomainValidationException>(() => service.ListExecutionsAsync(
+            recurringBillId,
+            take: 10,
+            result: null,
+            fromDate: new DateOnly(2026, 4, 1),
+            toDate: new DateOnly(2026, 3, 1)));
+    }
+
+    [Fact]
     public async Task ListExecutionsAsync_ThrowsWhenRecurringBillIsMissing()
     {
         var repository = new Mock<IRecurringBillRepository>();

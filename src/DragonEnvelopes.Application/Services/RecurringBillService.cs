@@ -97,6 +97,9 @@ public sealed class RecurringBillService(
     public async Task<IReadOnlyList<RecurringBillExecutionDetails>> ListExecutionsAsync(
         Guid recurringBillId,
         int take = 25,
+        string? result = null,
+        DateOnly? fromDate = null,
+        DateOnly? toDate = null,
         CancellationToken cancellationToken = default)
     {
         var recurringBill = await recurringBillRepository.GetByIdForUpdateAsync(recurringBillId, cancellationToken);
@@ -105,10 +108,36 @@ public sealed class RecurringBillService(
             throw new DomainValidationException("Recurring bill was not found.");
         }
 
-        var normalizedTake = Math.Clamp(take, 1, 100);
-        var executions = await recurringBillExecutionRepository.ListByRecurringBillAsync(recurringBillId, cancellationToken);
+        if (fromDate.HasValue && toDate.HasValue && fromDate.Value > toDate.Value)
+        {
+            throw new DomainValidationException("'fromDate' must be earlier than or equal to 'toDate'.");
+        }
 
-        return executions
+        var normalizedTake = Math.Clamp(take, 1, 100);
+        var normalizedResult = string.IsNullOrWhiteSpace(result)
+            ? null
+            : result.Trim();
+        var executions = await recurringBillExecutionRepository.ListByRecurringBillAsync(recurringBillId, cancellationToken);
+        var filtered = executions.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(normalizedResult))
+        {
+            filtered = filtered.Where(execution =>
+                string.Equals(execution.Result, normalizedResult, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (fromDate.HasValue)
+        {
+            filtered = filtered.Where(execution =>
+                DateOnly.FromDateTime(execution.ExecutedAtUtc.UtcDateTime) >= fromDate.Value);
+        }
+
+        if (toDate.HasValue)
+        {
+            filtered = filtered.Where(execution =>
+                DateOnly.FromDateTime(execution.ExecutedAtUtc.UtcDateTime) <= toDate.Value);
+        }
+
+        return filtered
             .Take(normalizedTake)
             .Select(MapExecution)
             .ToArray();

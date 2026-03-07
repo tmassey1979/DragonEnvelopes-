@@ -39,6 +39,9 @@ public interface IRecurringBillsDataService
     Task<IReadOnlyList<RecurringBillExecutionItemViewModel>> GetExecutionHistoryAsync(
         Guid recurringBillId,
         int take = 25,
+        string? result = null,
+        DateOnly? fromDate = null,
+        DateOnly? toDate = null,
         CancellationToken cancellationToken = default);
 
     Task<RecurringAutoPostRunResultViewModel> RunAutoPostAsync(

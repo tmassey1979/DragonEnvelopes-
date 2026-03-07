@@ -157,11 +157,31 @@ public sealed class RecurringBillsDataService : IRecurringBillsDataService
     public async Task<IReadOnlyList<RecurringBillExecutionItemViewModel>> GetExecutionHistoryAsync(
         Guid recurringBillId,
         int take = 25,
+        string? result = null,
+        DateOnly? fromDate = null,
+        DateOnly? toDate = null,
         CancellationToken cancellationToken = default)
     {
         var normalizedTake = Math.Clamp(take, 1, 100);
+        var queryParts = new List<string> { $"take={normalizedTake}" };
+        if (!string.IsNullOrWhiteSpace(result))
+        {
+            queryParts.Add($"result={Uri.EscapeDataString(result.Trim())}");
+        }
+
+        if (fromDate.HasValue)
+        {
+            queryParts.Add($"fromDate={fromDate.Value:yyyy-MM-dd}");
+        }
+
+        if (toDate.HasValue)
+        {
+            queryParts.Add($"toDate={toDate.Value:yyyy-MM-dd}");
+        }
+
+        var query = string.Join("&", queryParts);
         using var response = await _apiClient.GetAsync(
-            $"recurring-bills/{recurringBillId}/executions?take={normalizedTake}",
+            $"recurring-bills/{recurringBillId}/executions?{query}",
             cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -179,8 +199,8 @@ public sealed class RecurringBillsDataService : IRecurringBillsDataService
             .OrderByDescending(static item => item.ExecutedAtUtc)
             .Select(static item => new RecurringBillExecutionItemViewModel(
                 item.Id,
-                item.DueDate.ToString("yyyy-MM-dd"),
-                item.ExecutedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+                item.DueDate,
+                item.ExecutedAtUtc,
                 item.Result,
                 item.TransactionId?.ToString() ?? "-",
                 item.IdempotencyKey,

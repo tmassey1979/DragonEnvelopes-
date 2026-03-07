@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DragonEnvelopes.Desktop.Services;
@@ -8,17 +10,23 @@ namespace DragonEnvelopes.Desktop.ViewModels;
 public sealed partial class RecurringBillsViewModel : ObservableObject
 {
     private static readonly string[] Frequencies = ["Monthly", "Weekly", "BiWeekly"];
+    private static readonly string[] ExecutionResults = ["All", "Posted", "Skipped", "Failed", "AlreadyProcessed"];
     private readonly IRecurringBillsDataService _recurringBillsDataService;
+    private readonly IRecurringExecutionCsvExporter _recurringExecutionCsvExporter;
     private Guid? _editingBillId;
 
-    public RecurringBillsViewModel(IRecurringBillsDataService recurringBillsDataService)
+    public RecurringBillsViewModel(
+        IRecurringBillsDataService recurringBillsDataService,
+        IRecurringExecutionCsvExporter recurringExecutionCsvExporter)
     {
         _recurringBillsDataService = recurringBillsDataService;
+        _recurringExecutionCsvExporter = recurringExecutionCsvExporter;
         DraftFrequency = Frequencies[0];
         DraftDayOfMonth = 1;
         DraftStartDate = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
         ProjectionFrom = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
         ProjectionTo = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(1)).ToString("yyyy-MM-dd");
+        ExecutionFilterResult = ExecutionResults[0];
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         SaveBillCommand = new AsyncRelayCommand(SaveBillAsync);
@@ -26,6 +34,7 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
         BeginCreateCommand = new RelayCommand(BeginCreate);
         LoadProjectionCommand = new AsyncRelayCommand(LoadProjectionAsync);
         RefreshExecutionHistoryCommand = new AsyncRelayCommand(LoadExecutionHistoryAsync);
+        ExportExecutionHistoryCommand = new AsyncRelayCommand(ExportExecutionHistoryAsync);
         RunAutoPostNowCommand = new AsyncRelayCommand(RunAutoPostNowAsync);
 
         _ = LoadCommand.ExecuteAsync(null);
@@ -37,8 +46,10 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
     public IRelayCommand BeginCreateCommand { get; }
     public IAsyncRelayCommand LoadProjectionCommand { get; }
     public IAsyncRelayCommand RefreshExecutionHistoryCommand { get; }
+    public IAsyncRelayCommand ExportExecutionHistoryCommand { get; }
     public IAsyncRelayCommand RunAutoPostNowCommand { get; }
     public IReadOnlyList<string> FrequencyOptions { get; } = Frequencies;
+    public IReadOnlyList<string> ExecutionResultOptions { get; } = ExecutionResults;
 
     [ObservableProperty]
     private ObservableCollection<RecurringBillItemViewModel> bills = [];
@@ -63,6 +74,15 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
 
     [ObservableProperty]
     private string executionSummary = "Select a recurring bill to view execution history.";
+
+    [ObservableProperty]
+    private string executionFilterResult = "All";
+
+    [ObservableProperty]
+    private string executionFilterFrom = string.Empty;
+
+    [ObservableProperty]
+    private string executionFilterTo = string.Empty;
 
     [ObservableProperty]
     private string autoPostRunSummary = "Manual auto-post has not been run in this session.";
@@ -327,16 +347,43 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
             return;
         }
 
+        var fromDate = ParseExecutionDateFilter(ExecutionFilterFrom, "from");
+        if (HasError)
+        {
+            return;
+        }
+
+        var toDate = ParseExecutionDateFilter(ExecutionFilterTo, "to");
+        if (HasError)
+        {
+            return;
+        }
+
+        if (fromDate.HasValue && toDate.HasValue && fromDate.Value > toDate.Value)
+        {
+            HasError = true;
+            ErrorMessage = "Execution filter range is invalid: from date must be earlier than or equal to to date.";
+            ExecutionItems.Clear();
+            ExecutionSummary = "Execution history unavailable.";
+            return;
+        }
+
         try
         {
+            HasError = false;
+            ErrorMessage = string.Empty;
+            var resultFilter = NormalizeExecutionResultFilter();
             var executions = await _recurringBillsDataService.GetExecutionHistoryAsync(
                 SelectedBill.Id,
                 take: 25,
+                result: resultFilter,
+                fromDate: fromDate,
+                toDate: toDate,
                 cancellationToken: cancellationToken);
             ExecutionItems = new ObservableCollection<RecurringBillExecutionItemViewModel>(executions);
             ExecutionSummary = executions.Count == 0
-                ? "No execution records found for this recurring bill yet."
-                : $"Showing {executions.Count} most recent execution record(s).";
+                ? "No execution records found for the selected filters."
+                : $"Showing {executions.Count} execution record(s) for current filters.";
         }
         catch (Exception ex)
         {
@@ -344,6 +391,47 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
             ErrorMessage = $"Unable to load execution history: {ex.Message}";
             ExecutionItems.Clear();
             ExecutionSummary = "Execution history unavailable.";
+        }
+    }
+
+    private async Task ExportExecutionHistoryAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedBill is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select a recurring bill before exporting execution history.";
+            return;
+        }
+
+        if (ExecutionItems.Count == 0)
+        {
+            HasError = true;
+            ErrorMessage = "No execution history rows are available to export.";
+            return;
+        }
+
+        try
+        {
+            HasError = false;
+            ErrorMessage = string.Empty;
+
+            var csv = _recurringExecutionCsvExporter.BuildCsv(ExecutionItems.ToArray());
+            var exportDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "DragonEnvelopes",
+                "Exports");
+            Directory.CreateDirectory(exportDirectory);
+
+            var fileName = $"recurring-executions-{SelectedBill.Id:N}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}.csv";
+            var filePath = Path.Combine(exportDirectory, fileName);
+            await File.WriteAllTextAsync(filePath, csv, cancellationToken);
+
+            ExecutionSummary = $"Exported {ExecutionItems.Count} row(s) to {filePath}.";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to export execution history: {ex.Message}";
         }
     }
 
@@ -386,5 +474,40 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
         DraftStartDate = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
         DraftEndDate = string.Empty;
         DraftIsActive = true;
+    }
+
+    private DateOnly? ParseExecutionDateFilter(string value, string label)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (DateOnly.TryParseExact(
+                value,
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsed))
+        {
+            return parsed;
+        }
+
+        HasError = true;
+        ErrorMessage = $"Execution {label} date filter is invalid. Use yyyy-MM-dd.";
+        ExecutionItems.Clear();
+        ExecutionSummary = "Execution history unavailable.";
+        return null;
+    }
+
+    private string? NormalizeExecutionResultFilter()
+    {
+        if (string.IsNullOrWhiteSpace(ExecutionFilterResult)
+            || string.Equals(ExecutionFilterResult, "All", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return ExecutionFilterResult.Trim();
     }
 }

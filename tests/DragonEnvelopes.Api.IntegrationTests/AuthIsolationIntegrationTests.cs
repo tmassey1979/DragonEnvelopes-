@@ -689,6 +689,58 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Filter_Own_RecurringBill_Executions_By_Result_And_DateRange()
+    {
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.RecurringBillExecutions.AddRange(
+                new RecurringBillExecution(
+                    Guid.NewGuid(),
+                    TestApiFactory.RecurringBillAId,
+                    TestApiFactory.FamilyAId,
+                    new DateOnly(2026, 3, 1),
+                    new DateTimeOffset(2026, 3, 1, 12, 0, 0, TimeSpan.Zero),
+                    transactionId: null,
+                    result: "FilterFailed",
+                    notes: "failed march"),
+                new RecurringBillExecution(
+                    Guid.NewGuid(),
+                    TestApiFactory.RecurringBillAId,
+                    TestApiFactory.FamilyAId,
+                    new DateOnly(2026, 2, 1),
+                    new DateTimeOffset(2026, 2, 1, 12, 0, 0, TimeSpan.Zero),
+                    transactionId: null,
+                    result: "FilterFailed",
+                    notes: "failed february"),
+                new RecurringBillExecution(
+                    Guid.NewGuid(),
+                    TestApiFactory.RecurringBillAId,
+                    TestApiFactory.FamilyAId,
+                    new DateOnly(2026, 3, 1),
+                    new DateTimeOffset(2026, 3, 1, 13, 0, 0, TimeSpan.Zero),
+                    transactionId: null,
+                    result: "Posted",
+                    notes: "posted march"));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync(
+            $"/api/v1/recurring-bills/{TestApiFactory.RecurringBillAId}/executions?take=20&result=FilterFailed&fromDate=2026-03-01&toDate=2026-03-31");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<List<RecurringBillExecutionResponse>>();
+        Assert.NotNull(payload);
+        Assert.Single(payload!);
+        Assert.Equal("FilterFailed", payload[0].Result);
+        Assert.Equal(new DateOnly(2026, 3, 1), payload[0].DueDate);
+        Assert.Equal("failed march", payload[0].Notes);
+    }
+
+    [Fact]
     public async Task UserA_Cannot_List_FamilyB_RecurringBill_Executions()
     {
         using var client = _factory.CreateClient();

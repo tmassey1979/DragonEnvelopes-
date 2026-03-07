@@ -78,7 +78,9 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Recurring Bills",
                 Glyph: "\uE823",
                 TopBarSubtitle: "Recurring bills and upcoming projection",
-                Content: new RecurringBillsViewModel(new RecurringBillsDataService(apiClient, familyContext))),
+                Content: new RecurringBillsViewModel(
+                    new RecurringBillsDataService(apiClient, familyContext),
+                    new RecurringExecutionCsvExporter())),
             new RouteDefinition(
                 Key: "/imports",
                 Label: "Imports",

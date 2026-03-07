@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#187` Recurring operations UX: execution filtering and CSV export.
+- Active task: `#188` Financial operations center: replay failed notification dispatch from timeline.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#185` Invite onboarding: self-service account registration from invite token.
+- Previous completed task: `#187` Recurring operations UX: execution filtering and CSV export.
 - Last updated: `2026-03-06`.

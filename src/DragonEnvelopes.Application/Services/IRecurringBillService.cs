@@ -35,6 +35,9 @@ public interface IRecurringBillService
     Task<IReadOnlyList<RecurringBillExecutionDetails>> ListExecutionsAsync(
         Guid recurringBillId,
         int take = 25,
+        string? result = null,
+        DateOnly? fromDate = null,
+        DateOnly? toDate = null,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<RecurringBillProjectionItemDetails>> ProjectAsync(

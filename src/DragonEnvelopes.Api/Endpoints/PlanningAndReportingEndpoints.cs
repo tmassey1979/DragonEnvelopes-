@@ -340,6 +340,9 @@ internal static class PlanningAndReportingEndpoints
         v1.MapGet("/recurring-bills/{recurringBillId:guid}/executions", async (
                 Guid recurringBillId,
                 int? take,
+                string? result,
+                DateOnly? fromDate,
+                DateOnly? toDate,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
                 IRecurringBillService recurringBillService,
@@ -358,6 +361,9 @@ internal static class PlanningAndReportingEndpoints
                 var executions = await recurringBillService.ListExecutionsAsync(
                     recurringBillId,
                     take ?? 25,
+                    result,
+                    fromDate,
+                    toDate,
                     cancellationToken);
 
                 return Results.Ok(executions.Select(EndpointMappers.MapRecurringBillExecutionResponse).ToArray());
