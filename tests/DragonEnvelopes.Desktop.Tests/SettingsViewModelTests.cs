@@ -119,16 +119,75 @@ public sealed class SettingsViewModelTests
         Assert.Equal(0, settingsDataService.UpdateBudgetPreferencesCallCount);
     }
 
+    [Fact]
+    public async Task RefreshSessionNowCommand_RefreshesSessionAndAddsDiagnostic()
+    {
+        var authService = new FakeAuthService();
+        var viewModel = new SettingsViewModel(
+            authService,
+            new FakeSystemStatusDataService(),
+            new FakeFamilySettingsDataService());
+
+        await viewModel.RefreshSessionNowCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, authService.GetAccessTokenCallCount);
+        Assert.True(authService.LastForceRefresh);
+        Assert.Contains(viewModel.AuthDiagnostics, item => item.Level == "Info");
+        Assert.Contains("refreshed", viewModel.AuthRecoveryMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ClearSessionCommand_ClearsSessionAndAddsDiagnostic()
+    {
+        var authService = new FakeAuthService();
+        var viewModel = new SettingsViewModel(
+            authService,
+            new FakeSystemStatusDataService(),
+            new FakeFamilySettingsDataService());
+
+        await viewModel.ClearSessionCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, authService.SignOutCallCount);
+        Assert.False(viewModel.HasActiveSession);
+        Assert.Equal("Not signed in", viewModel.SessionUser);
+        Assert.Contains(viewModel.AuthDiagnostics, item => item.Message.Contains("cleared", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ReauthenticateGuidanceCommand_SetsGuidanceMessage()
+    {
+        var authService = new FakeAuthService();
+        var viewModel = new SettingsViewModel(
+            authService,
+            new FakeSystemStatusDataService(),
+            new FakeFamilySettingsDataService());
+
+        await viewModel.ReauthenticateGuidanceCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, authService.SignOutCallCount);
+        Assert.Contains("Sign In", viewModel.AuthRecoveryMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(viewModel.AuthDiagnostics, item => item.Level == "Warning");
+    }
+
     private sealed class FakeAuthService : IAuthService
     {
+        private AuthSession? _session = new()
+        {
+            AccessToken = "token",
+            ExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(1),
+            Subject = "settings-user",
+            RefreshToken = "refresh-token"
+        };
+
+        public int SignOutCallCount { get; private set; }
+
+        public int GetAccessTokenCallCount { get; private set; }
+
+        public bool LastForceRefresh { get; private set; }
+
         public Task<AuthSession?> TryRestoreSessionAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<AuthSession?>(new AuthSession
-            {
-                AccessToken = "token",
-                ExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(1),
-                Subject = "settings-user"
-            });
+            return Task.FromResult(_session);
         }
 
         public Task<AuthSignInResult> SignInAsync(CancellationToken cancellationToken = default)
@@ -146,12 +205,16 @@ public sealed class SettingsViewModelTests
 
         public Task SignOutAsync(CancellationToken cancellationToken = default)
         {
+            SignOutCallCount += 1;
+            _session = null;
             return Task.CompletedTask;
         }
 
         public Task<string?> GetAccessTokenAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<string?>("token");
+            GetAccessTokenCallCount += 1;
+            LastForceRefresh = forceRefresh;
+            return Task.FromResult<string?>(_session?.AccessToken);
         }
     }
 

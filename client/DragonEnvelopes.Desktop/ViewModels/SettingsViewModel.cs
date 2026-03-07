@@ -34,7 +34,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         _authService = authService;
         _systemStatusDataService = systemStatusDataService;
         _familySettingsDataService = familySettingsDataService;
-        SignOutCommand = new AsyncRelayCommand(SignOutAsync);
+        SignOutCommand = new AsyncRelayCommand(ClearSessionAsync);
+        ClearSessionCommand = new AsyncRelayCommand(ClearSessionAsync);
+        RefreshSessionNowCommand = new AsyncRelayCommand(RefreshSessionNowAsync);
+        ReauthenticateGuidanceCommand = new AsyncRelayCommand(ReauthenticateGuidanceAsync);
         ReloadStatusCommand = new AsyncRelayCommand(LoadStatusAsync);
         SaveFamilyProfileCommand = new AsyncRelayCommand(SaveFamilyProfileAsync);
         SaveBudgetPreferencesCommand = new AsyncRelayCommand(SaveBudgetPreferencesAsync);
@@ -49,6 +52,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     public IAsyncRelayCommand SignOutCommand { get; }
+
+    public IAsyncRelayCommand ClearSessionCommand { get; }
+
+    public IAsyncRelayCommand RefreshSessionNowCommand { get; }
+
+    public IAsyncRelayCommand ReauthenticateGuidanceCommand { get; }
 
     public IAsyncRelayCommand ReloadStatusCommand { get; }
 
@@ -75,6 +84,21 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private string sessionStatus = "Checking session...";
+
+    [ObservableProperty]
+    private string sessionUser = "Unknown";
+
+    [ObservableProperty]
+    private string sessionExpiresAtUtcDisplay = "Unknown";
+
+    [ObservableProperty]
+    private string sessionRefreshTokenStatus = "Unknown";
+
+    [ObservableProperty]
+    private string authRecoveryMessage = "No recovery action run.";
+
+    [ObservableProperty]
+    private ObservableCollection<AuthDiagnosticEventItemViewModel> authDiagnostics = [];
 
     [ObservableProperty]
     private string backendHealthStatus = "Unknown";
@@ -158,10 +182,20 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             HasActiveSession = false;
             SessionStatus = "No active desktop session";
+            SessionUser = "Not signed in";
+            SessionExpiresAtUtcDisplay = "Not available";
+            SessionRefreshTokenStatus = "Unavailable";
             return;
         }
 
         HasActiveSession = true;
+        SessionUser = string.IsNullOrWhiteSpace(session.Subject)
+            ? "Unknown user"
+            : session.Subject;
+        SessionExpiresAtUtcDisplay = session.ExpiresAtUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'");
+        SessionRefreshTokenStatus = string.IsNullOrWhiteSpace(session.RefreshToken)
+            ? "Not available"
+            : "Available";
         SessionStatus = string.IsNullOrWhiteSpace(session.Subject)
             ? $"Session expires at {session.ExpiresAtUtc:yyyy-MM-dd HH:mm} UTC"
             : $"Session user: {session.Subject} (expires {session.ExpiresAtUtc:HH:mm} UTC)";
@@ -313,11 +347,61 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
-    private async Task SignOutAsync()
+    private async Task RefreshSessionNowAsync()
+    {
+        try
+        {
+            var accessToken = await _authService.GetAccessTokenAsync(forceRefresh: true);
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                HasActiveSession = false;
+                SessionStatus = "Session refresh failed. Sign in again.";
+                SessionUser = "Not signed in";
+                SessionExpiresAtUtcDisplay = "Not available";
+                SessionRefreshTokenStatus = "Unavailable";
+                AuthRecoveryMessage = "Refresh failed. Use re-authenticate guidance.";
+                TrackAuthDiagnostic("Error", "Session refresh failed.");
+                return;
+            }
+
+            await LoadSessionStateAsync();
+            AuthRecoveryMessage = "Session refreshed successfully.";
+            TrackAuthDiagnostic("Info", "Session refresh completed.");
+        }
+        catch (Exception ex)
+        {
+            HasActiveSession = false;
+            SessionStatus = "Session refresh encountered an error.";
+            SessionUser = "Not signed in";
+            SessionExpiresAtUtcDisplay = "Not available";
+            SessionRefreshTokenStatus = "Unavailable";
+            AuthRecoveryMessage = $"Refresh error: {ex.Message}";
+            TrackAuthDiagnostic("Error", $"Session refresh error: {ex.Message}");
+        }
+    }
+
+    private async Task ClearSessionAsync()
     {
         await _authService.SignOutAsync();
         HasActiveSession = false;
         SessionStatus = "Session cleared. Sign in again from the shell header.";
+        SessionUser = "Not signed in";
+        SessionExpiresAtUtcDisplay = "Not available";
+        SessionRefreshTokenStatus = "Unavailable";
+        AuthRecoveryMessage = "Session cleared.";
+        TrackAuthDiagnostic("Info", "Session cleared.");
+    }
+
+    private async Task ReauthenticateGuidanceAsync()
+    {
+        await _authService.SignOutAsync();
+        HasActiveSession = false;
+        SessionStatus = "Re-authentication required.";
+        SessionUser = "Not signed in";
+        SessionExpiresAtUtcDisplay = "Not available";
+        SessionRefreshTokenStatus = "Unavailable";
+        AuthRecoveryMessage = "Use the shell Sign In action to re-authenticate.";
+        TrackAuthDiagnostic("Warning", "Re-authentication guidance triggered.");
     }
 
     private void ClearSettingsError()
@@ -331,6 +415,21 @@ public sealed partial class SettingsViewModel : ObservableObject
         HasSettingsError = true;
         SettingsErrorMessage = message;
         SettingsStatusMessage = message;
+    }
+
+    private void TrackAuthDiagnostic(string level, string message)
+    {
+        AuthDiagnostics.Insert(
+            0,
+            new AuthDiagnosticEventItemViewModel(
+                DateTimeOffset.UtcNow.ToString("yyyy-MM-dd HH:mm:ss 'UTC'"),
+                level,
+                message));
+
+        while (AuthDiagnostics.Count > 20)
+        {
+            AuthDiagnostics.RemoveAt(AuthDiagnostics.Count - 1);
+        }
     }
 
     private void LoadCapabilityMatrix()

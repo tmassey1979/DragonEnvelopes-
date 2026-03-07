@@ -2746,25 +2746,57 @@
                                       EmptyMessage="Session controls unavailable."
                                       IsLoading="False"
                                       IsEmpty="False">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="{Binding SessionStatus}" Style="{StaticResource BodyTextStyle}" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding SessionUser, StringFormat=User: {0}}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,4,0,0"
+                                   Text="{Binding SessionExpiresAtUtcDisplay, StringFormat=Expires: {0}}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,4,0,0"
+                                   Text="{Binding SessionRefreshTokenStatus, StringFormat=Refresh Token: {0}}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Text="{Binding AuthRecoveryMessage}"
+                                   Style="{StaticResource CaptionTextStyle}" />
 
-                        <TextBlock Grid.Column="0"
-                                   VerticalAlignment="Center"
-                                   Text="{Binding SessionStatus}"
-                                   Style="{StaticResource BodyTextStyle}" />
-                        <Button Grid.Column="1"
-                                Margin="12,0,8,0"
-                                Content="Refresh Status"
-                                Command="{Binding ReloadStatusCommand}" />
-                        <Button Grid.Column="2"
-                                Content="Sign Out"
-                                Command="{Binding SignOutCommand}" />
-                    </Grid>
+                        <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                            <Button Margin="0,0,8,0"
+                                    Content="Refresh Status"
+                                    Command="{Binding ReloadStatusCommand}" />
+                            <Button Margin="0,0,8,0"
+                                    Content="Refresh Session Now"
+                                    Command="{Binding RefreshSessionNowCommand}" />
+                            <Button Margin="0,0,8,0"
+                                    Content="Clear Session"
+                                    Command="{Binding ClearSessionCommand}" />
+                            <Button Margin="0,0,8,0"
+                                    Content="Re-auth Guide"
+                                    Command="{Binding ReauthenticateGuidanceCommand}" />
+                            <Button Content="Sign Out"
+                                    Command="{Binding SignOutCommand}" />
+                        </StackPanel>
+
+                        <DataGrid Margin="0,10,0,0"
+                                  Height="130"
+                                  ItemsSource="{Binding AuthDiagnostics}"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  IsReadOnly="True"
+                                  RowHeight="28"
+                                  GridLinesVisibility="Horizontal"
+                                  Background="{StaticResource PanelMutedBackgroundBrush}"
+                                  BorderBrush="{StaticResource PanelOutlineBrush}"
+                                  BorderThickness="1">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Occurred" Binding="{Binding OccurredAt}" Width="150" />
+                                <DataGridTextColumn Header="Level" Binding="{Binding Level}" Width="80" />
+                                <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
                 </controls:CardControl>
 
                 <controls:CardControl Grid.Row="1"
