@@ -23,6 +23,17 @@ public static class DependencyInjection
             CountryCodes = configuration.GetSection("Plaid:CountryCodes").Get<string[]>() ?? ["US"],
             Products = configuration.GetSection("Plaid:Products").Get<string[]>() ?? ["transactions"]
         };
+        var plaidWebhookVerificationOptions = new PlaidWebhookVerificationOptions
+        {
+            Enabled = !bool.TryParse(configuration["Plaid:Webhooks:Enabled"], out var plaidWebhookEnabled)
+                || plaidWebhookEnabled,
+            AllowUnsignedInDevelopment = bool.TryParse(configuration["Plaid:Webhooks:AllowUnsignedInDevelopment"], out var allowUnsignedInDevelopment)
+                && allowUnsignedInDevelopment,
+            SigningSecret = configuration["Plaid:Webhooks:SigningSecret"] ?? string.Empty,
+            SignatureToleranceSeconds = int.TryParse(configuration["Plaid:Webhooks:SignatureToleranceSeconds"], out var plaidWebhookTolerance)
+                ? Math.Max(1, plaidWebhookTolerance)
+                : 300
+        };
         var stripeGatewayOptions = new StripeGatewayOptions
         {
             Enabled = bool.TryParse(configuration["Stripe:Enabled"], out var stripeEnabled) && stripeEnabled,
@@ -31,9 +42,11 @@ public static class DependencyInjection
         };
 
         services.AddSingleton(Options.Create(plaidGatewayOptions));
+        services.AddSingleton(Options.Create(plaidWebhookVerificationOptions));
         services.AddSingleton(Options.Create(stripeGatewayOptions));
         services.AddHttpClient<IPlaidGateway, PlaidGateway>();
         services.AddHttpClient<IStripeGateway, StripeGateway>();
+        services.AddSingleton<IPlaidWebhookVerificationService, PlaidWebhookVerificationService>();
 
         return services;
     }

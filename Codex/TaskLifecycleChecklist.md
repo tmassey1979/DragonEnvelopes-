@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `TBD (select next open phase 2 issue after #250 closeout)`.
+- Active task: `TBD (select next open phase 2B issue after #252 closeout)`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#250` Provider activity: persist Plaid webhook events and include in timeline.
+- Previous completed task: `#252` Plaid webhooks: authenticity verification gate.
 - Last updated: `2026-03-07`.

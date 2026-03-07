@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Globalization;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using DragonEnvelopes.Api.Services;
@@ -2404,6 +2406,79 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task Plaid_Webhook_Without_Signature_When_Verification_Enabled_Returns401_And_Persists_Failure()
+    {
+        const string signingSecret = "plaid_webhook_test_secret";
+        const string payload = "{\"webhook_type\":\"TRANSACTIONS\",\"webhook_code\":\"SYNC_UPDATES_AVAILABLE\",\"item_id\":\"item_unsigned\"}";
+
+        using var factory = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IOptions<PlaidWebhookVerificationOptions>>();
+                services.AddSingleton<IOptions<PlaidWebhookVerificationOptions>>(
+                    Options.Create(new PlaidWebhookVerificationOptions
+                    {
+                        Enabled = true,
+                        SigningSecret = signingSecret,
+                        SignatureToleranceSeconds = 300,
+                        AllowUnsignedInDevelopment = false
+                    }));
+            }));
+
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/plaid")
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var dbContext = verificationScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var persisted = await dbContext.PlaidWebhookEvents
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.PayloadJson == payload);
+        Assert.NotNull(persisted);
+        Assert.Equal("Failed", persisted!.ProcessingStatus);
+        Assert.Equal("Unknown", persisted.WebhookType);
+        Assert.Contains("signature verification failed", persisted.ErrorMessage ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Plaid_Webhook_With_Valid_Signature_When_Verification_Enabled_ReturnsIgnored()
+    {
+        const string signingSecret = "plaid_webhook_test_secret";
+        const string payload = "{\"webhook_type\":\"TRANSACTIONS\",\"webhook_code\":\"SYNC_UPDATES_AVAILABLE\",\"item_id\":\"item_unknown_signed\"}";
+
+        using var factory = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IOptions<PlaidWebhookVerificationOptions>>();
+                services.AddSingleton<IOptions<PlaidWebhookVerificationOptions>>(
+                    Options.Create(new PlaidWebhookVerificationOptions
+                    {
+                        Enabled = true,
+                        SigningSecret = signingSecret,
+                        SignatureToleranceSeconds = 300,
+                        AllowUnsignedInDevelopment = false
+                    }));
+            }));
+
+        using var client = factory.CreateClient();
+        using var request = CreatePlaidWebhookRequest(payload, signingSecret);
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<PlaidWebhookProcessResponse>();
+        Assert.NotNull(result);
+        Assert.Equal("Ignored", result!.Outcome);
+        Assert.Equal("item_unknown_signed", result.ItemId);
+    }
+
+    [Fact]
     public async Task Plaid_Webhook_With_Unknown_Item_ReturnsIgnored()
     {
         using var client = _factory.CreateClient();
@@ -2567,6 +2642,25 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.Equal("SYNC_UPDATES_AVAILABLE", persistedEvent.WebhookCode);
     }
 
+    private static HttpRequestMessage CreatePlaidWebhookRequest(string payload, string signingSecret)
+    {
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var signature = CreatePlaidSignature(payload, signingSecret, timestamp);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/plaid")
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+        request.Headers.Add("Plaid-Signature", $"t={timestamp.ToString(CultureInfo.InvariantCulture)},v1={signature}");
+        return request;
+    }
+
+    private static string CreatePlaidSignature(string payload, string signingSecret, long timestamp)
+    {
+        var signedPayload = $"{timestamp.ToString(CultureInfo.InvariantCulture)}.{payload}";
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(signingSecret));
+        return Convert.ToHexString(hmac.ComputeHash(Encoding.UTF8.GetBytes(signedPayload))).ToLowerInvariant();
+    }
+
     private static async Task SeedPlaidWebhookProfileAsync(IServiceProvider services, Guid familyId, string itemId)
     {
         var now = DateTimeOffset.UtcNow;
@@ -2624,7 +2718,9 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
                 ["Authentication:Audience"] = "dragonenvelopes-api",
                 ["Stripe:Webhooks:Enabled"] = "true",
                 ["Stripe:Webhooks:SigningSecret"] = "whsec_test",
-                ["Stripe:Webhooks:SignatureToleranceSeconds"] = "300"
+                ["Stripe:Webhooks:SignatureToleranceSeconds"] = "300",
+                ["Plaid:Webhooks:Enabled"] = "false",
+                ["Plaid:Webhooks:AllowUnsignedInDevelopment"] = "false"
             });
         });
 
@@ -2649,6 +2745,16 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
                     options.DefaultChallengeScheme = TestAuthHandler.SchemeName;
                 })
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
+
+            services.RemoveAll<IOptions<PlaidWebhookVerificationOptions>>();
+            services.AddSingleton<IOptions<PlaidWebhookVerificationOptions>>(
+                Options.Create(new PlaidWebhookVerificationOptions
+                {
+                    Enabled = false,
+                    AllowUnsignedInDevelopment = false,
+                    SigningSecret = string.Empty,
+                    SignatureToleranceSeconds = 300
+                }));
 
             using var scope = services.BuildServiceProvider().CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();

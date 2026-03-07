@@ -51,6 +51,7 @@ internal static partial class FinancialIntegrationEndpoints
         v1.MapPost("/webhooks/plaid", async (
                 HttpRequest httpRequest,
                 DragonEnvelopesDbContext dbContext,
+                IPlaidWebhookVerificationService plaidWebhookVerificationService,
                 IPlaidTransactionSyncService plaidTransactionSyncService,
                 IPlaidBalanceReconciliationService plaidBalanceReconciliationService,
                 CancellationToken cancellationToken) =>
@@ -60,6 +61,29 @@ internal static partial class FinancialIntegrationEndpoints
                 using (var reader = new StreamReader(httpRequest.Body))
                 {
                     payload = await reader.ReadToEndAsync(cancellationToken);
+                }
+
+                var plaidSignatureHeader = httpRequest.Headers["Plaid-Signature"].ToString();
+                var verificationResult = plaidWebhookVerificationService.Verify(payload, plaidSignatureHeader);
+                if (!verificationResult.IsVerified)
+                {
+                    if (!verificationResult.IsDisabled)
+                    {
+                        var verificationFailure = new PlaidWebhookEvent(
+                            Guid.NewGuid(),
+                            webhookType: "Unknown",
+                            webhookCode: null,
+                            itemId: null,
+                            familyId: null,
+                            processingStatus: "Failed",
+                            errorMessage: TrimActivityError(verificationResult.Message),
+                            payloadJson: payload,
+                            receivedAtUtc,
+                            DateTimeOffset.UtcNow);
+                        dbContext.PlaidWebhookEvents.Add(verificationFailure);
+                        await dbContext.SaveChangesAsync(cancellationToken);
+                        return Results.Unauthorized();
+                    }
                 }
 
                 JsonDocument document;
