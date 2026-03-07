@@ -433,6 +433,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 case AccountsViewModel accounts:
                     await accounts.LoadCommand.ExecuteAsync(null);
                     break;
+                case DashboardViewModel dashboard:
+                    await dashboard.LoadCommand.ExecuteAsync(null);
+                    break;
                 case EnvelopesViewModel envelopes:
                     await envelopes.LoadCommand.ExecuteAsync(null);
                     break;
