@@ -11,24 +11,38 @@ public sealed class DesktopAuthService : IAuthService
     private static readonly TimeSpan RefreshSkew = TimeSpan.FromMinutes(2);
     private readonly DesktopAuthOptions _options;
     private readonly IAuthSessionStore _sessionStore;
-    private readonly OidcClient _oidcClient;
+    private readonly IDesktopOidcClient _oidcClient;
     private AuthSession? _currentSession;
 
     public DesktopAuthService(
         IAuthSessionStore sessionStore,
         DesktopAuthOptions? options = null)
+        : this(sessionStore, options, oidcClient: null)
     {
+    }
+
+    public DesktopAuthService(
+        IAuthSessionStore sessionStore,
+        DesktopAuthOptions? options,
+        IDesktopOidcClient? oidcClient)
+    {
+        ArgumentNullException.ThrowIfNull(sessionStore);
+
         _sessionStore = sessionStore;
         _options = options ?? new DesktopAuthOptions();
+        _oidcClient = oidcClient ?? CreateDefaultOidcClient(_options);
+    }
 
-        var browser = new LoopbackSystemBrowser(_options.RedirectUri);
+    private static IDesktopOidcClient CreateDefaultOidcClient(DesktopAuthOptions options)
+    {
+        var browser = new LoopbackSystemBrowser(options.RedirectUri);
 
         var oidcOptions = new OidcClientOptions
         {
-            Authority = _options.Authority,
-            ClientId = _options.ClientId,
-            Scope = _options.Scope,
-            RedirectUri = _options.RedirectUri,
+            Authority = options.Authority,
+            ClientId = options.ClientId,
+            Scope = options.Scope,
+            RedirectUri = options.RedirectUri,
             Browser = browser,
             Policy = new Policy
             {
@@ -39,27 +53,34 @@ public sealed class DesktopAuthService : IAuthService
             }
         };
 
-        _oidcClient = new OidcClient(oidcOptions);
+        return new DesktopOidcClientAdapter(new OidcClient(oidcOptions));
     }
 
     public async Task<AuthSession?> TryRestoreSessionAsync(CancellationToken cancellationToken = default)
     {
-        var session = await _sessionStore.LoadAsync(cancellationToken);
-        if (session is null)
+        try
         {
-            _currentSession = null;
+            var session = await _sessionStore.LoadAsync(cancellationToken);
+            if (session is null || string.IsNullOrWhiteSpace(session.AccessToken))
+            {
+                await SafeSignOutAsync(cancellationToken);
+                return null;
+            }
+
+            if (session.IsExpired(DateTimeOffset.UtcNow))
+            {
+                await SafeSignOutAsync(cancellationToken);
+                return null;
+            }
+
+            _currentSession = session;
+            return session;
+        }
+        catch
+        {
+            await SafeSignOutAsync(cancellationToken);
             return null;
         }
-
-        if (session.IsExpired(DateTimeOffset.UtcNow))
-        {
-            await _sessionStore.ClearAsync(cancellationToken);
-            _currentSession = null;
-            return null;
-        }
-
-        _currentSession = session;
-        return session;
     }
 
     public async Task<AuthSignInResult> SignInAsync(CancellationToken cancellationToken = default)
@@ -199,8 +220,18 @@ public sealed class DesktopAuthService : IAuthService
         bool forceRefresh = false,
         CancellationToken cancellationToken = default)
     {
-        var session = await EnsureSessionAsync(forceRefresh, cancellationToken);
-        return session?.AccessToken;
+        try
+        {
+            var session = await EnsureSessionAsync(forceRefresh, cancellationToken);
+            return string.IsNullOrWhiteSpace(session?.AccessToken)
+                ? null
+                : session.AccessToken;
+        }
+        catch
+        {
+            await SafeSignOutAsync(cancellationToken);
+            return null;
+        }
     }
 
     private async Task<AuthSession?> EnsureSessionAsync(
@@ -251,7 +282,7 @@ public sealed class DesktopAuthService : IAuthService
                 return null;
             }
 
-            if (refreshResult is null || refreshResult.IsError || string.IsNullOrWhiteSpace(refreshResult.AccessToken))
+            if (!TryBuildRefreshedSession(refreshResult, session, out var refreshed))
             {
                 if (!session.IsExpired(nowUtc))
                 {
@@ -262,21 +293,6 @@ public sealed class DesktopAuthService : IAuthService
                 return null;
             }
 
-            var expiresInSeconds = refreshResult.ExpiresIn <= 0
-                ? 300
-                : refreshResult.ExpiresIn;
-
-            var refreshed = new AuthSession
-            {
-                AccessToken = refreshResult.AccessToken,
-                RefreshToken = string.IsNullOrWhiteSpace(refreshResult.RefreshToken)
-                    ? session.RefreshToken
-                    : refreshResult.RefreshToken,
-                IdentityToken = refreshResult.IdentityToken,
-                ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(expiresInSeconds),
-                Subject = session.Subject
-            };
-
             _currentSession = refreshed;
             await _sessionStore.SaveAsync(refreshed, cancellationToken);
             return refreshed;
@@ -285,6 +301,53 @@ public sealed class DesktopAuthService : IAuthService
         {
             await SafeSignOutAsync(cancellationToken);
             return null;
+        }
+    }
+
+    private static bool TryBuildRefreshedSession(
+        RefreshTokenResult? refreshResult,
+        AuthSession session,
+        out AuthSession refreshed)
+    {
+        refreshed = null!;
+        if (refreshResult is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (refreshResult.IsError)
+            {
+                return false;
+            }
+
+            var accessToken = refreshResult.AccessToken;
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                return false;
+            }
+
+            var expiresInSeconds = refreshResult.ExpiresIn <= 0
+                ? 300
+                : refreshResult.ExpiresIn;
+
+            refreshed = new AuthSession
+            {
+                AccessToken = accessToken,
+                RefreshToken = string.IsNullOrWhiteSpace(refreshResult.RefreshToken)
+                    ? session.RefreshToken
+                    : refreshResult.RefreshToken,
+                IdentityToken = refreshResult.IdentityToken,
+                ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(expiresInSeconds),
+                Subject = session.Subject
+            };
+
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 
