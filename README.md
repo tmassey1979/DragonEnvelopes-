@@ -21,6 +21,12 @@ Initial implementation uses .NET 8 with a Clean Architecture layout.
 - `tests/DragonEnvelopes.Ledger.Api.IntegrationTests`
 - `tests/DragonEnvelopes.Desktop.Tests`
 
+## Documentation
+
+- [Documentation Index](docs/README.md)
+- [Technical Guide](docs/technical-guide.md)
+- [User Guide](docs/user-guide.md)
+
 ## Architecture Dependencies
 
 - Domain: no project references.

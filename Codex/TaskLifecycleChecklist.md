@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `none` (Phase 2B stories and epic are closed).
+- Active task: `none` (Documentation story completed and closed).
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#260`.
+- Previous completed task: `#261`.
 - Last updated: `2026-03-07`.
