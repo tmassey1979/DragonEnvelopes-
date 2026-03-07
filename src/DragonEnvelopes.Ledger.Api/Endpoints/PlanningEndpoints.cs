@@ -8,6 +8,7 @@ internal static partial class PlanningEndpoints
         MapBudgetPlanningEndpoints(v1);
         MapRecurringBillPlanningEndpoints(v1);
         MapReportingEndpoints(v1);
+        MapScenarioPlanningEndpoints(v1);
         return v1;
     }
 }

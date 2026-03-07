@@ -6,6 +6,7 @@ using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Contracts.Imports;
 using DragonEnvelopes.Contracts.Onboarding;
 using DragonEnvelopes.Contracts.RecurringBills;
+using DragonEnvelopes.Contracts.Scenarios;
 using DragonEnvelopes.Contracts.Transactions;
 using FluentValidation;
 using System.Text.Json;
@@ -634,5 +635,27 @@ public sealed class ImportCommitRequestValidator : AbstractValidator<ImportCommi
         RuleFor(static request => request.Delimiter)
             .Must(static delimiter => string.IsNullOrEmpty(delimiter) || delimiter.Length == 1)
             .WithMessage("Delimiter must be exactly one character when provided.");
+    }
+}
+
+public sealed class SimulateScenarioRequestValidator : AbstractValidator<SimulateScenarioRequest>
+{
+    public SimulateScenarioRequestValidator()
+    {
+        RuleFor(static request => request.FamilyId)
+            .NotEmpty();
+
+        RuleFor(static request => request.MonthlyIncome)
+            .GreaterThanOrEqualTo(0m);
+
+        RuleFor(static request => request.FixedExpenses)
+            .GreaterThanOrEqualTo(0m);
+
+        RuleFor(static request => request.DiscretionaryCutPercent)
+            .InclusiveBetween(0m, 100m)
+            .When(static request => request.DiscretionaryCutPercent.HasValue);
+
+        RuleFor(static request => request.MonthHorizon)
+            .InclusiveBetween(1, 120);
     }
 }

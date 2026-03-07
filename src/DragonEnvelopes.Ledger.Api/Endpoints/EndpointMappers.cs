@@ -8,6 +8,7 @@ using DragonEnvelopes.Contracts.Imports;
 using DragonEnvelopes.Contracts.Onboarding;
 using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Contracts.Reports;
+using DragonEnvelopes.Contracts.Scenarios;
 using DragonEnvelopes.Contracts.Transactions;
 
 namespace DragonEnvelopes.Ledger.Api.Endpoints;
@@ -291,6 +292,21 @@ internal static class EndpointMappers
             rule.UpdatedAt);
     }
 
+    public static ScenarioSimulationResponse MapScenarioSimulationResponse(ScenarioSimulationDetails details)
+    {
+        return new ScenarioSimulationResponse(
+            details.FamilyId,
+            details.StartingBalance,
+            details.MonthlyIncome,
+            details.FixedExpenses,
+            details.EffectiveExpenses,
+            details.NetMonthlyChange,
+            details.MonthHorizon,
+            details.DepletionMonth,
+            details.EndingBalance,
+            details.Months.Select(MapScenarioSimulationMonthResponse).ToArray());
+    }
+
     private static EnvelopeRolloverItemResponse MapEnvelopeRolloverItemResponse(EnvelopeRolloverItemDetails details)
     {
         return new EnvelopeRolloverItemResponse(
@@ -301,5 +317,15 @@ internal static class EndpointMappers
             details.RolloverCap,
             details.RolloverBalance,
             details.AdjustmentAmount);
+    }
+
+    private static ScenarioSimulationMonthResponse MapScenarioSimulationMonthResponse(ScenarioSimulationMonthDetails details)
+    {
+        return new ScenarioSimulationMonthResponse(
+            details.MonthIndex,
+            details.Month,
+            details.ProjectedBalance,
+            details.Income,
+            details.Expenses);
     }
 }

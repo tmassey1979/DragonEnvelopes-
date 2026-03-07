@@ -7,6 +7,7 @@ using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Contracts.Reports;
+using DragonEnvelopes.Contracts.Scenarios;
 using DragonEnvelopes.Contracts.Transactions;
 using DragonEnvelopes.Ledger.Api.CrossCutting.Auth;
 using DragonEnvelopes.Domain.Entities;
@@ -143,6 +144,51 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
         Assert.NotNull(ownPayload);
         Assert.NotEmpty(ownPayload!);
         Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Can_Simulate_Own_Family_Scenario_But_Not_Other_Family()
+    {
+        var userId = "ledger-user-scenario-a";
+        var ownFamilyId = Guid.Parse("e1100000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e1100000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAndAccountAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var ownResponse = await client.PostAsJsonAsync(
+            "/api/v1/scenarios/simulate",
+            new SimulateScenarioRequest(ownFamilyId, 2000m, 1500m, 10m, 3));
+        var ownPayload = await ownResponse.Content.ReadFromJsonAsync<ScenarioSimulationResponse>();
+
+        var otherResponse = await client.PostAsJsonAsync(
+            "/api/v1/scenarios/simulate",
+            new SimulateScenarioRequest(otherFamilyId, 2000m, 1500m, 10m, 3));
+
+        Assert.Equal(HttpStatusCode.OK, ownResponse.StatusCode);
+        Assert.NotNull(ownPayload);
+        Assert.Equal(ownFamilyId, ownPayload!.FamilyId);
+        Assert.Equal(3, ownPayload.Months.Count);
+        Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Scenario_Simulation_With_Invalid_Request_Returns_BadRequest()
+    {
+        var userId = "ledger-user-scenario-validation-a";
+        var ownFamilyId = Guid.Parse("e1200000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e1200000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAndAccountAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/scenarios/simulate",
+            new SimulateScenarioRequest(ownFamilyId, 2000m, 1500m, 10m, 0));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
