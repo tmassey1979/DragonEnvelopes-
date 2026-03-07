@@ -21,5 +21,5 @@ Use this checklist at the start and end of every task.
 ## Session Run Log
 - Active task: `none` (awaiting next prioritized issue).
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#188` Financial operations center: replay failed notification dispatch from timeline.
+- Previous completed task: `#189` Settings UX: live family profile and budget preference management.
 - Last updated: `2026-03-06`.
