@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `TBD (select next open issue after #248 closeout)`.
+- Active task: `TBD (select next open issue after #249 closeout)`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#248` CI smoke: add Plaid webhook endpoint path checks.
+- Previous completed task: `#249` Plaid webhook integration coverage: processed and failed outcomes via service overrides.
 - Last updated: `2026-03-07`.

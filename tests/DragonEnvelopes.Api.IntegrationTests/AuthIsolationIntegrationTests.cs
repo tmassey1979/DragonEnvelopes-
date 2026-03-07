@@ -13,7 +13,9 @@ using DragonEnvelopes.Contracts.Transactions;
 using DragonEnvelopes.Domain;
 using DragonEnvelopes.Domain.Entities;
 using DragonEnvelopes.Domain.ValueObjects;
+using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
+using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
@@ -2439,6 +2441,108 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.Equal(familyId, payload.FamilyId);
         Assert.Equal("ITEM", payload.WebhookType);
     }
+
+    [Fact]
+    public async Task Plaid_Webhook_Transactions_With_Matched_Item_ReturnsProcessed()
+    {
+        var syncService = new TestPlaidTransactionSyncService();
+        var balanceService = new TestPlaidBalanceReconciliationService();
+
+        using var factory = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IPlaidTransactionSyncService>();
+                services.AddSingleton<IPlaidTransactionSyncService>(syncService);
+                services.RemoveAll<IPlaidBalanceReconciliationService>();
+                services.AddSingleton<IPlaidBalanceReconciliationService>(balanceService);
+            }));
+
+        var familyId = Guid.NewGuid();
+        const string itemId = "item_webhook_processed";
+        await SeedPlaidWebhookProfileAsync(factory.Services, familyId, itemId);
+
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/plaid")
+        {
+            Content = new StringContent(
+                $"{{\"webhook_type\":\"TRANSACTIONS\",\"webhook_code\":\"SYNC_UPDATES_AVAILABLE\",\"item_id\":\"{itemId}\"}}",
+                Encoding.UTF8,
+                "application/json")
+        };
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<PlaidWebhookProcessResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("Processed", payload!.Outcome);
+        Assert.Equal("TRANSACTIONS", payload.WebhookType);
+        Assert.Equal(familyId, payload.FamilyId);
+        Assert.Equal(1, syncService.SyncFamilyCallCount);
+        Assert.Equal(familyId, syncService.LastFamilyId);
+        Assert.Equal(0, balanceService.RefreshFamilyCallCount);
+    }
+
+    [Fact]
+    public async Task Plaid_Webhook_Transactions_With_Matched_Item_And_SyncFailure_ReturnsFailed()
+    {
+        var syncService = new TestPlaidTransactionSyncService { ThrowOnSync = true };
+        var balanceService = new TestPlaidBalanceReconciliationService();
+
+        using var factory = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IPlaidTransactionSyncService>();
+                services.AddSingleton<IPlaidTransactionSyncService>(syncService);
+                services.RemoveAll<IPlaidBalanceReconciliationService>();
+                services.AddSingleton<IPlaidBalanceReconciliationService>(balanceService);
+            }));
+
+        var familyId = Guid.NewGuid();
+        const string itemId = "item_webhook_failed";
+        await SeedPlaidWebhookProfileAsync(factory.Services, familyId, itemId);
+
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/plaid")
+        {
+            Content = new StringContent(
+                $"{{\"webhook_type\":\"TRANSACTIONS\",\"webhook_code\":\"SYNC_UPDATES_AVAILABLE\",\"item_id\":\"{itemId}\"}}",
+                Encoding.UTF8,
+                "application/json")
+        };
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<PlaidWebhookProcessResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("Failed", payload!.Outcome);
+        Assert.Equal("TRANSACTIONS", payload.WebhookType);
+        Assert.Equal(familyId, payload.FamilyId);
+        Assert.Equal(1, syncService.SyncFamilyCallCount);
+        Assert.Equal(familyId, syncService.LastFamilyId);
+        Assert.Equal(0, balanceService.RefreshFamilyCallCount);
+    }
+
+    private static async Task SeedPlaidWebhookProfileAsync(IServiceProvider services, Guid familyId, string itemId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        await using var scope = services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+
+        dbContext.Families.Add(new Family(familyId, $"Plaid Webhook Family {familyId:N}", now));
+        dbContext.FamilyFinancialProfiles.Add(new FamilyFinancialProfile(
+            Guid.NewGuid(),
+            familyId,
+            plaidItemId: itemId,
+            plaidAccessToken: "token_webhook_test",
+            stripeCustomerId: null,
+            stripeDefaultPaymentMethodId: null,
+            createdAtUtc: now,
+            updatedAtUtc: now));
+
+        await dbContext.SaveChangesAsync();
+    }
 }
 
 public sealed class TestApiFactory : WebApplicationFactory<Program>
@@ -2665,6 +2769,101 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
         dbContext.SpendNotificationEvents.AddRange(notificationA, notificationA2, notificationB);
 
         dbContext.SaveChanges();
+    }
+}
+
+public sealed class TestPlaidTransactionSyncService : IPlaidTransactionSyncService
+{
+    public int SyncFamilyCallCount { get; private set; }
+
+    public Guid? LastFamilyId { get; private set; }
+
+    public bool ThrowOnSync { get; init; }
+
+    public Task<PlaidAccountLinkDetails> UpsertAccountLinkAsync(
+        Guid familyId,
+        Guid accountId,
+        string plaidAccountId,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("Not used in this test service.");
+    }
+
+    public Task<IReadOnlyList<PlaidAccountLinkDetails>> ListAccountLinksAsync(
+        Guid familyId,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<PlaidAccountLinkDetails>>([]);
+    }
+
+    public Task DeleteAccountLinkAsync(
+        Guid familyId,
+        Guid linkId,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("Not used in this test service.");
+    }
+
+    public Task<PlaidTransactionSyncDetails> SyncFamilyAsync(
+        Guid familyId,
+        CancellationToken cancellationToken = default)
+    {
+        SyncFamilyCallCount += 1;
+        LastFamilyId = familyId;
+
+        if (ThrowOnSync)
+        {
+            throw new InvalidOperationException("Simulated Plaid sync failure.");
+        }
+
+        return Task.FromResult(new PlaidTransactionSyncDetails(
+            familyId,
+            PulledCount: 3,
+            InsertedCount: 2,
+            DedupedCount: 1,
+            UnmappedCount: 0,
+            NextCursor: "cursor_webhook",
+            ProcessedAtUtc: DateTimeOffset.UtcNow));
+    }
+
+    public Task<IReadOnlyList<PlaidTransactionSyncDetails>> SyncConnectedFamiliesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<PlaidTransactionSyncDetails>>([]);
+    }
+}
+
+public sealed class TestPlaidBalanceReconciliationService : IPlaidBalanceReconciliationService
+{
+    public int RefreshFamilyCallCount { get; private set; }
+
+    public Task<PlaidBalanceRefreshDetails> RefreshFamilyBalancesAsync(
+        Guid familyId,
+        CancellationToken cancellationToken = default)
+    {
+        RefreshFamilyCallCount += 1;
+        return Task.FromResult(new PlaidBalanceRefreshDetails(
+            familyId,
+            RefreshedCount: 1,
+            DriftedCount: 0,
+            TotalAbsoluteDrift: 0m,
+            RefreshedAtUtc: DateTimeOffset.UtcNow));
+    }
+
+    public Task<PlaidReconciliationReportDetails> GetReconciliationReportAsync(
+        Guid familyId,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(new PlaidReconciliationReportDetails(
+            familyId,
+            DateTimeOffset.UtcNow,
+            []));
+    }
+
+    public Task<IReadOnlyList<PlaidBalanceRefreshDetails>> RefreshConnectedFamiliesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<IReadOnlyList<PlaidBalanceRefreshDetails>>([]);
     }
 }
 
