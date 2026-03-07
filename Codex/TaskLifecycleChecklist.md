@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#217` Split API integration tests: enforce cross-family authorization boundaries.
+- Active task: `#218` CI hardening: run split integration test suites on Linux.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#216` CI observability smoke: validate Grafana/Loki compose profile startup.
+- Previous completed task: `#217` Split API integration tests: enforce cross-family authorization boundaries.
 - Last updated: `2026-03-07`.

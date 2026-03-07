@@ -83,6 +83,11 @@ jobs:
           dotnet build src/DragonEnvelopes.Family.Api/DragonEnvelopes.Family.Api.csproj --configuration Release --no-restore
           dotnet build src/DragonEnvelopes.Ledger.Api/DragonEnvelopes.Ledger.Api.csproj --configuration Release --no-restore
 
+      - name: Run split integration tests
+        run: |
+          dotnet test tests/DragonEnvelopes.Family.Api.IntegrationTests/DragonEnvelopes.Family.Api.IntegrationTests.csproj --configuration Release --verbosity minimal
+          dotnet test tests/DragonEnvelopes.Ledger.Api.IntegrationTests/DragonEnvelopes.Ledger.Api.IntegrationTests.csproj --configuration Release --verbosity minimal
+
   docker-smoke-build:
     runs-on: ubuntu-latest
     strategy:
