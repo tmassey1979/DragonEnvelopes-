@@ -12,7 +12,9 @@ public sealed class TransactionListItemViewModel
         string? category,
         Guid? envelopeId,
         string envelope,
-        IReadOnlyList<TransactionSplitSnapshotViewModel> splits)
+        IReadOnlyList<TransactionSplitSnapshotViewModel> splits,
+        DateTimeOffset? deletedAtUtc = null,
+        string? deletedByUserId = null)
     {
         Id = id;
         AccountId = accountId;
@@ -24,6 +26,8 @@ public sealed class TransactionListItemViewModel
         EnvelopeId = envelopeId;
         Envelope = envelope;
         Splits = splits;
+        DeletedAtUtc = deletedAtUtc;
+        DeletedByUserId = deletedByUserId;
     }
 
     public Guid Id { get; }
@@ -36,9 +40,13 @@ public sealed class TransactionListItemViewModel
     public Guid? EnvelopeId { get; }
     public string Envelope { get; }
     public IReadOnlyList<TransactionSplitSnapshotViewModel> Splits { get; }
+    public DateTimeOffset? DeletedAtUtc { get; }
+    public string? DeletedByUserId { get; }
     public bool HasSplits => Splits.Count > 0;
+    public bool IsDeleted => DeletedAtUtc.HasValue;
 
     public string OccurredDateDisplay => OccurredAt.ToString("yyyy-MM-dd");
+    public string DeletedAtDateDisplay => DeletedAtUtc?.ToString("yyyy-MM-dd") ?? "-";
     public string AmountDisplay => Amount.ToString("$#,##0.00");
     public string CategoryDisplay => string.IsNullOrWhiteSpace(Category) ? "Uncategorized" : Category!;
     public string AllocationDisplay => HasSplits

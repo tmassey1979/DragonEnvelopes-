@@ -12,6 +12,10 @@ public interface ITransactionsDataService
         Guid accountId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<TransactionListItemViewModel>> GetDeletedTransactionsAsync(
+        int days = 30,
+        CancellationToken cancellationToken = default);
+
     Task CreateTransactionAsync(
         Guid accountId,
         decimal amount,
@@ -34,6 +38,10 @@ public interface ITransactionsDataService
         CancellationToken cancellationToken = default);
 
     Task DeleteTransactionAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default);
+
+    Task RestoreTransactionAsync(
         Guid transactionId,
         CancellationToken cancellationToken = default);
 }

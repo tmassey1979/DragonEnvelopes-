@@ -91,6 +91,82 @@ public sealed class TransactionsViewModelTests
         Assert.Equal("Transaction deleted.", viewModel.EditorStatusMessage);
         Assert.Single(dataService.DeleteCalls);
         Assert.Equal(transactionId, dataService.DeleteCalls[0]);
+        Assert.Single(viewModel.DeletedTransactions);
+        Assert.Equal(transactionId, viewModel.DeletedTransactions[0].Id);
+    }
+
+    [Fact]
+    public async Task LoadAccounts_LoadsDeletedTransactionsUsingWindowDays()
+    {
+        var accountId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+        var envelopeId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var transactionId = Guid.Parse("30000000-0000-0000-0000-000000000099");
+        var deletedTransaction = new TransactionListItemViewModel(
+            transactionId,
+            accountId,
+            new DateTimeOffset(new DateTime(2026, 2, 20), TimeSpan.Zero),
+            "Deleted Merchant",
+            "Deleted Description",
+            -7.25m,
+            "Dining",
+            envelopeId,
+            "Groceries",
+            [],
+            new DateTimeOffset(new DateTime(2026, 3, 5), TimeSpan.Zero),
+            "tester");
+        var dataService = new FakeTransactionsDataService(accountId, envelopeId, Guid.NewGuid())
+        {
+            DeletedTransactions = [deletedTransaction]
+        };
+        var viewModel = new TransactionsViewModel(dataService)
+        {
+            DeletedWindowDays = "45"
+        };
+
+        await viewModel.LoadAccountsCommand.ExecuteAsync(null);
+
+        Assert.Single(viewModel.DeletedTransactions);
+        Assert.Equal(transactionId, viewModel.DeletedTransactions[0].Id);
+        Assert.Equal(45, dataService.DeletedDaysRequests.Last());
+    }
+
+    [Fact]
+    public async Task RestoreSelectedDeletedTransaction_RestoresAndReloadsLists()
+    {
+        var accountId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+        var envelopeId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var transactionId = Guid.Parse("30000000-0000-0000-0000-000000000077");
+        var deletedTransaction = new TransactionListItemViewModel(
+            transactionId,
+            accountId,
+            new DateTimeOffset(new DateTime(2026, 2, 15), TimeSpan.Zero),
+            "Restore Merchant",
+            "Restore Description",
+            -11.10m,
+            "Dining",
+            envelopeId,
+            "Groceries",
+            [],
+            new DateTimeOffset(new DateTime(2026, 3, 6), TimeSpan.Zero),
+            "tester");
+        var dataService = new FakeTransactionsDataService(accountId, envelopeId, Guid.NewGuid())
+        {
+            Transactions = [],
+            DeletedTransactions = [deletedTransaction]
+        };
+        var viewModel = new TransactionsViewModel(dataService);
+        await viewModel.LoadAccountsCommand.ExecuteAsync(null);
+        viewModel.SelectedDeletedTransaction = viewModel.DeletedTransactions.Single();
+
+        await viewModel.RestoreSelectedDeletedTransactionCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.HasError);
+        Assert.Equal("Deleted transaction restored.", viewModel.EditorStatusMessage);
+        Assert.Single(dataService.RestoreCalls);
+        Assert.Equal(transactionId, dataService.RestoreCalls[0]);
+        Assert.Contains(viewModel.Transactions, transaction => transaction.Id == transactionId);
+        Assert.Empty(viewModel.DeletedTransactions);
+        Assert.Equal(transactionId, viewModel.SelectedTransaction?.Id);
     }
 
     [Fact]
@@ -192,7 +268,10 @@ public sealed class TransactionsViewModelTests
 
         public List<UpdateCall> UpdateCalls { get; } = [];
         public List<Guid> DeleteCalls { get; } = [];
+        public List<Guid> RestoreCalls { get; } = [];
+        public List<int> DeletedDaysRequests { get; } = [];
         public IReadOnlyList<TransactionListItemViewModel> Transactions { get; set; }
+        public IReadOnlyList<TransactionListItemViewModel> DeletedTransactions { get; set; } = [];
 
         public Task<IReadOnlyList<AccountListItemViewModel>> GetAccountsAsync(CancellationToken cancellationToken = default)
         {
@@ -216,6 +295,14 @@ public sealed class TransactionsViewModelTests
         {
             Assert.Equal(_accountId, accountId);
             return Task.FromResult(Transactions);
+        }
+
+        public Task<IReadOnlyList<TransactionListItemViewModel>> GetDeletedTransactionsAsync(
+            int days = 30,
+            CancellationToken cancellationToken = default)
+        {
+            DeletedDaysRequests.Add(days);
+            return Task.FromResult(DeletedTransactions);
         }
 
         public Task CreateTransactionAsync(
@@ -263,6 +350,58 @@ public sealed class TransactionsViewModelTests
             CancellationToken cancellationToken = default)
         {
             DeleteCalls.Add(transactionId);
+            var active = Transactions.FirstOrDefault(transaction => transaction.Id == transactionId);
+            if (active is not null)
+            {
+                Transactions = Transactions.Where(transaction => transaction.Id != transactionId).ToArray();
+                DeletedTransactions =
+                [
+                    ..DeletedTransactions,
+                    new TransactionListItemViewModel(
+                        active.Id,
+                        active.AccountId,
+                        active.OccurredAt,
+                        active.Merchant,
+                        active.Description,
+                        active.Amount,
+                        active.Category,
+                        active.EnvelopeId,
+                        active.Envelope,
+                        active.Splits,
+                        DateTimeOffset.UtcNow,
+                        "test-user")
+                ];
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task RestoreTransactionAsync(
+            Guid transactionId,
+            CancellationToken cancellationToken = default)
+        {
+            RestoreCalls.Add(transactionId);
+            var deleted = DeletedTransactions.FirstOrDefault(transaction => transaction.Id == transactionId);
+            if (deleted is not null)
+            {
+                DeletedTransactions = DeletedTransactions.Where(transaction => transaction.Id != transactionId).ToArray();
+                Transactions =
+                [
+                    ..Transactions,
+                    new TransactionListItemViewModel(
+                        deleted.Id,
+                        deleted.AccountId,
+                        deleted.OccurredAt,
+                        deleted.Merchant,
+                        deleted.Description,
+                        deleted.Amount,
+                        deleted.Category,
+                        deleted.EnvelopeId,
+                        deleted.Envelope,
+                        deleted.Splits)
+                ];
+            }
+
             return Task.CompletedTask;
         }
     }

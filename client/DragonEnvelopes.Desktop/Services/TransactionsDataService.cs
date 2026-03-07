@@ -69,26 +69,39 @@ public sealed class TransactionsDataService : ITransactionsDataService
         var transactions = await JsonSerializer.DeserializeAsync<List<TransactionResponse>>(stream, SerializerOptions, cancellationToken)
             ?? [];
 
-        return transactions.Select(transaction =>
-            new TransactionListItemViewModel(
-                transaction.Id,
-                transaction.AccountId,
-                transaction.OccurredAt,
-                transaction.Merchant,
-                transaction.Description,
-                transaction.Amount,
-                transaction.Category,
-                transaction.EnvelopeId,
-                transaction.EnvelopeId.HasValue && envelopeLookup.TryGetValue(transaction.EnvelopeId.Value, out var envelopeName)
-                    ? envelopeName
-                    : "-",
-                transaction.Splits.Select(static split => new TransactionSplitSnapshotViewModel(
-                        split.EnvelopeId,
-                        split.Amount,
-                        split.Category,
-                        split.Notes))
-                    .ToArray()))
-            .ToArray();
+        return transactions.Select(transaction => MapTransaction(transaction, envelopeLookup)).ToArray();
+    }
+
+    public async Task<IReadOnlyList<TransactionListItemViewModel>> GetDeletedTransactionsAsync(
+        int days = 30,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        using var envelopesResponse = await _apiClient.GetAsync($"envelopes?familyId={familyId}", cancellationToken);
+        if (!envelopesResponse.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Envelopes request failed with status {(int)envelopesResponse.StatusCode}.");
+        }
+
+        await using var envelopesStream = await envelopesResponse.Content.ReadAsStreamAsync(cancellationToken);
+        var envelopes = await JsonSerializer.DeserializeAsync<List<EnvelopeResponse>>(envelopesStream, SerializerOptions, cancellationToken)
+            ?? [];
+        var envelopeLookup = envelopes.ToDictionary(static envelope => envelope.Id, static envelope => envelope.Name);
+
+        var boundedDays = Math.Clamp(days, 1, 90);
+        using var response = await _apiClient.GetAsync(
+            $"transactions/deleted?familyId={familyId}&days={boundedDays}",
+            cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Deleted transactions request failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var transactions = await JsonSerializer.DeserializeAsync<List<TransactionResponse>>(stream, SerializerOptions, cancellationToken)
+            ?? [];
+
+        return transactions.Select(transaction => MapTransaction(transaction, envelopeLookup)).ToArray();
     }
 
     public async Task<IReadOnlyList<EnvelopeOptionViewModel>> GetEnvelopesAsync(CancellationToken cancellationToken = default)
@@ -199,6 +212,18 @@ public sealed class TransactionsDataService : ITransactionsDataService
         }
     }
 
+    public async Task RestoreTransactionAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"transactions/{transactionId}/restore");
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Restore transaction failed with status {(int)response.StatusCode}.");
+        }
+    }
+
     private Guid RequireFamilyId()
     {
         if (!_familyContext.FamilyId.HasValue)
@@ -207,5 +232,31 @@ public sealed class TransactionsDataService : ITransactionsDataService
         }
 
         return _familyContext.FamilyId.Value;
+    }
+
+    private static TransactionListItemViewModel MapTransaction(
+        TransactionResponse transaction,
+        IReadOnlyDictionary<Guid, string> envelopeLookup)
+    {
+        return new TransactionListItemViewModel(
+            transaction.Id,
+            transaction.AccountId,
+            transaction.OccurredAt,
+            transaction.Merchant,
+            transaction.Description,
+            transaction.Amount,
+            transaction.Category,
+            transaction.EnvelopeId,
+            transaction.EnvelopeId.HasValue && envelopeLookup.TryGetValue(transaction.EnvelopeId.Value, out var envelopeName)
+                ? envelopeName
+                : "-",
+            transaction.Splits.Select(static split => new TransactionSplitSnapshotViewModel(
+                    split.EnvelopeId,
+                    split.Amount,
+                    split.Category,
+                    split.Notes))
+                .ToArray(),
+            transaction.DeletedAtUtc,
+            transaction.DeletedByUserId);
     }
 }

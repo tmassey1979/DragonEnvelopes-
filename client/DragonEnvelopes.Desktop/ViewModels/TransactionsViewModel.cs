@@ -11,6 +11,7 @@ public sealed partial class TransactionsViewModel : ObservableObject
 {
     private readonly ITransactionsDataService _transactionsDataService;
     private IReadOnlyList<TransactionListItemViewModel> _allTransactions = [];
+    private IReadOnlyList<TransactionListItemViewModel> _allDeletedTransactions = [];
     private string _sortBy = "Date";
     private bool _sortAscending;
     private const string CreatePanelTitle = "Create Transaction";
@@ -26,6 +27,7 @@ public sealed partial class TransactionsViewModel : ObservableObject
         RemoveSplitRowCommand = new RelayCommand<TransactionSplitDraftViewModel?>(RemoveSplitRow);
         BeginEditSelectedTransactionCommand = new RelayCommand(BeginEditSelectedTransaction);
         DeleteSelectedTransactionCommand = new AsyncRelayCommand(DeleteSelectedTransactionAsync);
+        RestoreSelectedDeletedTransactionCommand = new AsyncRelayCommand(RestoreSelectedDeletedTransactionAsync);
         CancelEditCommand = new RelayCommand(CancelEdit);
         SubmitTransactionCommand = new AsyncRelayCommand(SubmitTransactionAsync);
         ResetEditorCommand = new RelayCommand(ResetEditor);
@@ -39,6 +41,7 @@ public sealed partial class TransactionsViewModel : ObservableObject
     public IRelayCommand<TransactionSplitDraftViewModel?> RemoveSplitRowCommand { get; }
     public IRelayCommand BeginEditSelectedTransactionCommand { get; }
     public IAsyncRelayCommand DeleteSelectedTransactionCommand { get; }
+    public IAsyncRelayCommand RestoreSelectedDeletedTransactionCommand { get; }
     public IRelayCommand CancelEditCommand { get; }
     public IAsyncRelayCommand SubmitTransactionCommand { get; }
     public IRelayCommand ResetEditorCommand { get; }
@@ -60,6 +63,12 @@ public sealed partial class TransactionsViewModel : ObservableObject
 
     [ObservableProperty]
     private TransactionListItemViewModel? selectedTransaction;
+
+    [ObservableProperty]
+    private ObservableCollection<TransactionListItemViewModel> deletedTransactions = [];
+
+    [ObservableProperty]
+    private TransactionListItemViewModel? selectedDeletedTransaction;
 
     [ObservableProperty]
     private bool isLoading;
@@ -84,6 +93,9 @@ public sealed partial class TransactionsViewModel : ObservableObject
 
     [ObservableProperty]
     private string toDateFilter = string.Empty;
+
+    [ObservableProperty]
+    private string deletedWindowDays = "30";
 
     [ObservableProperty]
     private bool includeUncategorized = true;
@@ -173,6 +185,7 @@ public sealed partial class TransactionsViewModel : ObservableObject
         if (SelectedAccount is null)
         {
             Transactions.Clear();
+            DeletedTransactions.Clear();
             IsEmpty = true;
             return;
         }
@@ -184,6 +197,7 @@ public sealed partial class TransactionsViewModel : ObservableObject
         try
         {
             _allTransactions = await _transactionsDataService.GetTransactionsAsync(SelectedAccount.Id, cancellationToken);
+            await LoadDeletedTransactionsCoreAsync(cancellationToken);
             ApplyFiltersAndSort();
         }
         catch (Exception ex)
@@ -191,6 +205,7 @@ public sealed partial class TransactionsViewModel : ObservableObject
             HasError = true;
             ErrorMessage = $"Unable to load transactions: {ex.Message}";
             Transactions.Clear();
+            DeletedTransactions.Clear();
             IsEmpty = true;
         }
         finally
@@ -219,6 +234,7 @@ public sealed partial class TransactionsViewModel : ObservableObject
     partial void OnFromDateFilterChanged(string value) => ApplyFiltersAndSort();
     partial void OnToDateFilterChanged(string value) => ApplyFiltersAndSort();
     partial void OnIncludeUncategorizedChanged(bool value) => ApplyFiltersAndSort();
+    partial void OnDeletedWindowDaysChanged(string value) => _ = ReloadTransactionsCommand.ExecuteAsync(null);
     partial void OnDraftAmountChanged(decimal value) => RecalculateSplitTotal();
 
     partial void OnUseSplitEditorChanged(bool value)
@@ -495,6 +511,34 @@ public sealed partial class TransactionsViewModel : ObservableObject
         }
     }
 
+    private async Task RestoreSelectedDeletedTransactionAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (SelectedDeletedTransaction is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select a deleted transaction to restore.";
+            return;
+        }
+
+        var transactionId = SelectedDeletedTransaction.Id;
+        try
+        {
+            await _transactionsDataService.RestoreTransactionAsync(transactionId, cancellationToken);
+            await LoadTransactionsAsync(cancellationToken);
+            SelectedTransaction = Transactions.FirstOrDefault(item => item.Id == transactionId);
+            SelectedDeletedTransaction = DeletedTransactions.FirstOrDefault();
+            EditorStatusMessage = "Deleted transaction restored.";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to restore transaction: {ex.Message}";
+        }
+    }
+
     private void ExitEditMode()
     {
         IsEditMode = false;
@@ -644,5 +688,26 @@ public sealed partial class TransactionsViewModel : ObservableObject
         UseSplitEditor = false;
         SplitTotal = 0m;
         IsSplitTotalValid = true;
+    }
+
+    private async Task LoadDeletedTransactionsCoreAsync(CancellationToken cancellationToken)
+    {
+        var days = ParseDeletedWindowDays();
+        _allDeletedTransactions = await _transactionsDataService.GetDeletedTransactionsAsync(days, cancellationToken);
+        DeletedTransactions = new ObservableCollection<TransactionListItemViewModel>(
+            _allDeletedTransactions
+                .OrderByDescending(static transaction => transaction.DeletedAtUtc)
+                .ThenByDescending(static transaction => transaction.OccurredAt));
+        SelectedDeletedTransaction = DeletedTransactions.FirstOrDefault();
+    }
+
+    private int ParseDeletedWindowDays()
+    {
+        if (!int.TryParse(DeletedWindowDays, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedDays))
+        {
+            return 30;
+        }
+
+        return Math.Clamp(parsedDays, 1, 90);
     }
 }
