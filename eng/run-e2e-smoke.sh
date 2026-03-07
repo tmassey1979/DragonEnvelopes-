@@ -146,6 +146,8 @@ GUARDIAN_LAST_NAME="Owner"
 GUARDIAN_EMAIL="smoke-${SUFFIX}@test.dev"
 GUARDIAN_PASSWORD="SmokePass!${SUFFIX}"
 STRIPE_WEBHOOK_FAILURE_STATUS="not-run"
+PLAID_WEBHOOK_INVALID_JSON_STATUS="not-run"
+PLAID_WEBHOOK_UNKNOWN_ITEM_STATUS="not-run"
 
 log_step "Waiting for Keycloak readiness."
 wait_for_ready "Keycloak" "${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/.well-known/openid-configuration"
@@ -222,6 +224,31 @@ request_json \
   "Stripe-Signature: t=1700000000,v1=invalid"
 assert_status "${LAST_STATUS}" "401" "POST /webhooks/stripe (invalid signature)"
 STRIPE_WEBHOOK_FAILURE_STATUS="${LAST_STATUS}"
+
+log_step "Exercising Plaid webhook malformed payload behavior."
+request_json \
+  "plaid-webhook-invalid-json" \
+  "POST" \
+  "${API_BASE_URL}/webhooks/plaid" \
+  "" \
+  '{"webhook_type":"TRANSACTIONS"'
+assert_status "${LAST_STATUS}" "400" "POST /webhooks/plaid (invalid json)"
+PLAID_WEBHOOK_INVALID_JSON_STATUS="${LAST_STATUS}"
+
+log_step "Exercising Plaid webhook unknown-item ignored behavior."
+PLAID_UNKNOWN_ITEM_PAYLOAD='{"webhook_type":"TRANSACTIONS","webhook_code":"SYNC_UPDATES_AVAILABLE","item_id":"item_smoke_unknown"}'
+request_json \
+  "plaid-webhook-unknown-item" \
+  "POST" \
+  "${API_BASE_URL}/webhooks/plaid" \
+  "" \
+  "${PLAID_UNKNOWN_ITEM_PAYLOAD}"
+assert_status "${LAST_STATUS}" "200" "POST /webhooks/plaid (unknown item)"
+PLAID_WEBHOOK_UNKNOWN_ITEM_STATUS="${LAST_STATUS}"
+PLAID_UNKNOWN_ITEM_OUTCOME="$(jq -r '.outcome // empty' "${LAST_BODY_FILE}")"
+if [[ "${PLAID_UNKNOWN_ITEM_OUTCOME}" != "Ignored" ]]; then
+  fail "Plaid unknown-item webhook outcome was '${PLAID_UNKNOWN_ITEM_OUTCOME}'; expected 'Ignored'."
+fi
 
 log_step "Reading family details and members."
 request_json "family-get" "GET" "${API_BASE_URL}/families/${FAMILY_ID}" "${RESTORED_ACCESS_TOKEN}"
@@ -312,6 +339,8 @@ cat > "${SUMMARY_FILE}" <<EOF
 - Account id: ${ACCOUNT_ID}
 - Imported rows inserted: ${INSERTED_COUNT}
 - Stripe webhook invalid-signature status: ${STRIPE_WEBHOOK_FAILURE_STATUS}
+- Plaid webhook invalid-json status: ${PLAID_WEBHOOK_INVALID_JSON_STATUS}
+- Plaid webhook unknown-item status: ${PLAID_WEBHOOK_UNKNOWN_ITEM_STATUS}
 EOF
 
 log_step "Smoke scenario completed successfully."
