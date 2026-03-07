@@ -154,6 +154,40 @@ public sealed class RecurringBillsDataService : IRecurringBillsDataService
             .ToArray();
     }
 
+    public async Task<IReadOnlyList<RecurringBillExecutionItemViewModel>> GetExecutionHistoryAsync(
+        Guid recurringBillId,
+        int take = 25,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedTake = Math.Clamp(take, 1, 100);
+        using var response = await _apiClient.GetAsync(
+            $"recurring-bills/{recurringBillId}/executions?take={normalizedTake}",
+            cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"Recurring bill execution history request failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var items = await JsonSerializer.DeserializeAsync<List<RecurringBillExecutionResponse>>(
+            stream,
+            SerializerOptions,
+            cancellationToken) ?? [];
+
+        return items
+            .OrderByDescending(static item => item.ExecutedAtUtc)
+            .Select(static item => new RecurringBillExecutionItemViewModel(
+                item.Id,
+                item.DueDate.ToString("yyyy-MM-dd"),
+                item.ExecutedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+                item.Result,
+                item.TransactionId?.ToString() ?? "-",
+                item.IdempotencyKey,
+                string.IsNullOrWhiteSpace(item.Notes) ? "-" : item.Notes))
+            .ToArray();
+    }
+
     private Guid RequireFamilyId()
     {
         if (!_familyContext.FamilyId.HasValue)

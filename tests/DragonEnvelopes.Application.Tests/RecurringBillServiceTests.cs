@@ -13,6 +13,7 @@ public class RecurringBillServiceTests
     public async Task CreateUpdateDelete_Lifecycle_Works()
     {
         var repository = new Mock<IRecurringBillRepository>();
+        var executionRepository = new Mock<IRecurringBillExecutionRepository>();
         var familyId = Guid.NewGuid();
         RecurringBill? stored = null;
 
@@ -29,7 +30,7 @@ public class RecurringBillServiceTests
             .Callback<RecurringBill, CancellationToken>((_, _) => stored = null)
             .Returns(Task.CompletedTask);
 
-        var service = new RecurringBillService(repository.Object);
+        var service = new RecurringBillService(repository.Object, executionRepository.Object);
         var created = await service.CreateAsync(
             familyId,
             "Rent",
@@ -64,6 +65,7 @@ public class RecurringBillServiceTests
     public async Task ProjectAsync_MonthlyDay31_UsesLastDayForShortMonths()
     {
         var repository = new Mock<IRecurringBillRepository>();
+        var executionRepository = new Mock<IRecurringBillExecutionRepository>();
         var familyId = Guid.NewGuid();
         var bill = new RecurringBill(
             Guid.NewGuid(),
@@ -80,7 +82,7 @@ public class RecurringBillServiceTests
         repository.Setup(x => x.ListByFamilyAsync(familyId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([bill]);
 
-        var service = new RecurringBillService(repository.Object);
+        var service = new RecurringBillService(repository.Object, executionRepository.Object);
         var projection = await service.ProjectAsync(
             familyId,
             new DateOnly(2026, 2, 1),
@@ -95,6 +97,7 @@ public class RecurringBillServiceTests
     public async Task ProjectAsync_RespectsDateBoundsAndInactiveBills()
     {
         var repository = new Mock<IRecurringBillRepository>();
+        var executionRepository = new Mock<IRecurringBillExecutionRepository>();
         var familyId = Guid.NewGuid();
         var active = new RecurringBill(
             Guid.NewGuid(),
@@ -122,7 +125,7 @@ public class RecurringBillServiceTests
         repository.Setup(x => x.ListByFamilyAsync(familyId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([active, inactive]);
 
-        var service = new RecurringBillService(repository.Object);
+        var service = new RecurringBillService(repository.Object, executionRepository.Object);
         var projection = await service.ProjectAsync(
             familyId,
             new DateOnly(2026, 2, 1),
@@ -137,10 +140,11 @@ public class RecurringBillServiceTests
     public async Task UpdateAsync_ThrowsWhenMissing()
     {
         var repository = new Mock<IRecurringBillRepository>();
+        var executionRepository = new Mock<IRecurringBillExecutionRepository>();
         repository.Setup(x => x.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((RecurringBill?)null);
 
-        var service = new RecurringBillService(repository.Object);
+        var service = new RecurringBillService(repository.Object, executionRepository.Object);
         await Assert.ThrowsAsync<DomainValidationException>(() => service.UpdateAsync(
             Guid.NewGuid(),
             "Name",
@@ -151,5 +155,70 @@ public class RecurringBillServiceTests
             new DateOnly(2026, 1, 1),
             null,
             true));
+    }
+
+    [Fact]
+    public async Task ListExecutionsAsync_ReturnsRecentEntries_WithDeterministicIdempotencyKey()
+    {
+        var repository = new Mock<IRecurringBillRepository>();
+        var executionRepository = new Mock<IRecurringBillExecutionRepository>();
+        var familyId = Guid.NewGuid();
+        var recurringBillId = Guid.NewGuid();
+        var recurringBill = new RecurringBill(
+            recurringBillId,
+            familyId,
+            "Gym",
+            "Gym Co",
+            Money.FromDecimal(50m),
+            RecurringBillFrequency.Monthly,
+            15,
+            new DateOnly(2026, 1, 1),
+            null,
+            true);
+
+        repository.Setup(x => x.GetByIdForUpdateAsync(recurringBillId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(recurringBill);
+        executionRepository.Setup(x => x.ListByRecurringBillAsync(recurringBillId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                new RecurringBillExecution(
+                    Guid.NewGuid(),
+                    recurringBillId,
+                    familyId,
+                    new DateOnly(2026, 3, 15),
+                    DateTimeOffset.UtcNow.AddMinutes(-10),
+                    Guid.NewGuid(),
+                    "Posted",
+                    null),
+                new RecurringBillExecution(
+                    Guid.NewGuid(),
+                    recurringBillId,
+                    familyId,
+                    new DateOnly(2026, 2, 15),
+                    DateTimeOffset.UtcNow.AddDays(-10),
+                    null,
+                    "Failed",
+                    "Sample failure")
+            ]);
+
+        var service = new RecurringBillService(repository.Object, executionRepository.Object);
+        var results = await service.ListExecutionsAsync(recurringBillId, take: 1);
+
+        Assert.Single(results);
+        var execution = results[0];
+        Assert.Equal("Posted", execution.Result);
+        Assert.Equal($"{recurringBillId:N}:2026-03-15", execution.IdempotencyKey);
+    }
+
+    [Fact]
+    public async Task ListExecutionsAsync_ThrowsWhenRecurringBillIsMissing()
+    {
+        var repository = new Mock<IRecurringBillRepository>();
+        var executionRepository = new Mock<IRecurringBillExecutionRepository>();
+        repository.Setup(x => x.GetByIdForUpdateAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((RecurringBill?)null);
+
+        var service = new RecurringBillService(repository.Object, executionRepository.Object);
+        await Assert.ThrowsAsync<DomainValidationException>(() => service.ListExecutionsAsync(Guid.NewGuid()));
     }
 }

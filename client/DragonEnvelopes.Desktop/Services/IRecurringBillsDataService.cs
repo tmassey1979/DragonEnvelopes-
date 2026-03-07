@@ -35,4 +35,9 @@ public interface IRecurringBillsDataService
         DateOnly from,
         DateOnly to,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<RecurringBillExecutionItemViewModel>> GetExecutionHistoryAsync(
+        Guid recurringBillId,
+        int take = 25,
+        CancellationToken cancellationToken = default);
 }

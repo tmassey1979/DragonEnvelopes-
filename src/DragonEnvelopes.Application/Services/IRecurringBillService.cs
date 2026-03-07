@@ -32,6 +32,11 @@ public interface IRecurringBillService
 
     Task DeleteAsync(Guid recurringBillId, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<RecurringBillExecutionDetails>> ListExecutionsAsync(
+        Guid recurringBillId,
+        int take = 25,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<RecurringBillProjectionItemDetails>> ProjectAsync(
         Guid familyId,
         DateOnly from,

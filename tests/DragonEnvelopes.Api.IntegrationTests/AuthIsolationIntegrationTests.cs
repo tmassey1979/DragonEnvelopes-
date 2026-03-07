@@ -6,6 +6,7 @@ using System.Text.Encodings.Web;
 using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Contracts.Financial;
 using DragonEnvelopes.Contracts.Onboarding;
+using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Contracts.Runtime;
 using DragonEnvelopes.Contracts.Transactions;
 using DragonEnvelopes.Domain.Entities;
@@ -379,7 +380,7 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         await using var scope = _factory.Services.CreateAsyncScope();
         var repo = scope.ServiceProvider.GetRequiredService<IRecurringBillExecutionRepository>();
 
-        var dueDate = new DateOnly(2026, 3, 1);
+        var dueDate = new DateOnly(2026, 3, 7);
         var initialHasExecution = await repo.HasExecutionAsync(TestApiFactory.RecurringBillAId, dueDate);
         Assert.False(initialHasExecution);
 
@@ -395,6 +396,48 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
 
         var finalHasExecution = await repo.HasExecutionAsync(TestApiFactory.RecurringBillAId, dueDate);
         Assert.True(finalHasExecution);
+    }
+
+    [Fact]
+    public async Task UserA_Can_List_Own_RecurringBill_Executions()
+    {
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.RecurringBillExecutions.Add(new RecurringBillExecution(
+                Guid.NewGuid(),
+                TestApiFactory.RecurringBillAId,
+                TestApiFactory.FamilyAId,
+                new DateOnly(2026, 3, 1),
+                DateTimeOffset.UtcNow,
+                transactionId: TestApiFactory.TransactionAId,
+                result: "Posted",
+                notes: null));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync($"/api/v1/recurring-bills/{TestApiFactory.RecurringBillAId}/executions?take=10");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<List<RecurringBillExecutionResponse>>();
+        Assert.NotNull(payload);
+        Assert.NotEmpty(payload!);
+        Assert.Equal(TestApiFactory.RecurringBillAId, payload![0].RecurringBillId);
+        Assert.StartsWith($"{TestApiFactory.RecurringBillAId:N}:", payload[0].IdempotencyKey, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_List_FamilyB_RecurringBill_Executions()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync($"/api/v1/recurring-bills/{TestApiFactory.RecurringBillBId}/executions");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -1228,6 +1271,7 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
     public static readonly Guid EnvelopeA2Id = Guid.Parse("aaaaaaaa-2222-2222-2222-222222222222");
     public static readonly Guid EnvelopeBId = Guid.Parse("bbbbbbbb-1111-1111-1111-111111111111");
     public static readonly Guid RecurringBillAId = Guid.Parse("12345678-90ab-cdef-1234-567890abcdef");
+    public static readonly Guid RecurringBillBId = Guid.Parse("22345678-90ab-cdef-1234-567890abcdef");
     public static readonly Guid NotificationEventAId = Guid.Parse("31000000-0000-0000-0000-000000000001");
     public static readonly Guid NotificationEventA2Id = Guid.Parse("31000000-0000-0000-0000-000000000003");
     public static readonly Guid NotificationEventBId = Guid.Parse("31000000-0000-0000-0000-000000000002");
@@ -1320,7 +1364,7 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
                 DateTimeOffset.UtcNow,
                 "Dining"));
 
-        dbContext.RecurringBills.Add(
+        dbContext.RecurringBills.AddRange(
             new RecurringBill(
                 RecurringBillAId,
                 FamilyAId,
@@ -1329,6 +1373,17 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
                 Money.FromDecimal(1000m),
                 RecurringBillFrequency.Monthly,
                 dayOfMonth: 1,
+                startDate: new DateOnly(2026, 1, 1),
+                endDate: null,
+                isActive: true),
+            new RecurringBill(
+                RecurringBillBId,
+                FamilyBId,
+                "Utilities",
+                "Utility Co",
+                Money.FromDecimal(120m),
+                RecurringBillFrequency.Monthly,
+                dayOfMonth: 5,
                 startDate: new DateOnly(2026, 1, 1),
                 endDate: null,
                 isActive: true));

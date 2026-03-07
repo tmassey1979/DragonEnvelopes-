@@ -336,6 +336,35 @@ internal static class PlanningAndReportingEndpoints
             .WithName("ProjectRecurringBills")
             .WithOpenApi();
 
+        v1.MapGet("/recurring-bills/{recurringBillId:guid}/executions", async (
+                Guid recurringBillId,
+                int? take,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IRecurringBillService recurringBillService,
+                CancellationToken cancellationToken) =>
+            {
+                var familyId = await dbContext.RecurringBills
+                    .AsNoTracking()
+                    .Where(x => x.Id == recurringBillId)
+                    .Select(x => (Guid?)x.FamilyId)
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (!familyId.HasValue || !await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var executions = await recurringBillService.ListExecutionsAsync(
+                    recurringBillId,
+                    take ?? 25,
+                    cancellationToken);
+
+                return Results.Ok(executions.Select(EndpointMappers.MapRecurringBillExecutionResponse).ToArray());
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("ListRecurringBillExecutions")
+            .WithOpenApi();
+
         v1.MapGet("/reports/envelope-balances", async (
                 Guid familyId,
                 ClaimsPrincipal user,

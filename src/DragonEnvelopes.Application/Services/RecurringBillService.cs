@@ -7,7 +7,8 @@ using DragonEnvelopes.Domain.ValueObjects;
 namespace DragonEnvelopes.Application.Services;
 
 public sealed class RecurringBillService(
-    IRecurringBillRepository recurringBillRepository) : IRecurringBillService
+    IRecurringBillRepository recurringBillRepository,
+    IRecurringBillExecutionRepository recurringBillExecutionRepository) : IRecurringBillService
 {
     public async Task<RecurringBillDetails> CreateAsync(
         Guid familyId,
@@ -91,6 +92,26 @@ public sealed class RecurringBillService(
         }
 
         await recurringBillRepository.DeleteAsync(recurringBill, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<RecurringBillExecutionDetails>> ListExecutionsAsync(
+        Guid recurringBillId,
+        int take = 25,
+        CancellationToken cancellationToken = default)
+    {
+        var recurringBill = await recurringBillRepository.GetByIdForUpdateAsync(recurringBillId, cancellationToken);
+        if (recurringBill is null)
+        {
+            throw new DomainValidationException("Recurring bill was not found.");
+        }
+
+        var normalizedTake = Math.Clamp(take, 1, 100);
+        var executions = await recurringBillExecutionRepository.ListByRecurringBillAsync(recurringBillId, cancellationToken);
+
+        return executions
+            .Take(normalizedTake)
+            .Select(MapExecution)
+            .ToArray();
     }
 
     public async Task<IReadOnlyList<RecurringBillProjectionItemDetails>> ProjectAsync(
@@ -220,6 +241,34 @@ public sealed class RecurringBillService(
             recurringBill.StartDate,
             recurringBill.EndDate,
             recurringBill.IsActive);
+    }
+
+    private static RecurringBillExecutionDetails MapExecution(RecurringBillExecution execution)
+    {
+        var idempotencyKey = $"{execution.RecurringBillId:N}:{execution.DueDate:yyyy-MM-dd}";
+        return new RecurringBillExecutionDetails(
+            execution.Id,
+            execution.RecurringBillId,
+            execution.FamilyId,
+            execution.DueDate,
+            execution.ExecutedAtUtc,
+            execution.TransactionId,
+            execution.Result,
+            TrimNotes(execution.Notes),
+            idempotencyKey);
+    }
+
+    private static string? TrimNotes(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        return normalized.Length <= 240
+            ? normalized
+            : $"{normalized[..240]}...";
     }
 
     private static DateOnly Max(DateOnly left, DateOnly right)

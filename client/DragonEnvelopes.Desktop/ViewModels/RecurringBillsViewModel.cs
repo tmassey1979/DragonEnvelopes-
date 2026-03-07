@@ -25,6 +25,7 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
         DeleteBillCommand = new AsyncRelayCommand(DeleteBillAsync);
         BeginCreateCommand = new RelayCommand(BeginCreate);
         LoadProjectionCommand = new AsyncRelayCommand(LoadProjectionAsync);
+        RefreshExecutionHistoryCommand = new AsyncRelayCommand(LoadExecutionHistoryAsync);
 
         _ = LoadCommand.ExecuteAsync(null);
     }
@@ -34,6 +35,7 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
     public IAsyncRelayCommand DeleteBillCommand { get; }
     public IRelayCommand BeginCreateCommand { get; }
     public IAsyncRelayCommand LoadProjectionCommand { get; }
+    public IAsyncRelayCommand RefreshExecutionHistoryCommand { get; }
     public IReadOnlyList<string> FrequencyOptions { get; } = Frequencies;
 
     [ObservableProperty]
@@ -46,10 +48,16 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
     private ObservableCollection<RecurringBillProjectionItemViewModel> projectionItems = [];
 
     [ObservableProperty]
+    private ObservableCollection<RecurringBillExecutionItemViewModel> executionItems = [];
+
+    [ObservableProperty]
     private string projectionFrom = string.Empty;
 
     [ObservableProperty]
     private string projectionTo = string.Empty;
+
+    [ObservableProperty]
+    private string executionSummary = "Select a recurring bill to view execution history.";
 
     [ObservableProperty]
     private bool isLoading;
@@ -100,6 +108,8 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
     {
         if (value is null)
         {
+            ExecutionItems.Clear();
+            ExecutionSummary = "Select a recurring bill to view execution history.";
             return;
         }
 
@@ -114,6 +124,7 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
         DraftStartDate = value.StartDate;
         DraftEndDate = value.EndDate == "-" ? string.Empty : value.EndDate;
         DraftIsActive = value.IsActive;
+        _ = RefreshExecutionHistoryCommand.ExecuteAsync(null);
     }
 
     private async Task LoadAsync(CancellationToken cancellationToken)
@@ -124,10 +135,15 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
 
         try
         {
+            var selectedBillId = SelectedBill?.Id;
             var bills = await _recurringBillsDataService.GetBillsAsync(cancellationToken);
             Bills = new ObservableCollection<RecurringBillItemViewModel>(bills);
+            SelectedBill = selectedBillId.HasValue
+                ? Bills.FirstOrDefault(bill => bill.Id == selectedBillId.Value) ?? Bills.FirstOrDefault()
+                : Bills.FirstOrDefault();
             IsEmpty = Bills.Count == 0;
             await LoadProjectionAsync(cancellationToken);
+            await LoadExecutionHistoryAsync(cancellationToken);
         }
         catch (Exception ex)
         {
@@ -135,6 +151,8 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
             ErrorMessage = $"Unable to load recurring bills: {ex.Message}";
             Bills.Clear();
             ProjectionItems.Clear();
+            ExecutionItems.Clear();
+            ExecutionSummary = "Execution history unavailable.";
             IsEmpty = true;
         }
         finally
@@ -287,6 +305,35 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
             HasError = true;
             ErrorMessage = $"Unable to load projection: {ex.Message}";
             ProjectionItems.Clear();
+        }
+    }
+
+    private async Task LoadExecutionHistoryAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedBill is null)
+        {
+            ExecutionItems.Clear();
+            ExecutionSummary = "Select a recurring bill to view execution history.";
+            return;
+        }
+
+        try
+        {
+            var executions = await _recurringBillsDataService.GetExecutionHistoryAsync(
+                SelectedBill.Id,
+                take: 25,
+                cancellationToken: cancellationToken);
+            ExecutionItems = new ObservableCollection<RecurringBillExecutionItemViewModel>(executions);
+            ExecutionSummary = executions.Count == 0
+                ? "No execution records found for this recurring bill yet."
+                : $"Showing {executions.Count} most recent execution record(s).";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to load execution history: {ex.Message}";
+            ExecutionItems.Clear();
+            ExecutionSummary = "Execution history unavailable.";
         }
     }
 
