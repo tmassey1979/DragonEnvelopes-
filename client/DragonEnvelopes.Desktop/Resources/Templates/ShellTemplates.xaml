@@ -61,7 +61,7 @@
                                       Subheader="Current financial health snapshot"
                                       EmptyMessage="No KPI data returned."
                                       IsLoading="{Binding IsLoading}"
-                                      IsEmpty="{Binding IsEmpty}">
+                                      IsEmpty="{Binding IsKpiEmpty}">
                     <ItemsControl ItemsSource="{Binding KpiCards}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -86,7 +86,7 @@
                                       Subheader="Most recent posted activity"
                                       EmptyMessage="No recent transactions found."
                                       IsLoading="{Binding IsLoading}"
-                                      IsEmpty="{Binding IsEmpty}">
+                                      IsEmpty="{Binding IsRecentTransactionsEmpty}">
                     <ItemsControl ItemsSource="{Binding RecentTransactions}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type viewModels:TransactionRowViewModel}">

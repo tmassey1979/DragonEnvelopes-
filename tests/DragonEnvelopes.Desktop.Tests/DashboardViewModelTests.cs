@@ -39,6 +39,8 @@ public sealed class DashboardViewModelTests
 
         Assert.False(viewModel.HasError);
         Assert.False(viewModel.IsEmpty);
+        Assert.False(viewModel.IsKpiEmpty);
+        Assert.False(viewModel.IsRecentTransactionsEmpty);
         Assert.Equal(4, viewModel.KpiCards.Count);
         Assert.Equal(2, viewModel.RecentTransactions.Count);
         Assert.Equal("Trader Joe's", viewModel.RecentTransactions[0].Merchant);
@@ -64,8 +66,36 @@ public sealed class DashboardViewModelTests
 
         Assert.False(viewModel.HasError);
         Assert.True(viewModel.IsEmpty);
+        Assert.False(viewModel.IsKpiEmpty);
+        Assert.True(viewModel.IsRecentTransactionsEmpty);
         Assert.Empty(viewModel.RecentTransactions);
         Assert.Equal(4, viewModel.KpiCards.Count);
+    }
+
+    [Fact]
+    public async Task LoadCommand_WithKpiDataButNoTransactions_SetsIndependentEmptyFlags()
+    {
+        var service = new FakeDashboardDataService
+        {
+            Workspace = new DashboardWorkspaceData(
+                AccountCount: 1,
+                NetWorth: 1000m,
+                CashBalance: 1000m,
+                MonthlySpend: 0m,
+                RemainingBudget: 500m,
+                BudgetHealthPercent: 50m,
+                RecentTransactions: [])
+        };
+        var viewModel = new DashboardViewModel(service, autoLoad: false);
+
+        await viewModel.LoadCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.HasError);
+        Assert.False(viewModel.IsEmpty);
+        Assert.False(viewModel.IsKpiEmpty);
+        Assert.True(viewModel.IsRecentTransactionsEmpty);
+        Assert.Equal(4, viewModel.KpiCards.Count);
+        Assert.Empty(viewModel.RecentTransactions);
     }
 
     [Fact]
@@ -81,6 +111,8 @@ public sealed class DashboardViewModelTests
 
         Assert.True(viewModel.HasError);
         Assert.Contains("Dashboard load failed", viewModel.ErrorMessage, StringComparison.Ordinal);
+        Assert.True(viewModel.IsKpiEmpty);
+        Assert.True(viewModel.IsRecentTransactionsEmpty);
         Assert.Empty(viewModel.KpiCards);
         Assert.Empty(viewModel.RecentTransactions);
         Assert.True(viewModel.IsEmpty);

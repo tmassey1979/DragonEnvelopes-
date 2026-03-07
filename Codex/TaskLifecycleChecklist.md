@@ -21,5 +21,5 @@ Use this checklist at the start and end of every task.
 ## Session Run Log
 - Active task: `none` (awaiting next prioritized issue).
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#192` Dashboard UX: replace placeholder data with live family metrics and activity.
+- Previous completed task: `#193` Dashboard UX: independent empty-state handling for KPI and transaction cards.
 - Last updated: `2026-03-06`.

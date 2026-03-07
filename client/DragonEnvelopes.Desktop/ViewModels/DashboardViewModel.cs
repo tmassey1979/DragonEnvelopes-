@@ -31,6 +31,12 @@ public sealed partial class DashboardViewModel : ObservableObject
     private bool isEmpty;
 
     [ObservableProperty]
+    private bool isKpiEmpty;
+
+    [ObservableProperty]
+    private bool isRecentTransactionsEmpty;
+
+    [ObservableProperty]
     private string errorMessage = string.Empty;
 
     [ObservableProperty]
@@ -44,6 +50,8 @@ public sealed partial class DashboardViewModel : ObservableObject
         IsLoading = true;
         HasError = false;
         IsEmpty = false;
+        IsKpiEmpty = false;
+        IsRecentTransactionsEmpty = false;
         ErrorMessage = string.Empty;
 
         try
@@ -75,6 +83,8 @@ public sealed partial class DashboardViewModel : ObservableObject
 
             KpiCards = new ObservableCollection<MetricTileViewModel>(kpis);
             RecentTransactions = new ObservableCollection<TransactionRowViewModel>(transactions);
+            IsKpiEmpty = KpiCards.Count == 0;
+            IsRecentTransactionsEmpty = RecentTransactions.Count == 0;
             IsEmpty = workspace.AccountCount == 0 && RecentTransactions.Count == 0;
         }
         catch (OperationCanceledException)
@@ -83,6 +93,8 @@ public sealed partial class DashboardViewModel : ObservableObject
             ErrorMessage = "Dashboard load canceled.";
             KpiCards.Clear();
             RecentTransactions.Clear();
+            IsKpiEmpty = true;
+            IsRecentTransactionsEmpty = true;
             IsEmpty = true;
         }
         catch (Exception ex)
@@ -91,6 +103,8 @@ public sealed partial class DashboardViewModel : ObservableObject
             ErrorMessage = $"Dashboard load failed: {ex.Message}";
             KpiCards.Clear();
             RecentTransactions.Clear();
+            IsKpiEmpty = true;
+            IsRecentTransactionsEmpty = true;
             IsEmpty = true;
         }
         finally
