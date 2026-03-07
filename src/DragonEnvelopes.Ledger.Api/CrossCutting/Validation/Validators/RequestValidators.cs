@@ -1,6 +1,7 @@
 using DragonEnvelopes.Contracts.Accounts;
 using DragonEnvelopes.Contracts.Automation;
 using DragonEnvelopes.Contracts.Budgets;
+using DragonEnvelopes.Contracts.EnvelopeGoals;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Contracts.Imports;
@@ -290,6 +291,44 @@ public sealed class UpdateEnvelopeRolloverPolicyRequestValidator : AbstractValid
     {
         var isCap = string.Equals(rolloverMode, "Cap", StringComparison.OrdinalIgnoreCase);
         return isCap ? rolloverCap.HasValue : !rolloverCap.HasValue;
+    }
+}
+
+public sealed class CreateEnvelopeGoalRequestValidator : AbstractValidator<CreateEnvelopeGoalRequest>
+{
+    private static readonly string[] AllowedStatuses = ["Active", "Completed", "Cancelled"];
+
+    public CreateEnvelopeGoalRequestValidator()
+    {
+        RuleFor(static request => request.FamilyId)
+            .NotEmpty();
+
+        RuleFor(static request => request.EnvelopeId)
+            .NotEmpty();
+
+        RuleFor(static request => request.TargetAmount)
+            .GreaterThan(0m);
+
+        RuleFor(static request => request.Status)
+            .NotEmpty()
+            .Must(static status => AllowedStatuses.Contains(status, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"Status must be one of: {string.Join(", ", AllowedStatuses)}.");
+    }
+}
+
+public sealed class UpdateEnvelopeGoalRequestValidator : AbstractValidator<UpdateEnvelopeGoalRequest>
+{
+    private static readonly string[] AllowedStatuses = ["Active", "Completed", "Cancelled"];
+
+    public UpdateEnvelopeGoalRequestValidator()
+    {
+        RuleFor(static request => request.TargetAmount)
+            .GreaterThan(0m);
+
+        RuleFor(static request => request.Status)
+            .NotEmpty()
+            .Must(static status => AllowedStatuses.Contains(status, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"Status must be one of: {string.Join(", ", AllowedStatuses)}.");
     }
 }
 

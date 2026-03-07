@@ -77,6 +77,7 @@ public static class DependencyInjection
         services.AddScoped<IAutomationRuleRepository, AutomationRuleRepository>();
         services.AddScoped<IAccountRepository, AccountRepository>();
         services.AddScoped<IEnvelopeRepository, EnvelopeRepository>();
+        services.AddScoped<IEnvelopeGoalRepository, EnvelopeGoalRepository>();
         services.AddScoped<IEnvelopeRolloverRunRepository, EnvelopeRolloverRunRepository>();
         services.AddScoped<IBudgetRepository, BudgetRepository>();
         services.AddScoped<IRecurringBillRepository, RecurringBillRepository>();

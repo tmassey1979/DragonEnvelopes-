@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using DragonEnvelopes.Contracts.Accounts;
 using DragonEnvelopes.Contracts.Budgets;
+using DragonEnvelopes.Contracts.EnvelopeGoals;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Contracts.Reports;
@@ -98,6 +99,38 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
         Assert.Single(ownPayload!);
         Assert.Equal("Groceries", ownPayload[0].Name);
         Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Can_List_Own_EnvelopeGoals_AndProjection_But_Not_Other_Family()
+    {
+        var userId = "ledger-user-goals-a";
+        var ownFamilyId = Guid.Parse("e1300000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e1300000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAndEnvelopeGoalsAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var ownGoalsResponse = await client.GetAsync($"/api/v1/envelope-goals?familyId={ownFamilyId}");
+        var ownGoalsPayload = await ownGoalsResponse.Content.ReadFromJsonAsync<List<EnvelopeGoalResponse>>();
+        var ownProjectionResponse = await client.GetAsync($"/api/v1/envelope-goals/projection?familyId={ownFamilyId}&asOf=2026-02-15");
+        var ownProjectionPayload = await ownProjectionResponse.Content.ReadFromJsonAsync<List<EnvelopeGoalProjectionResponse>>();
+
+        var otherGoalsResponse = await client.GetAsync($"/api/v1/envelope-goals?familyId={otherFamilyId}");
+        var otherProjectionResponse = await client.GetAsync($"/api/v1/envelope-goals/projection?familyId={otherFamilyId}&asOf=2026-02-15");
+
+        Assert.Equal(HttpStatusCode.OK, ownGoalsResponse.StatusCode);
+        Assert.NotNull(ownGoalsPayload);
+        Assert.Single(ownGoalsPayload!);
+        Assert.Equal("Emergency", ownGoalsPayload[0].EnvelopeName);
+
+        Assert.Equal(HttpStatusCode.OK, ownProjectionResponse.StatusCode);
+        Assert.NotNull(ownProjectionPayload);
+        Assert.Single(ownProjectionPayload!);
+
+        Assert.Equal(HttpStatusCode.Forbidden, otherGoalsResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, otherProjectionResponse.StatusCode);
     }
 
     [Fact]
@@ -596,6 +629,72 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
                 startDate: DateOnly.FromDateTime(DateTime.UtcNow.Date),
                 endDate: null,
                 isActive: true));
+
+        await dbContext.SaveChangesAsync();
+    }
+
+    private async Task SeedFamilyMembershipAndEnvelopeGoalsAsync(
+        string userId,
+        Guid ownFamilyId,
+        Guid otherFamilyId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+
+        dbContext.EnvelopeGoals.RemoveRange(dbContext.EnvelopeGoals);
+        dbContext.Envelopes.RemoveRange(dbContext.Envelopes);
+        dbContext.FamilyMembers.RemoveRange(dbContext.FamilyMembers);
+        dbContext.Families.RemoveRange(dbContext.Families);
+
+        var now = DateTimeOffset.UtcNow;
+        var ownEnvelopeId = Guid.NewGuid();
+        var otherEnvelopeId = Guid.NewGuid();
+
+        dbContext.Families.AddRange(
+            new Family(ownFamilyId, "Authorized Ledger Family", now),
+            new Family(otherFamilyId, "Forbidden Ledger Family", now));
+
+        dbContext.FamilyMembers.Add(new FamilyMember(
+            Guid.NewGuid(),
+            ownFamilyId,
+            userId,
+            "Ledger Parent User",
+            EmailAddress.Parse("ledger.parent@test.local"),
+            MemberRole.Parent));
+
+        dbContext.Envelopes.AddRange(
+            new Envelope(
+                ownEnvelopeId,
+                ownFamilyId,
+                "Emergency",
+                Money.FromDecimal(300m),
+                Money.FromDecimal(150m)),
+            new Envelope(
+                otherEnvelopeId,
+                otherFamilyId,
+                "Other Family Envelope",
+                Money.FromDecimal(300m),
+                Money.FromDecimal(250m)));
+
+        dbContext.EnvelopeGoals.AddRange(
+            new EnvelopeGoal(
+                Guid.NewGuid(),
+                ownFamilyId,
+                ownEnvelopeId,
+                Money.FromDecimal(500m),
+                new DateOnly(2026, 6, 1),
+                EnvelopeGoalStatus.Active,
+                now,
+                now),
+            new EnvelopeGoal(
+                Guid.NewGuid(),
+                otherFamilyId,
+                otherEnvelopeId,
+                Money.FromDecimal(600m),
+                new DateOnly(2026, 6, 1),
+                EnvelopeGoalStatus.Active,
+                now,
+                now));
 
         await dbContext.SaveChangesAsync();
     }

@@ -2,6 +2,7 @@ using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Contracts.Accounts;
 using DragonEnvelopes.Contracts.Automation;
 using DragonEnvelopes.Contracts.Budgets;
+using DragonEnvelopes.Contracts.EnvelopeGoals;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Contracts.Imports;
@@ -139,6 +140,39 @@ internal static class EndpointMappers
             envelope.RolloverCap,
             envelope.LastActivityAt,
             envelope.IsArchived);
+    }
+
+    public static EnvelopeGoalResponse MapEnvelopeGoalResponse(EnvelopeGoalDetails goal)
+    {
+        return new EnvelopeGoalResponse(
+            goal.Id,
+            goal.FamilyId,
+            goal.EnvelopeId,
+            goal.EnvelopeName,
+            goal.CurrentBalance,
+            goal.TargetAmount,
+            goal.DueDate,
+            goal.Status,
+            goal.CreatedAtUtc,
+            goal.UpdatedAtUtc);
+    }
+
+    public static EnvelopeGoalProjectionResponse MapEnvelopeGoalProjectionResponse(EnvelopeGoalProjectionDetails projection)
+    {
+        return new EnvelopeGoalProjectionResponse(
+            projection.GoalId,
+            projection.FamilyId,
+            projection.EnvelopeId,
+            projection.EnvelopeName,
+            projection.CurrentBalance,
+            projection.TargetAmount,
+            projection.DueDate,
+            projection.GoalStatus,
+            projection.ProgressPercent,
+            projection.ExpectedProgressPercent,
+            projection.ExpectedBalance,
+            projection.VarianceAmount,
+            projection.ProjectionStatus);
     }
 
     public static EnvelopeRolloverPreviewResponse MapEnvelopeRolloverPreviewResponse(EnvelopeRolloverPreviewDetails details)

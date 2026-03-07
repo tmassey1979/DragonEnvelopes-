@@ -32,6 +32,7 @@ public static class DependencyInjection
         services.AddScoped<ICategorizationRuleEngine, CategorizationRuleEngine>();
         services.AddScoped<IIncomeAllocationEngine, IncomeAllocationEngine>();
         services.AddScoped<IEnvelopeService, EnvelopeService>();
+        services.AddScoped<IEnvelopeGoalService, EnvelopeGoalService>();
         services.AddScoped<IEnvelopeTransferService, EnvelopeTransferService>();
         services.AddScoped<IEnvelopeRolloverService, EnvelopeRolloverService>();
         services.AddScoped<IBudgetService, BudgetService>();
