@@ -9,7 +9,13 @@ namespace DragonEnvelopes.Desktop.ViewModels;
 public sealed partial class FamilyMembersViewModel : ObservableObject
 {
     private static readonly string[] Roles = ["Parent", "Adult", "Teen", "Child"];
+    private const int RemoveConfirmationWindowSeconds = 10;
+    private const int UndoWindowSeconds = 10;
     private readonly IFamilyMembersDataService _familyMembersDataService;
+    private Guid? _pendingRemoveConfirmationMemberId;
+    private DateTimeOffset? _pendingRemoveConfirmationExpiresAtUtc;
+    private FamilyMemberItemViewModel? _undoMemberSnapshot;
+    private DateTimeOffset? _undoExpiresAtUtc;
 
     public FamilyMembersViewModel(IFamilyMembersDataService familyMembersDataService)
     {
@@ -26,6 +32,7 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
         ResendInviteCommand = new AsyncRelayCommand(ResendSelectedInviteAsync);
         UpdateSelectedMemberRoleCommand = new AsyncRelayCommand(UpdateSelectedMemberRoleAsync);
         RemoveSelectedMemberCommand = new AsyncRelayCommand(RemoveSelectedMemberAsync);
+        UndoRemoveMemberCommand = new AsyncRelayCommand(UndoRemoveMemberAsync);
         ResetDraftCommand = new RelayCommand(ResetDraft);
 
         _ = LoadCommand.ExecuteAsync(null);
@@ -38,6 +45,7 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
     public IAsyncRelayCommand ResendInviteCommand { get; }
     public IAsyncRelayCommand UpdateSelectedMemberRoleCommand { get; }
     public IAsyncRelayCommand RemoveSelectedMemberCommand { get; }
+    public IAsyncRelayCommand UndoRemoveMemberCommand { get; }
     public IRelayCommand ResetDraftCommand { get; }
     public IReadOnlyList<string> RoleOptions { get; } = Roles;
 
@@ -98,6 +106,12 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
     [ObservableProperty]
     private bool isEmpty;
 
+    [ObservableProperty]
+    private string memberRemovalStatus = "No member removal pending.";
+
+    [ObservableProperty]
+    private bool canUndoRemove;
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         IsLoading = true;
@@ -131,6 +145,12 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
     partial void OnSelectedMemberChanged(FamilyMemberItemViewModel? value)
     {
         SelectedMemberRole = value?.Role ?? Roles[0];
+        if (_pendingRemoveConfirmationMemberId.HasValue
+            && value is not null
+            && _pendingRemoveConfirmationMemberId.Value != value.Id)
+        {
+            ClearRemoveConfirmation();
+        }
     }
 
     private async Task AddMemberAsync(CancellationToken cancellationToken)
@@ -303,17 +323,77 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
 
         HasError = false;
         ErrorMessage = string.Empty;
+        if (!IsRemoveConfirmationActive(SelectedMember.Id))
+        {
+            _pendingRemoveConfirmationMemberId = SelectedMember.Id;
+            _pendingRemoveConfirmationExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(RemoveConfirmationWindowSeconds);
+            MemberRemovalStatus = $"Click Remove Member again within {RemoveConfirmationWindowSeconds} seconds to confirm removing '{SelectedMember.Name}'.";
+            return;
+        }
+
         try
         {
-            var removedName = SelectedMember.Name;
-            await _familyMembersDataService.RemoveMemberAsync(SelectedMember.Id, cancellationToken);
-            EditorMessage = $"Removed family member '{removedName}'.";
+            var removed = SelectedMember;
+            await _familyMembersDataService.RemoveMemberAsync(removed.Id, cancellationToken);
+            _undoMemberSnapshot = removed;
+            _undoExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(UndoWindowSeconds);
+            CanUndoRemove = true;
+            MemberRemovalStatus = $"Removed '{removed.Name}'. Undo available for {UndoWindowSeconds} seconds.";
+            EditorMessage = $"Removed family member '{removed.Name}'.";
+            ClearRemoveConfirmation();
             await LoadAsync(cancellationToken);
         }
         catch (Exception ex)
         {
             HasError = true;
             ErrorMessage = $"Unable to remove family member: {ex.Message}";
+        }
+    }
+
+    private async Task UndoRemoveMemberAsync(CancellationToken cancellationToken)
+    {
+        if (_undoMemberSnapshot is null || !_undoExpiresAtUtc.HasValue)
+        {
+            HasError = true;
+            ErrorMessage = "No recently removed member is available to undo.";
+            return;
+        }
+
+        if (DateTimeOffset.UtcNow > _undoExpiresAtUtc.Value)
+        {
+            _undoMemberSnapshot = null;
+            _undoExpiresAtUtc = null;
+            CanUndoRemove = false;
+            MemberRemovalStatus = "Undo window expired.";
+            HasError = true;
+            ErrorMessage = "Undo window expired.";
+            return;
+        }
+
+        HasError = false;
+        ErrorMessage = string.Empty;
+        try
+        {
+            var snapshot = _undoMemberSnapshot;
+            var restored = await _familyMembersDataService.AddMemberAsync(
+                snapshot.KeycloakUserId,
+                snapshot.Name,
+                snapshot.Email,
+                snapshot.Role,
+                cancellationToken);
+
+            _undoMemberSnapshot = null;
+            _undoExpiresAtUtc = null;
+            CanUndoRemove = false;
+            MemberRemovalStatus = $"Undo completed for '{restored.Name}'.";
+            EditorMessage = $"Restored family member '{restored.Name}'.";
+            await LoadAsync(cancellationToken);
+            SelectedMember = Members.FirstOrDefault(member => member.KeycloakUserId.Equals(restored.KeycloakUserId, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to undo member removal: {ex.Message}";
         }
     }
 
@@ -391,5 +471,28 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
         DraftInviteRole = Roles[0];
         DraftInviteExpiresInHours = "168";
         LastInviteToken = string.Empty;
+    }
+
+    private bool IsRemoveConfirmationActive(Guid memberId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (!_pendingRemoveConfirmationMemberId.HasValue || !_pendingRemoveConfirmationExpiresAtUtc.HasValue)
+        {
+            return false;
+        }
+
+        if (_pendingRemoveConfirmationExpiresAtUtc.Value < now)
+        {
+            ClearRemoveConfirmation();
+            return false;
+        }
+
+        return _pendingRemoveConfirmationMemberId.Value == memberId;
+    }
+
+    private void ClearRemoveConfirmation()
+    {
+        _pendingRemoveConfirmationMemberId = null;
+        _pendingRemoveConfirmationExpiresAtUtc = null;
     }
 }

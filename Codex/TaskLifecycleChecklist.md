@@ -21,5 +21,5 @@ Use this checklist at the start and end of every task.
 ## Session Run Log
 - Active task: `none (ready for next issue)`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#239` Settings: auth session diagnostics and guided recovery actions.
+- Previous completed task: `#233` Family members: add remove confirmation + short undo window.
 - Last updated: `2026-03-06`.

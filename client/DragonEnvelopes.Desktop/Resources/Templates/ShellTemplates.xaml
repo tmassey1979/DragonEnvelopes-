@@ -1610,9 +1610,17 @@
                                         <Button Margin="0,0,8,0"
                                                 Content="Save Role"
                                                 Command="{Binding UpdateSelectedMemberRoleCommand}" />
-                                        <Button Content="Remove Member"
+                                        <Button Margin="0,0,8,0"
+                                                Content="Remove Member"
                                                 Command="{Binding RemoveSelectedMemberCommand}" />
+                                        <Button Content="Undo Remove"
+                                                IsEnabled="{Binding CanUndoRemove}"
+                                                Command="{Binding UndoRemoveMemberCommand}" />
                                     </StackPanel>
+                                    <TextBlock Margin="0,8,0,0"
+                                               Text="{Binding MemberRemovalStatus}"
+                                               Style="{StaticResource CaptionTextStyle}"
+                                               TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
 

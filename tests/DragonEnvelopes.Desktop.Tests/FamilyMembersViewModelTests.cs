@@ -32,7 +32,7 @@ public sealed class FamilyMembersViewModelTests
     }
 
     [Fact]
-    public async Task RemoveSelectedMemberCommand_Removes_Selected_Member()
+    public async Task RemoveSelectedMemberCommand_RequiresConfirmationThenRemovesMember()
     {
         var familyMembersDataService = new FakeFamilyMembersDataService();
         familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(
@@ -54,10 +54,46 @@ public sealed class FamilyMembersViewModelTests
 
         await viewModel.RemoveSelectedMemberCommand.ExecuteAsync(null);
         await WaitForIdleAsync(viewModel);
+        Assert.Equal(0, familyMembersDataService.RemoveMemberCallCount);
+        Assert.Contains("Click Remove Member again", viewModel.MemberRemovalStatus, StringComparison.OrdinalIgnoreCase);
+
+        await viewModel.RemoveSelectedMemberCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
 
         Assert.False(viewModel.HasError);
         Assert.Equal(1, familyMembersDataService.RemoveMemberCallCount);
         Assert.DoesNotContain(viewModel.Members, member => member.Name == "Remove One");
+        Assert.True(viewModel.CanUndoRemove);
+    }
+
+    [Fact]
+    public async Task UndoRemoveMemberCommand_RestoresRecentlyRemovedMember()
+    {
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(
+            Guid.NewGuid(),
+            "member-remove-undo",
+            "Undo Member",
+            "undo-member@test.dev",
+            "Adult"));
+
+        var viewModel = new FamilyMembersViewModel(familyMembersDataService);
+        await WaitForIdleAsync(viewModel);
+        viewModel.SelectedMember = viewModel.Members.Single();
+
+        await viewModel.RemoveSelectedMemberCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+        await viewModel.RemoveSelectedMemberCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+        Assert.DoesNotContain(viewModel.Members, member => member.KeycloakUserId == "member-remove-undo");
+
+        await viewModel.UndoRemoveMemberCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.False(viewModel.HasError);
+        Assert.Contains(viewModel.Members, member => member.KeycloakUserId == "member-remove-undo");
+        Assert.False(viewModel.CanUndoRemove);
+        Assert.Contains("Undo completed", viewModel.MemberRemovalStatus, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
