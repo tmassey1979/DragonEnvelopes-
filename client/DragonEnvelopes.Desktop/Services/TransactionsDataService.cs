@@ -1,7 +1,9 @@
 using System.Text.Json;
 using System.Net.Http;
+using System.Net;
 using System.Net.Http.Json;
 using DragonEnvelopes.Contracts.Accounts;
+using DragonEnvelopes.Contracts.Approvals;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Transactions;
 using DragonEnvelopes.Desktop.Api;
@@ -123,7 +125,7 @@ public sealed class TransactionsDataService : ITransactionsDataService
             .ToArray();
     }
 
-    public async Task CreateTransactionAsync(
+    public async Task<CreateTransactionSubmissionResult> CreateTransactionAsync(
         Guid accountId,
         decimal amount,
         string description,
@@ -157,10 +159,22 @@ public sealed class TransactionsDataService : ITransactionsDataService
         };
 
         using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Accepted)
+        {
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var approvalRequest = await JsonSerializer.DeserializeAsync<ApprovalRequestResponse>(stream, SerializerOptions, cancellationToken)
+                ?? throw new InvalidOperationException("Approval request response payload was empty.");
+            return new CreateTransactionSubmissionResult(
+                true,
+                MapApprovalRequest(approvalRequest));
+        }
+
         if (!response.IsSuccessStatusCode)
         {
             throw new InvalidOperationException($"Create transaction failed with status {(int)response.StatusCode}.");
         }
+
+        return new CreateTransactionSubmissionResult(false, null);
     }
 
     public async Task UpdateTransactionAsync(
@@ -254,6 +268,79 @@ public sealed class TransactionsDataService : ITransactionsDataService
         }
     }
 
+    public async Task<IReadOnlyList<ApprovalRequestItemViewModel>> GetApprovalRequestsAsync(
+        string? status = null,
+        int take = 50,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var normalizedTake = Math.Clamp(take, 1, 200);
+        var normalizedStatus = string.IsNullOrWhiteSpace(status) ? null : status.Trim();
+        var query = normalizedStatus is null
+            ? $"approvals/requests?familyId={familyId}&take={normalizedTake}"
+            : $"approvals/requests?familyId={familyId}&status={Uri.EscapeDataString(normalizedStatus)}&take={normalizedTake}";
+
+        using var response = await _apiClient.GetAsync(query, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return [];
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Approval requests request failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var approvals = await JsonSerializer.DeserializeAsync<List<ApprovalRequestResponse>>(stream, SerializerOptions, cancellationToken)
+            ?? [];
+        return approvals.Select(MapApprovalRequest).ToArray();
+    }
+
+    public async Task<ApprovalRequestItemViewModel> ApproveApprovalRequestAsync(
+        Guid requestId,
+        string? notes = null,
+        CancellationToken cancellationToken = default)
+    {
+        var payload = new ResolveApprovalRequestRequest(string.IsNullOrWhiteSpace(notes) ? null : notes.Trim());
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"approvals/requests/{requestId}/approve")
+        {
+            Content = JsonContent.Create(payload, options: SerializerOptions)
+        };
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Approve request failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var approval = await JsonSerializer.DeserializeAsync<ApprovalRequestResponse>(stream, SerializerOptions, cancellationToken)
+            ?? throw new InvalidOperationException("Approve request response payload was empty.");
+        return MapApprovalRequest(approval);
+    }
+
+    public async Task<ApprovalRequestItemViewModel> DenyApprovalRequestAsync(
+        Guid requestId,
+        string? notes = null,
+        CancellationToken cancellationToken = default)
+    {
+        var payload = new ResolveApprovalRequestRequest(string.IsNullOrWhiteSpace(notes) ? null : notes.Trim());
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"approvals/requests/{requestId}/deny")
+        {
+            Content = JsonContent.Create(payload, options: SerializerOptions)
+        };
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Deny request failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var approval = await JsonSerializer.DeserializeAsync<ApprovalRequestResponse>(stream, SerializerOptions, cancellationToken)
+            ?? throw new InvalidOperationException("Deny request response payload was empty.");
+        return MapApprovalRequest(approval);
+    }
+
     private Guid RequireFamilyId()
     {
         if (!_familyContext.FamilyId.HasValue)
@@ -295,5 +382,48 @@ public sealed class TransactionsDataService : ITransactionsDataService
                 && envelopeLookup.TryGetValue(transaction.TransferCounterpartyEnvelopeId.Value, out var counterpartyEnvelopeName)
                 ? counterpartyEnvelopeName
                 : null);
+    }
+
+    private static ApprovalRequestItemViewModel MapApprovalRequest(ApprovalRequestResponse approval)
+    {
+        var normalizedStatus = string.IsNullOrWhiteSpace(approval.Status)
+            ? "Pending"
+            : approval.Status.Trim();
+        var requestNotes = string.IsNullOrWhiteSpace(approval.RequestNotes)
+            ? string.Empty
+            : approval.RequestNotes.Trim();
+        var resolutionNotes = string.IsNullOrWhiteSpace(approval.ResolutionNotes)
+            ? string.Empty
+            : approval.ResolutionNotes.Trim();
+        var requestedByRole = string.IsNullOrWhiteSpace(approval.RequestedByRole)
+            ? "Unknown"
+            : approval.RequestedByRole.Trim();
+        var resolvedByRole = string.IsNullOrWhiteSpace(approval.ResolvedByRole)
+            ? null
+            : approval.ResolvedByRole.Trim();
+
+        return new ApprovalRequestItemViewModel(
+            approval.Id,
+            approval.FamilyId,
+            approval.AccountId,
+            approval.RequestedByUserId,
+            requestedByRole,
+            approval.Amount,
+            approval.Amount.ToString("$#,##0.00"),
+            approval.Description,
+            approval.Merchant,
+            approval.OccurredAt,
+            approval.OccurredAt.ToString("yyyy-MM-dd"),
+            approval.Category,
+            approval.EnvelopeId,
+            normalizedStatus,
+            normalizedStatus,
+            requestNotes,
+            resolutionNotes,
+            resolvedByRole,
+            approval.CreatedAtUtc,
+            approval.CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+            approval.ResolvedAtUtc,
+            approval.ApprovedTransactionId);
     }
 }

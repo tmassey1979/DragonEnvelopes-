@@ -272,6 +272,114 @@ public sealed class TransactionsViewModelTests
         Assert.Equal(25m, dataService.TransferCalls[0].Amount);
     }
 
+    [Fact]
+    public async Task Submit_Create_WhenApprovalRequired_AddsPendingRequest()
+    {
+        var accountId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+        var envelopeId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var transactionId = Guid.Parse("30000000-0000-0000-0000-000000000001");
+        var approvalId = Guid.Parse("40000000-0000-0000-0000-000000000001");
+        var dataService = new FakeTransactionsDataService(accountId, envelopeId, transactionId)
+        {
+            CreateResult = new CreateTransactionSubmissionResult(
+                true,
+                new ApprovalRequestItemViewModel(
+                    approvalId,
+                    Guid.Parse("50000000-0000-0000-0000-000000000001"),
+                    accountId,
+                    "child-user",
+                    "Child",
+                    65.25m,
+                    "$65.25",
+                    "Dinner",
+                    "Cafe",
+                    new DateTimeOffset(new DateTime(2026, 3, 7), TimeSpan.Zero),
+                    "2026-03-07",
+                    "Dining",
+                    envelopeId,
+                    "Pending",
+                    "Pending",
+                    string.Empty,
+                    string.Empty,
+                    null,
+                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UtcNow.ToString("yyyy-MM-dd HH:mm"),
+                    null,
+                    null))
+        };
+        dataService.Approvals =
+        [
+            dataService.CreateResult.ApprovalRequest!
+        ];
+
+        var viewModel = new TransactionsViewModel(dataService);
+        await viewModel.LoadAccountsCommand.ExecuteAsync(null);
+        viewModel.DraftMerchant = "Cafe";
+        viewModel.DraftDescription = "Dinner";
+        viewModel.DraftAmount = 65.25m;
+        viewModel.DraftOccurredOn = "2026-03-07";
+
+        await viewModel.SubmitTransactionCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.HasError);
+        Assert.Contains("approval", viewModel.EditorStatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(viewModel.PendingApprovalRequests);
+        Assert.Equal(approvalId, viewModel.PendingApprovalRequests[0].Id);
+    }
+
+    [Fact]
+    public async Task ApprovalCommands_RespectParentRoleContext()
+    {
+        var accountId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+        var envelopeId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var transactionId = Guid.Parse("30000000-0000-0000-0000-000000000001");
+        var approvalId = Guid.Parse("60000000-0000-0000-0000-000000000001");
+        var dataService = new FakeTransactionsDataService(accountId, envelopeId, transactionId)
+        {
+            Approvals =
+            [
+                new ApprovalRequestItemViewModel(
+                    approvalId,
+                    Guid.Parse("70000000-0000-0000-0000-000000000001"),
+                    accountId,
+                    "child-user",
+                    "Child",
+                    82.10m,
+                    "$82.10",
+                    "School supplies",
+                    "Bookstore",
+                    new DateTimeOffset(new DateTime(2026, 3, 7), TimeSpan.Zero),
+                    "2026-03-07",
+                    "School",
+                    envelopeId,
+                    "Pending",
+                    "Pending",
+                    string.Empty,
+                    string.Empty,
+                    null,
+                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UtcNow.ToString("yyyy-MM-dd HH:mm"),
+                    null,
+                    null)
+            ]
+        };
+
+        var viewModel = new TransactionsViewModel(dataService);
+        await viewModel.LoadAccountsCommand.ExecuteAsync(null);
+        viewModel.SelectedPendingApprovalRequest = viewModel.PendingApprovalRequests.Single();
+
+        viewModel.ApplyRoleContext(false);
+        Assert.False(viewModel.ApproveSelectedApprovalRequestCommand.CanExecute(null));
+        await viewModel.ApproveSelectedApprovalRequestCommand.ExecuteAsync(null);
+        Assert.Empty(dataService.ApproveCalls);
+
+        viewModel.ApplyRoleContext(true);
+        Assert.True(viewModel.ApproveSelectedApprovalRequestCommand.CanExecute(null));
+        await viewModel.ApproveSelectedApprovalRequestCommand.ExecuteAsync(null);
+        Assert.Single(dataService.ApproveCalls);
+        Assert.Equal(approvalId, dataService.ApproveCalls[0]);
+    }
+
     private sealed class FakeTransactionsDataService : ITransactionsDataService
     {
         private readonly Guid _accountId;
@@ -308,9 +416,13 @@ public sealed class TransactionsViewModelTests
         public List<Guid> RestoreCalls { get; } = [];
         public List<TransferCall> TransferCalls { get; } = [];
         public List<int> DeletedDaysRequests { get; } = [];
+        public List<Guid> ApproveCalls { get; } = [];
+        public List<Guid> DenyCalls { get; } = [];
         public IReadOnlyList<TransactionListItemViewModel> Transactions { get; set; }
         public IReadOnlyList<TransactionListItemViewModel> DeletedTransactions { get; set; } = [];
         public IReadOnlyList<EnvelopeOptionViewModel> EnvelopeOptions { get; set; }
+        public IReadOnlyList<ApprovalRequestItemViewModel> Approvals { get; set; } = [];
+        public CreateTransactionSubmissionResult CreateResult { get; set; } = new(false, null);
 
         public Task<IReadOnlyList<AccountListItemViewModel>> GetAccountsAsync(CancellationToken cancellationToken = default)
         {
@@ -341,7 +453,7 @@ public sealed class TransactionsViewModelTests
             return Task.FromResult(DeletedTransactions);
         }
 
-        public Task CreateTransactionAsync(
+        public Task<CreateTransactionSubmissionResult> CreateTransactionAsync(
             Guid accountId,
             decimal amount,
             string description,
@@ -352,7 +464,7 @@ public sealed class TransactionsViewModelTests
             IReadOnlyList<TransactionSplitDraftViewModel>? splits,
             CancellationToken cancellationToken = default)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(CreateResult);
         }
 
         public Task UpdateTransactionAsync(
@@ -452,6 +564,59 @@ public sealed class TransactionsViewModelTests
         {
             TransferCalls.Add(new TransferCall(accountId, fromEnvelopeId, toEnvelopeId, amount, occurredAt, notes));
             return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<ApprovalRequestItemViewModel>> GetApprovalRequestsAsync(
+            string? status = null,
+            int take = 50,
+            CancellationToken cancellationToken = default)
+        {
+            IEnumerable<ApprovalRequestItemViewModel> query = Approvals;
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(item => string.Equals(item.Status, status, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return Task.FromResult<IReadOnlyList<ApprovalRequestItemViewModel>>(
+                query.Take(Math.Clamp(take, 1, 200)).ToArray());
+        }
+
+        public Task<ApprovalRequestItemViewModel> ApproveApprovalRequestAsync(
+            Guid requestId,
+            string? notes = null,
+            CancellationToken cancellationToken = default)
+        {
+            ApproveCalls.Add(requestId);
+            var request = Approvals.First(item => item.Id == requestId);
+            var resolved = request with
+            {
+                Status = "Approved",
+                StatusDisplay = "Approved",
+                ApprovedTransactionId = _transactionId
+            };
+            Approvals = Approvals
+                .Select(item => item.Id == requestId ? resolved : item)
+                .ToArray();
+            return Task.FromResult(resolved);
+        }
+
+        public Task<ApprovalRequestItemViewModel> DenyApprovalRequestAsync(
+            Guid requestId,
+            string? notes = null,
+            CancellationToken cancellationToken = default)
+        {
+            DenyCalls.Add(requestId);
+            var request = Approvals.First(item => item.Id == requestId);
+            var resolved = request with
+            {
+                Status = "Denied",
+                StatusDisplay = "Denied",
+                ApprovedTransactionId = null
+            };
+            Approvals = Approvals
+                .Select(item => item.Id == requestId ? resolved : item)
+                .ToArray();
+            return Task.FromResult(resolved);
         }
     }
 

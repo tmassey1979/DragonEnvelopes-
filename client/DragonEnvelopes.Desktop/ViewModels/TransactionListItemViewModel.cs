@@ -18,7 +18,8 @@ public sealed class TransactionListItemViewModel
         Guid? transferId = null,
         Guid? transferCounterpartyEnvelopeId = null,
         string? transferDirection = null,
-        string? transferCounterpartyEnvelopeName = null)
+        string? transferCounterpartyEnvelopeName = null,
+        string? approvalStatus = null)
     {
         Id = id;
         AccountId = accountId;
@@ -32,6 +33,7 @@ public sealed class TransactionListItemViewModel
         TransferCounterpartyEnvelopeId = transferCounterpartyEnvelopeId;
         TransferDirection = transferDirection;
         TransferCounterpartyEnvelopeName = transferCounterpartyEnvelopeName;
+        ApprovalStatus = NormalizeApprovalStatus(approvalStatus);
         Envelope = envelope;
         Splits = splits;
         DeletedAtUtc = deletedAtUtc;
@@ -50,6 +52,7 @@ public sealed class TransactionListItemViewModel
     public Guid? TransferCounterpartyEnvelopeId { get; }
     public string? TransferDirection { get; }
     public string? TransferCounterpartyEnvelopeName { get; }
+    public string? ApprovalStatus { get; private set; }
     public string Envelope { get; }
     public IReadOnlyList<TransactionSplitSnapshotViewModel> Splits { get; }
     public DateTimeOffset? DeletedAtUtc { get; }
@@ -67,6 +70,9 @@ public sealed class TransactionListItemViewModel
         : string.Equals(TransferDirection, "Debit", StringComparison.OrdinalIgnoreCase)
             ? $"Out -> {TransferCounterpartyEnvelopeName ?? "Unknown"}"
             : $"In <- {TransferCounterpartyEnvelopeName ?? "Unknown"}";
+    public string StatusBadgeText => IsDeleted
+        ? "Deleted"
+        : ApprovalStatus ?? "Posted";
     public string AllocationDisplay => HasSplits
         ? $"Split ({Splits.Count})"
         : IsTransfer
@@ -74,6 +80,18 @@ public sealed class TransactionListItemViewModel
         : string.IsNullOrWhiteSpace(Envelope) || string.Equals(Envelope, "-", StringComparison.Ordinal)
             ? "Unassigned"
             : Envelope;
+
+    public void SetApprovalStatus(string? approvalStatus)
+    {
+        ApprovalStatus = NormalizeApprovalStatus(approvalStatus);
+    }
+
+    private static string? NormalizeApprovalStatus(string? status)
+    {
+        return string.IsNullOrWhiteSpace(status)
+            ? null
+            : status.Trim();
+    }
 }
 
 public sealed record TransactionSplitSnapshotViewModel(

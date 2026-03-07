@@ -7,11 +7,12 @@ using DragonEnvelopes.Desktop.Services;
 
 namespace DragonEnvelopes.Desktop.ViewModels;
 
-public sealed partial class TransactionsViewModel : ObservableObject
+public sealed partial class TransactionsViewModel : ObservableObject, IRoleAwareWorkspaceViewModel
 {
     private readonly ITransactionsDataService _transactionsDataService;
     private IReadOnlyList<TransactionListItemViewModel> _allTransactions = [];
     private IReadOnlyList<TransactionListItemViewModel> _allDeletedTransactions = [];
+    private IReadOnlyList<ApprovalRequestItemViewModel> _allApprovalRequests = [];
     private string _sortBy = "Date";
     private bool _sortAscending;
     private const string CreatePanelTitle = "Create Transaction";
@@ -32,6 +33,9 @@ public sealed partial class TransactionsViewModel : ObservableObject
         SubmitTransactionCommand = new AsyncRelayCommand(SubmitTransactionAsync);
         SubmitEnvelopeTransferCommand = new AsyncRelayCommand(SubmitEnvelopeTransferAsync);
         ResetEditorCommand = new RelayCommand(ResetEditor);
+        RefreshApprovalQueueCommand = new AsyncRelayCommand(LoadApprovalQueueAsync);
+        ApproveSelectedApprovalRequestCommand = new AsyncRelayCommand(ApproveSelectedApprovalRequestAsync, CanResolveSelectedApprovalRequest);
+        DenySelectedApprovalRequestCommand = new AsyncRelayCommand(DenySelectedApprovalRequestAsync, CanResolveSelectedApprovalRequest);
         _ = LoadAccountsCommand.ExecuteAsync(null);
     }
 
@@ -47,6 +51,9 @@ public sealed partial class TransactionsViewModel : ObservableObject
     public IAsyncRelayCommand SubmitTransactionCommand { get; }
     public IAsyncRelayCommand SubmitEnvelopeTransferCommand { get; }
     public IRelayCommand ResetEditorCommand { get; }
+    public IAsyncRelayCommand RefreshApprovalQueueCommand { get; }
+    public IAsyncRelayCommand ApproveSelectedApprovalRequestCommand { get; }
+    public IAsyncRelayCommand DenySelectedApprovalRequestCommand { get; }
 
     [ObservableProperty]
     private ObservableCollection<AccountListItemViewModel> accounts = [];
@@ -165,6 +172,18 @@ public sealed partial class TransactionsViewModel : ObservableObject
     [ObservableProperty]
     private bool replaceAllocationOnEdit;
 
+    [ObservableProperty]
+    private bool isParentUser;
+
+    [ObservableProperty]
+    private ObservableCollection<ApprovalRequestItemViewModel> pendingApprovalRequests = [];
+
+    [ObservableProperty]
+    private ApprovalRequestItemViewModel? selectedPendingApprovalRequest;
+
+    [ObservableProperty]
+    private string approvalQueueStatusMessage = "Pending approval requests will appear here.";
+
     private async Task LoadAccountsAsync(CancellationToken cancellationToken)
     {
         IsLoading = true;
@@ -191,6 +210,7 @@ public sealed partial class TransactionsViewModel : ObservableObject
             ErrorMessage = $"Unable to load transaction workspace: {ex.Message}";
             Accounts.Clear();
             Transactions.Clear();
+            PendingApprovalRequests.Clear();
             IsEmpty = true;
         }
         finally
@@ -205,6 +225,8 @@ public sealed partial class TransactionsViewModel : ObservableObject
         {
             Transactions.Clear();
             DeletedTransactions.Clear();
+            PendingApprovalRequests.Clear();
+            _allApprovalRequests = [];
             IsEmpty = true;
             return;
         }
@@ -217,6 +239,7 @@ public sealed partial class TransactionsViewModel : ObservableObject
         {
             _allTransactions = await _transactionsDataService.GetTransactionsAsync(SelectedAccount.Id, cancellationToken);
             await LoadDeletedTransactionsCoreAsync(cancellationToken);
+            await LoadApprovalQueueCoreAsync(cancellationToken);
             ApplyFiltersAndSort();
         }
         catch (Exception ex)
@@ -225,6 +248,8 @@ public sealed partial class TransactionsViewModel : ObservableObject
             ErrorMessage = $"Unable to load transactions: {ex.Message}";
             Transactions.Clear();
             DeletedTransactions.Clear();
+            PendingApprovalRequests.Clear();
+            _allApprovalRequests = [];
             IsEmpty = true;
         }
         finally
@@ -246,6 +271,23 @@ public sealed partial class TransactionsViewModel : ObservableObject
         }
 
         _ = ReloadTransactionsCommand.ExecuteAsync(null);
+    }
+
+    partial void OnSelectedPendingApprovalRequestChanged(ApprovalRequestItemViewModel? value)
+    {
+        ApproveSelectedApprovalRequestCommand.NotifyCanExecuteChanged();
+        DenySelectedApprovalRequestCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsParentUserChanged(bool value)
+    {
+        ApproveSelectedApprovalRequestCommand.NotifyCanExecuteChanged();
+        DenySelectedApprovalRequestCommand.NotifyCanExecuteChanged();
+
+        if (!value)
+        {
+            ApprovalQueueStatusMessage = "Pending approval requests are view-only for non-parent users.";
+        }
     }
 
     partial void OnMerchantFilterChanged(string value) => ApplyFiltersAndSort();
@@ -653,7 +695,7 @@ public sealed partial class TransactionsViewModel : ObservableObject
             }
             else
             {
-                await _transactionsDataService.CreateTransactionAsync(
+                var createResult = await _transactionsDataService.CreateTransactionAsync(
                     SelectedAccount.Id,
                     DraftAmount,
                     DraftDescription.Trim(),
@@ -663,6 +705,19 @@ public sealed partial class TransactionsViewModel : ObservableObject
                     UseSplitEditor ? null : DraftEnvelopeId,
                     UseSplitEditor ? SplitDrafts.ToArray() : null,
                     cancellationToken);
+
+                if (createResult.RequiresApproval)
+                {
+                    EditorStatusMessage = "Transaction submitted for parent approval.";
+                    if (createResult.ApprovalRequest is not null)
+                    {
+                        SelectedPendingApprovalRequest = createResult.ApprovalRequest;
+                    }
+
+                    ResetEditor();
+                    await LoadApprovalQueueCoreAsync(cancellationToken);
+                    return;
+                }
 
                 EditorStatusMessage = "Transaction created.";
                 ResetEditor();
@@ -774,6 +829,142 @@ public sealed partial class TransactionsViewModel : ObservableObject
                 .OrderByDescending(static transaction => transaction.DeletedAtUtc)
                 .ThenByDescending(static transaction => transaction.OccurredAt));
         SelectedDeletedTransaction = DeletedTransactions.FirstOrDefault();
+    }
+
+    private async Task LoadApprovalQueueAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        try
+        {
+            await LoadApprovalQueueCoreAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to load approval queue: {ex.Message}";
+            PendingApprovalRequests.Clear();
+            _allApprovalRequests = [];
+            ApplyApprovalStatusBadges();
+        }
+    }
+
+    private async Task LoadApprovalQueueCoreAsync(CancellationToken cancellationToken)
+    {
+        var selectedApprovalId = SelectedPendingApprovalRequest?.Id;
+        _allApprovalRequests = await _transactionsDataService.GetApprovalRequestsAsync(status: null, take: 100, cancellationToken);
+
+        PendingApprovalRequests = new ObservableCollection<ApprovalRequestItemViewModel>(
+            _allApprovalRequests
+                .Where(static approval => approval.IsPending)
+                .OrderByDescending(static approval => approval.CreatedAtUtc));
+
+        SelectedPendingApprovalRequest = selectedApprovalId.HasValue
+            ? PendingApprovalRequests.FirstOrDefault(item => item.Id == selectedApprovalId.Value) ?? PendingApprovalRequests.FirstOrDefault()
+            : PendingApprovalRequests.FirstOrDefault();
+
+        ApprovalQueueStatusMessage = PendingApprovalRequests.Count switch
+        {
+            0 when IsParentUser => "No pending approval requests.",
+            0 => "Pending approval requests are view-only for non-parent users.",
+            1 => "1 request is pending approval.",
+            _ => $"{PendingApprovalRequests.Count} requests are pending approval."
+        };
+
+        ApproveSelectedApprovalRequestCommand.NotifyCanExecuteChanged();
+        DenySelectedApprovalRequestCommand.NotifyCanExecuteChanged();
+        ApplyApprovalStatusBadges();
+    }
+
+    private void ApplyApprovalStatusBadges()
+    {
+        var approvedLookup = _allApprovalRequests
+            .Where(static approval =>
+                approval.ApprovedTransactionId.HasValue &&
+                string.Equals(approval.Status, "Approved", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(static approval => approval.ApprovedTransactionId!.Value)
+            .ToDictionary(static group => group.Key, static group => "Approved");
+
+        foreach (var transaction in _allTransactions)
+        {
+            transaction.SetApprovalStatus(
+                approvedLookup.TryGetValue(transaction.Id, out var status)
+                    ? status
+                    : null);
+        }
+    }
+
+    private bool CanResolveSelectedApprovalRequest()
+    {
+        return IsParentUser && SelectedPendingApprovalRequest is { IsPending: true };
+    }
+
+    private async Task ApproveSelectedApprovalRequestAsync(CancellationToken cancellationToken)
+    {
+        if (!IsParentUser)
+        {
+            HasError = true;
+            ErrorMessage = "Parent role is required to approve requests.";
+            return;
+        }
+
+        if (SelectedPendingApprovalRequest is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select a pending approval request.";
+            return;
+        }
+
+        try
+        {
+            var resolved = await _transactionsDataService.ApproveApprovalRequestAsync(
+                SelectedPendingApprovalRequest.Id,
+                cancellationToken: cancellationToken);
+            ApprovalQueueStatusMessage = $"Approved request for {resolved.AmountDisplay} at {resolved.Merchant}.";
+            await LoadTransactionsAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to approve request: {ex.Message}";
+        }
+    }
+
+    private async Task DenySelectedApprovalRequestAsync(CancellationToken cancellationToken)
+    {
+        if (!IsParentUser)
+        {
+            HasError = true;
+            ErrorMessage = "Parent role is required to deny requests.";
+            return;
+        }
+
+        if (SelectedPendingApprovalRequest is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select a pending approval request.";
+            return;
+        }
+
+        try
+        {
+            var resolved = await _transactionsDataService.DenyApprovalRequestAsync(
+                SelectedPendingApprovalRequest.Id,
+                cancellationToken: cancellationToken);
+            ApprovalQueueStatusMessage = $"Denied request for {resolved.AmountDisplay} at {resolved.Merchant}.";
+            await LoadTransactionsAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to deny request: {ex.Message}";
+        }
+    }
+
+    public void ApplyRoleContext(bool isParentUser)
+    {
+        IsParentUser = isParentUser;
     }
 
     private int ParseDeletedWindowDays()

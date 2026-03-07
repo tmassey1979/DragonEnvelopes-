@@ -743,6 +743,33 @@
                                 <DataGridTextColumn Header="Transfer" Binding="{Binding TransferDisplay}" Width="150" />
                                 <DataGridTextColumn Header="Category" Binding="{Binding CategoryDisplay}" Width="140" />
                                 <DataGridTextColumn Header="Amount" Binding="{Binding AmountDisplay}" Width="110" />
+                                <DataGridTemplateColumn Header="Status" Width="95">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Border Padding="8,2"
+                                                    CornerRadius="8"
+                                                    HorizontalAlignment="Left"
+                                                    BorderThickness="1"
+                                                    BorderBrush="{StaticResource PanelOutlineBrush}">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="#EFEFF2" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding StatusBadgeText}" Value="Approved">
+                                                                <Setter Property="Background" Value="#DDF2DD" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding StatusBadgeText}" Value="Deleted">
+                                                                <Setter Property="Background" Value="#F6DEDE" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock Text="{Binding StatusBadgeText}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
 
@@ -999,6 +1026,60 @@
                                 <Button Content="Reset"
                                         Command="{Binding ResetEditorCommand}" />
                             </StackPanel>
+
+                            <Border Margin="0,18,0,0"
+                                    Padding="10"
+                                    CornerRadius="8"
+                                    Background="{StaticResource PanelMutedBackgroundBrush}"
+                                    BorderBrush="{StaticResource PanelOutlineBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Pending Approvals"
+                                                   Style="{StaticResource CaptionTextStyle}" />
+                                        <Button Margin="10,0,0,0"
+                                                Content="Refresh"
+                                                Command="{Binding RefreshApprovalQueueCommand}" />
+                                    </StackPanel>
+
+                                    <TextBlock Margin="0,4,0,0"
+                                               Text="{Binding ApprovalQueueStatusMessage}"
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource CaptionTextStyle}" />
+
+                                    <DataGrid Margin="0,8,0,0"
+                                              Height="145"
+                                              ItemsSource="{Binding PendingApprovalRequests}"
+                                              SelectedItem="{Binding SelectedPendingApprovalRequest, Mode=TwoWay}"
+                                              AutoGenerateColumns="False"
+                                              HeadersVisibility="Column"
+                                              CanUserAddRows="False"
+                                              CanUserDeleteRows="False"
+                                              IsReadOnly="True"
+                                              RowHeight="30"
+                                              GridLinesVisibility="Horizontal"
+                                              Background="{StaticResource PanelMutedBackgroundBrush}"
+                                              BorderBrush="{StaticResource PanelOutlineBrush}"
+                                              BorderThickness="1"
+                                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                              ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Requested" Binding="{Binding CreatedAtDisplay}" Width="130" />
+                                            <DataGridTextColumn Header="Role" Binding="{Binding RequestedByRole}" Width="80" />
+                                            <DataGridTextColumn Header="Merchant" Binding="{Binding Merchant}" Width="*" />
+                                            <DataGridTextColumn Header="Amount" Binding="{Binding AmountDisplay}" Width="95" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+
+                                    <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                                        <Button Margin="0,0,8,0"
+                                                Content="Approve"
+                                                Command="{Binding ApproveSelectedApprovalRequestCommand}" />
+                                        <Button Content="Deny"
+                                                Command="{Binding DenySelectedApprovalRequestCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
 
                             <Border Margin="0,18,0,0"
                                     Padding="10"

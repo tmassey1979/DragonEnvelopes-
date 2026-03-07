@@ -58,6 +58,15 @@ public sealed class TransactionListItemViewModelTests
         Assert.True(viewModel.IsTransfer);
     }
 
+    [Fact]
+    public void StatusBadgeText_UsesApprovalStatusWhenPresent()
+    {
+        var viewModel = CreateItem(envelope: "Groceries", splits: []);
+        viewModel.SetApprovalStatus("Approved");
+
+        Assert.Equal("Approved", viewModel.StatusBadgeText);
+    }
+
     private static TransactionListItemViewModel CreateItem(
         string envelope,
         IReadOnlyList<TransactionSplitSnapshotViewModel> splits)

@@ -16,7 +16,7 @@ public interface ITransactionsDataService
         int days = 30,
         CancellationToken cancellationToken = default);
 
-    Task CreateTransactionAsync(
+    Task<CreateTransactionSubmissionResult> CreateTransactionAsync(
         Guid accountId,
         decimal amount,
         string description,
@@ -52,5 +52,20 @@ public interface ITransactionsDataService
         decimal amount,
         DateTimeOffset occurredAt,
         string? notes,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ApprovalRequestItemViewModel>> GetApprovalRequestsAsync(
+        string? status = null,
+        int take = 50,
+        CancellationToken cancellationToken = default);
+
+    Task<ApprovalRequestItemViewModel> ApproveApprovalRequestAsync(
+        Guid requestId,
+        string? notes = null,
+        CancellationToken cancellationToken = default);
+
+    Task<ApprovalRequestItemViewModel> DenyApprovalRequestAsync(
+        Guid requestId,
+        string? notes = null,
         CancellationToken cancellationToken = default);
 }
