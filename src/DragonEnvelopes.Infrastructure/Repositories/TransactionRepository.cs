@@ -151,4 +151,24 @@ public sealed class TransactionRepository(DragonEnvelopesDbContext dbContext) : 
         dbContext.Transactions.AddRange(transactions);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task DeleteTransactionAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default)
+    {
+        var splitEntries = await dbContext.TransactionSplits
+            .Where(x => x.TransactionId == transactionId)
+            .ToArrayAsync(cancellationToken);
+        if (splitEntries.Length > 0)
+        {
+            dbContext.TransactionSplits.RemoveRange(splitEntries);
+        }
+
+        var transaction = await dbContext.Transactions
+            .FirstOrDefaultAsync(x => x.Id == transactionId, cancellationToken);
+        if (transaction is not null)
+        {
+            dbContext.Transactions.Remove(transaction);
+        }
+    }
 }

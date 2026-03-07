@@ -29,4 +29,8 @@ public interface ITransactionService
     Task<IReadOnlyList<TransactionDetails>> ListAsync(
         Guid? accountId,
         CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default);
 }

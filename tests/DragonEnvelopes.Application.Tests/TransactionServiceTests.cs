@@ -409,4 +409,124 @@ public class TransactionServiceTests
             It.IsAny<CancellationToken>()), Times.Never);
         Assert.Single(result.Splits);
     }
+
+    [Fact]
+    public async Task DeleteAsync_WithSingleEnvelope_ReversesEnvelopeAndDeletesTransaction()
+    {
+        var transactionRepository = new Mock<ITransactionRepository>();
+        var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
+        var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
+        var envelopeId = Guid.NewGuid();
+        var transactionId = Guid.NewGuid();
+        var occurredAt = DateTimeOffset.UtcNow;
+        var envelope = new Envelope(
+            envelopeId,
+            Guid.NewGuid(),
+            "Groceries",
+            Money.FromDecimal(300m),
+            Money.FromDecimal(90m));
+        var transaction = new Transaction(
+            transactionId,
+            Guid.NewGuid(),
+            Money.FromDecimal(-10m),
+            "Groceries",
+            "Store",
+            occurredAt,
+            "Food",
+            envelopeId);
+
+        transactionRepository.Setup(x => x.GetTransactionByIdForUpdateAsync(transactionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction);
+        transactionRepository.Setup(x => x.ListTransactionSplitsByTransactionIdAsync(transactionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(envelopeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(envelope);
+        transactionRepository.Setup(x => x.DeleteTransactionAsync(transactionId, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = new TransactionService(transactionRepository.Object, envelopeRepository.Object, categorizationEngine.Object, incomeAllocationEngine.Object);
+        await service.DeleteAsync(transactionId);
+
+        Assert.Equal(100m, envelope.CurrentBalance.Amount);
+        transactionRepository.Verify(x => x.DeleteTransactionAsync(transactionId, It.IsAny<CancellationToken>()), Times.Once);
+        transactionRepository.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WithSplits_ReversesEachSplitEnvelopeAndDeletesTransaction()
+    {
+        var transactionRepository = new Mock<ITransactionRepository>();
+        var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
+        var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
+        var transactionId = Guid.NewGuid();
+        var envelopeAId = Guid.NewGuid();
+        var envelopeBId = Guid.NewGuid();
+        var envelopeA = new Envelope(
+            envelopeAId,
+            Guid.NewGuid(),
+            "Envelope A",
+            Money.FromDecimal(200m),
+            Money.FromDecimal(94m));
+        var envelopeB = new Envelope(
+            envelopeBId,
+            Guid.NewGuid(),
+            "Envelope B",
+            Money.FromDecimal(200m),
+            Money.FromDecimal(96m));
+        var transaction = new Transaction(
+            transactionId,
+            Guid.NewGuid(),
+            Money.FromDecimal(-10m),
+            "Split Purchase",
+            "Store",
+            DateTimeOffset.UtcNow,
+            "Food",
+            envelopeId: null);
+        var splits = new[]
+        {
+            new TransactionSplitEntry(Guid.NewGuid(), transactionId, envelopeAId, Money.FromDecimal(-6m), "Food", null),
+            new TransactionSplitEntry(Guid.NewGuid(), transactionId, envelopeBId, Money.FromDecimal(-4m), "Food", null)
+        };
+
+        transactionRepository.Setup(x => x.GetTransactionByIdForUpdateAsync(transactionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction);
+        transactionRepository.Setup(x => x.ListTransactionSplitsByTransactionIdAsync(transactionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(splits);
+        envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(envelopeAId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(envelopeA);
+        envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(envelopeBId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(envelopeB);
+        transactionRepository.Setup(x => x.DeleteTransactionAsync(transactionId, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = new TransactionService(transactionRepository.Object, envelopeRepository.Object, categorizationEngine.Object, incomeAllocationEngine.Object);
+        await service.DeleteAsync(transactionId);
+
+        Assert.Equal(100m, envelopeA.CurrentBalance.Amount);
+        Assert.Equal(100m, envelopeB.CurrentBalance.Amount);
+        transactionRepository.Verify(x => x.DeleteTransactionAsync(transactionId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenTransactionMissing_Throws()
+    {
+        var transactionRepository = new Mock<ITransactionRepository>();
+        var envelopeRepository = new Mock<IEnvelopeRepository>();
+        var categorizationEngine = new Mock<ICategorizationRuleEngine>();
+        var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
+        var transactionId = Guid.NewGuid();
+
+        transactionRepository.Setup(x => x.GetTransactionByIdForUpdateAsync(transactionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Transaction?)null);
+
+        var service = new TransactionService(transactionRepository.Object, envelopeRepository.Object, categorizationEngine.Object, incomeAllocationEngine.Object);
+
+        await Assert.ThrowsAsync<DomainValidationException>(() => service.DeleteAsync(transactionId));
+    }
 }

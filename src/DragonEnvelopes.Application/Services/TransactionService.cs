@@ -249,6 +249,46 @@ public sealed class TransactionService(
         return Map(transaction, refreshedSplits);
     }
 
+    public async Task DeleteAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default)
+    {
+        var transaction = await transactionRepository.GetTransactionByIdForUpdateAsync(transactionId, cancellationToken);
+        if (transaction is null)
+        {
+            throw new DomainValidationException("Transaction was not found.");
+        }
+
+        var existingSplits = await transactionRepository.ListTransactionSplitsByTransactionIdAsync(transactionId, cancellationToken);
+
+        if (existingSplits.Count > 0)
+        {
+            foreach (var split in existingSplits)
+            {
+                var envelope = await envelopeRepository.GetByIdForUpdateAsync(split.EnvelopeId, cancellationToken);
+                if (envelope is null)
+                {
+                    throw new DomainValidationException($"Envelope was not found for split id {split.EnvelopeId}.");
+                }
+
+                ApplyReverseAmountToEnvelope(envelope, split.Amount.Amount, transaction.OccurredAt);
+            }
+        }
+        else if (transaction.EnvelopeId.HasValue)
+        {
+            var envelope = await envelopeRepository.GetByIdForUpdateAsync(transaction.EnvelopeId.Value, cancellationToken);
+            if (envelope is null)
+            {
+                throw new DomainValidationException("Envelope was not found.");
+            }
+
+            ApplyReverseAmountToEnvelope(envelope, transaction.Amount.Amount, transaction.OccurredAt);
+        }
+
+        await transactionRepository.DeleteTransactionAsync(transactionId, cancellationToken);
+        await transactionRepository.SaveChangesAsync(cancellationToken);
+    }
+
     private async Task RebalanceEnvelopesForAllocationChangeAsync(
         Transaction transaction,
         IReadOnlyList<TransactionSplitEntry> existingSplits,

@@ -71,6 +71,43 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
         Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task Authenticated_User_Can_Delete_Own_Family_Transaction()
+    {
+        var userId = "ledger-user-a";
+        var ownFamilyId = Guid.Parse("e2000000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e2000000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        var seeded = await SeedFamilyMembershipAndTransactionsAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var response = await client.DeleteAsync($"/api/v1/transactions/{seeded.OwnTransactionId}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var transactionExists = await dbContext.Transactions.AnyAsync(x => x.Id == seeded.OwnTransactionId);
+        Assert.False(transactionExists);
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Cannot_Delete_Other_Family_Transaction()
+    {
+        var userId = "ledger-user-a";
+        var ownFamilyId = Guid.Parse("e3000000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e3000000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        var seeded = await SeedFamilyMembershipAndTransactionsAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var response = await client.DeleteAsync($"/api/v1/transactions/{seeded.OtherTransactionId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
     private async Task SeedFamilyMembershipAndAccountAsync(string userId, Guid ownFamilyId, Guid otherFamilyId)
     {
         using var scope = _factory.Services.CreateScope();
@@ -101,6 +138,64 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
             Money.FromDecimal(500m)));
 
         await dbContext.SaveChangesAsync();
+    }
+
+    private async Task<(Guid OwnTransactionId, Guid OtherTransactionId)> SeedFamilyMembershipAndTransactionsAsync(
+        string userId,
+        Guid ownFamilyId,
+        Guid otherFamilyId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+
+        dbContext.TransactionSplits.RemoveRange(dbContext.TransactionSplits);
+        dbContext.Transactions.RemoveRange(dbContext.Transactions);
+        dbContext.Accounts.RemoveRange(dbContext.Accounts);
+        dbContext.FamilyMembers.RemoveRange(dbContext.FamilyMembers);
+        dbContext.Families.RemoveRange(dbContext.Families);
+
+        var now = DateTimeOffset.UtcNow;
+        var ownAccountId = Guid.NewGuid();
+        var otherAccountId = Guid.NewGuid();
+        var ownTransactionId = Guid.NewGuid();
+        var otherTransactionId = Guid.NewGuid();
+
+        dbContext.Families.AddRange(
+            new Family(ownFamilyId, "Authorized Ledger Family", now),
+            new Family(otherFamilyId, "Forbidden Ledger Family", now));
+
+        dbContext.FamilyMembers.Add(new FamilyMember(
+            Guid.NewGuid(),
+            ownFamilyId,
+            userId,
+            "Ledger Parent User",
+            EmailAddress.Parse("ledger.parent@test.local"),
+            MemberRole.Parent));
+
+        dbContext.Accounts.AddRange(
+            new Account(ownAccountId, ownFamilyId, "Primary Checking", AccountType.Checking, Money.FromDecimal(500m)),
+            new Account(otherAccountId, otherFamilyId, "Other Checking", AccountType.Checking, Money.FromDecimal(500m)));
+
+        dbContext.Transactions.AddRange(
+            new Transaction(
+                ownTransactionId,
+                ownAccountId,
+                Money.FromDecimal(-15m),
+                "Own Txn",
+                "Store A",
+                now,
+                "Misc"),
+            new Transaction(
+                otherTransactionId,
+                otherAccountId,
+                Money.FromDecimal(-22m),
+                "Other Txn",
+                "Store B",
+                now,
+                "Misc"));
+
+        await dbContext.SaveChangesAsync();
+        return (ownTransactionId, otherTransactionId);
     }
 }
 

@@ -129,6 +129,63 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Delete_Own_Transaction_And_Rebalance_Envelope()
+    {
+        var envelopeId = Guid.NewGuid();
+        var transactionId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.Envelopes.Add(new Envelope(
+                envelopeId,
+                TestApiFactory.FamilyAId,
+                "Delete Test Envelope",
+                Money.FromDecimal(200m),
+                Money.FromDecimal(90m)));
+            dbContext.Transactions.Add(new Transaction(
+                transactionId,
+                TestApiFactory.AccountAId,
+                Money.FromDecimal(-10m),
+                "Delete Me",
+                "Delete Merchant",
+                now,
+                "Misc",
+                envelopeId));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.DeleteAsync($"/api/v1/transactions/{transactionId}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        await using var verifyScope = _factory.Services.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var transactionExists = await verifyDb.Transactions.AnyAsync(x => x.Id == transactionId);
+        var splitCount = await verifyDb.TransactionSplits.CountAsync(x => x.TransactionId == transactionId);
+        var envelope = await verifyDb.Envelopes.FirstAsync(x => x.Id == envelopeId);
+
+        Assert.False(transactionExists);
+        Assert.Equal(0, splitCount);
+        Assert.Equal(100m, envelope.CurrentBalance.Amount);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Delete_FamilyB_Transaction()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.DeleteAsync($"/api/v1/transactions/{TestApiFactory.TransactionBId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserA_Can_Replace_Single_Envelope_With_Splits_And_Rebalance()
     {
         using var client = _factory.CreateClient();
