@@ -28,6 +28,8 @@ internal static partial class ApiBootstrap
         builder.Services.AddInfrastructure(builder.Configuration);
         builder.Services.AddProviderClients(builder.Configuration);
         builder.Services.AddScoped<IRecurringAutoPostService, RecurringAutoPostService>();
+        builder.Services.AddScoped<IRecurringAutoPostWorkerLock, RecurringAutoPostWorkerLock>();
+        builder.Services.AddSingleton(Options.Create(BuildRecurringAutoPostWorkerOptions(builder.Configuration)));
         builder.Services.AddSingleton(Options.Create(BuildStripeWebhookOptions(builder.Configuration)));
         builder.Services.AddSingleton(Options.Create(BuildDataRetentionOptions(builder.Configuration)));
         builder.Services.AddSingleton(BuildKeycloakAdminOptions(builder.Configuration));
@@ -104,6 +106,21 @@ internal static partial class ApiBootstrap
             SpendNotificationRetentionDays = int.TryParse(configuration["DataRetention:SpendNotificationRetentionDays"], out var notificationDays)
                 ? Math.Max(1, notificationDays)
                 : 90
+        };
+    }
+
+    private static RecurringAutoPostWorkerOptions BuildRecurringAutoPostWorkerOptions(IConfiguration configuration)
+    {
+        return new RecurringAutoPostWorkerOptions
+        {
+            Enabled = !bool.TryParse(configuration["RecurringAutoPost:Enabled"], out var enabled) || enabled,
+            PollIntervalMinutes = int.TryParse(configuration["RecurringAutoPost:PollIntervalMinutes"], out var pollIntervalMinutes)
+                ? Math.Max(1, pollIntervalMinutes)
+                : 30,
+            UseDistributedLock = !bool.TryParse(configuration["RecurringAutoPost:UseDistributedLock"], out var useDistributedLock) || useDistributedLock,
+            DistributedLockKey = long.TryParse(configuration["RecurringAutoPost:DistributedLockKey"], out var distributedLockKey)
+                ? distributedLockKey
+                : 2147482647
         };
     }
 }

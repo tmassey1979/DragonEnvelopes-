@@ -1350,6 +1350,99 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task Manual_Recurring_AutoPost_Is_Idempotent_For_Same_Family_And_DueDate()
+    {
+        var familyId = Guid.NewGuid();
+        var accountId = Guid.NewGuid();
+        var recurringBillId = Guid.NewGuid();
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.Families.Add(new Family(familyId, "Idempotent AutoPost Family", DateTimeOffset.UtcNow));
+            dbContext.FamilyMembers.Add(new FamilyMember(
+                Guid.NewGuid(),
+                familyId,
+                TestApiFactory.UserAId,
+                "Owner User",
+                EmailAddress.Parse($"idempotent-autopost-owner-{familyId:N}@test.dev"),
+                MemberRole.Parent));
+            dbContext.Accounts.Add(new Account(
+                accountId,
+                familyId,
+                "Idempotent AutoPost Checking",
+                AccountType.Checking,
+                Money.FromDecimal(1000m)));
+            dbContext.RecurringBills.Add(new RecurringBill(
+                recurringBillId,
+                familyId,
+                "Idempotent AutoPost Bill",
+                "Idempotent Merchant",
+                Money.FromDecimal(120m),
+                RecurringBillFrequency.Monthly,
+                dayOfMonth: 1,
+                startDate: new DateOnly(2026, 1, 1),
+                endDate: null,
+                isActive: true));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var firstRun = await client.PostAsync(
+            $"/api/v1/families/{familyId}/recurring-bills/auto-post/run?dueDate=2026-03-01",
+            content: null);
+        var secondRun = await client.PostAsync(
+            $"/api/v1/families/{familyId}/recurring-bills/auto-post/run?dueDate=2026-03-01",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.OK, firstRun.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondRun.StatusCode);
+
+        var firstPayload = await firstRun.Content.ReadFromJsonAsync<RecurringAutoPostRunResponse>();
+        var secondPayload = await secondRun.Content.ReadFromJsonAsync<RecurringAutoPostRunResponse>();
+        Assert.NotNull(firstPayload);
+        Assert.NotNull(secondPayload);
+        Assert.Equal(1, firstPayload!.PostedCount);
+        Assert.Equal(0, firstPayload.AlreadyProcessedCount);
+        Assert.Equal(0, secondPayload!.PostedCount);
+        Assert.Equal(1, secondPayload.AlreadyProcessedCount);
+
+        await using var verifyScope = _factory.Services.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var postedTransactions = await verifyDb.Transactions
+            .AsNoTracking()
+            .Where(transaction =>
+                transaction.AccountId == accountId
+                && transaction.Description == "Recurring bill auto-post: Idempotent AutoPost Bill")
+            .CountAsync();
+        Assert.Equal(1, postedTransactions);
+    }
+
+    [Fact]
+    public async Task Recurring_AutoPost_Worker_Lock_Prevents_Concurrent_Acquisition()
+    {
+        await using var scopeA = _factory.Services.CreateAsyncScope();
+        var lockA = scopeA.ServiceProvider.GetRequiredService<IRecurringAutoPostWorkerLock>();
+        var leaseA = await lockA.TryAcquireAsync();
+        Assert.NotNull(leaseA);
+
+        await using var scopeB = _factory.Services.CreateAsyncScope();
+        var lockB = scopeB.ServiceProvider.GetRequiredService<IRecurringAutoPostWorkerLock>();
+        var leaseB = await lockB.TryAcquireAsync();
+        Assert.Null(leaseB);
+
+        await leaseA!.DisposeAsync();
+
+        await using var scopeC = _factory.Services.CreateAsyncScope();
+        var lockC = scopeC.ServiceProvider.GetRequiredService<IRecurringAutoPostWorkerLock>();
+        var leaseC = await lockC.TryAcquireAsync();
+        Assert.NotNull(leaseC);
+        await leaseC!.DisposeAsync();
+    }
+
+    [Fact]
     public async Task UserA_Cannot_Run_Manual_Recurring_AutoPost_For_FamilyB()
     {
         using var client = _factory.CreateClient();
