@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using DragonEnvelopes.Contracts.Accounts;
+using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Ledger.Api.CrossCutting.Auth;
 using DragonEnvelopes.Domain.Entities;
 using DragonEnvelopes.Domain.ValueObjects;
@@ -72,6 +73,29 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
     }
 
     [Fact]
+    public async Task Authenticated_User_Can_List_Own_Family_Envelopes_But_Not_Other_Family()
+    {
+        var userId = "ledger-user-a";
+        var ownFamilyId = Guid.Parse("e1000000-0000-0000-0000-000000000011");
+        var otherFamilyId = Guid.Parse("e1000000-0000-0000-0000-000000000012");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAndAccountAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var ownResponse = await client.GetAsync($"/api/v1/envelopes?familyId={ownFamilyId}");
+        var ownPayload = await ownResponse.Content.ReadFromJsonAsync<List<EnvelopeResponse>>();
+
+        var otherResponse = await client.GetAsync($"/api/v1/envelopes?familyId={otherFamilyId}");
+
+        Assert.Equal(HttpStatusCode.OK, ownResponse.StatusCode);
+        Assert.NotNull(ownPayload);
+        Assert.Single(ownPayload!);
+        Assert.Equal("Groceries", ownPayload[0].Name);
+        Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task Authenticated_User_Can_Delete_Own_Family_Transaction()
     {
         var userId = "ledger-user-a";
@@ -113,6 +137,9 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
         using var scope = _factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
 
+        dbContext.TransactionSplits.RemoveRange(dbContext.TransactionSplits);
+        dbContext.Transactions.RemoveRange(dbContext.Transactions);
+        dbContext.Envelopes.RemoveRange(dbContext.Envelopes);
         dbContext.Accounts.RemoveRange(dbContext.Accounts);
         dbContext.FamilyMembers.RemoveRange(dbContext.FamilyMembers);
         dbContext.Families.RemoveRange(dbContext.Families);
@@ -136,6 +163,20 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
             "Primary Checking",
             AccountType.Checking,
             Money.FromDecimal(500m)));
+
+        dbContext.Envelopes.AddRange(
+            new Envelope(
+                Guid.NewGuid(),
+                ownFamilyId,
+                "Groceries",
+                Money.FromDecimal(200m),
+                Money.FromDecimal(150m)),
+            new Envelope(
+                Guid.NewGuid(),
+                otherFamilyId,
+                "Other Family Envelope",
+                Money.FromDecimal(300m),
+                Money.FromDecimal(250m)));
 
         await dbContext.SaveChangesAsync();
     }

@@ -88,6 +88,7 @@ internal static partial class LedgerApiBootstrap
             .AddFluentValidation();
 
         v1.MapAutomationEndpoints()
-            .MapAccountAndTransactionEndpoints();
+            .MapAccountAndTransactionEndpoints()
+            .MapPlanningEndpoints();
     }
 }
