@@ -1,4 +1,6 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
+using DragonEnvelopes.Application.Cqrs;
+using DragonEnvelopes.Application.Cqrs.Transactions;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Transactions;
@@ -16,7 +18,7 @@ internal static partial class AccountAndTransactionEndpoints
                 CreateTransactionRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                ITransactionService transactionService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 var accountFamilyId = await dbContext.Accounts
@@ -29,7 +31,7 @@ internal static partial class AccountAndTransactionEndpoints
                     return Results.Forbid();
                 }
 
-                var transaction = await transactionService.CreateAsync(
+                var command = new CreateTransactionCommand(
                     request.AccountId,
                     request.Amount,
                     request.Description,
@@ -44,8 +46,8 @@ internal static partial class AccountAndTransactionEndpoints
                             split.Amount,
                             split.Category,
                             split.Notes))
-                        .ToArray(),
-                    cancellationToken);
+                        .ToArray());
+                var transaction = await commandBus.SendAsync(command, cancellationToken);
                 return Results.Created($"/api/v1/transactions/{transaction.Id}", EndpointMappers.MapTransactionResponse(transaction));
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
@@ -185,7 +187,7 @@ internal static partial class AccountAndTransactionEndpoints
                 Guid? accountId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                ITransactionService transactionService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!accountId.HasValue)
@@ -203,7 +205,7 @@ internal static partial class AccountAndTransactionEndpoints
                     return Results.Forbid();
                 }
 
-                var transactions = await transactionService.ListAsync(accountId, cancellationToken);
+                var transactions = await queryBus.QueryAsync(new ListTransactionsByAccountQuery(accountId), cancellationToken);
                 return Results.Ok(transactions.Select(EndpointMappers.MapTransactionResponse).ToArray());
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
@@ -232,3 +234,6 @@ internal static partial class AccountAndTransactionEndpoints
 
     }
 }
+
+
+

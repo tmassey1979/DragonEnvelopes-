@@ -12,6 +12,9 @@ public sealed class ApiClientOptions
     public string? LedgerBaseUrl { get; init; } =
         Environment.GetEnvironmentVariable("DRAGONENVELOPES_LEDGER_API_BASE_URL");
 
+    public string? FinancialBaseUrl { get; init; } =
+        Environment.GetEnvironmentVariable("DRAGONENVELOPES_FINANCIAL_API_BASE_URL");
+
     public string ResolveFamilyBaseUrl()
     {
         return ResolveBaseUrl(FamilyBaseUrl, BaseUrl);
@@ -20,6 +23,11 @@ public sealed class ApiClientOptions
     public string ResolveLedgerBaseUrl()
     {
         return ResolveBaseUrl(LedgerBaseUrl, BaseUrl);
+    }
+
+    public string ResolveFinancialBaseUrl()
+    {
+        return ResolveBaseUrl(FinancialBaseUrl, BaseUrl);
     }
 
     private static string ResolveBaseUrl(string? candidate, string fallback)

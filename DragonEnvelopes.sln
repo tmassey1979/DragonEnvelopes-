@@ -37,6 +37,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DragonEnvelopes.Family.Api.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DragonEnvelopes.Ledger.Api.IntegrationTests", "tests\DragonEnvelopes.Ledger.Api.IntegrationTests\DragonEnvelopes.Ledger.Api.IntegrationTests.csproj", "{422825A2-38A6-42F8-8E7C-17DD40175A09}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DragonEnvelopes.Financial.Api", "src\DragonEnvelopes.Financial.Api\DragonEnvelopes.Financial.Api.csproj", "{2082D695-52CF-4134-B8E3-95C26BB52B9B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -227,6 +229,18 @@ Global
 		{422825A2-38A6-42F8-8E7C-17DD40175A09}.Release|x64.Build.0 = Release|Any CPU
 		{422825A2-38A6-42F8-8E7C-17DD40175A09}.Release|x86.ActiveCfg = Release|Any CPU
 		{422825A2-38A6-42F8-8E7C-17DD40175A09}.Release|x86.Build.0 = Release|Any CPU
+		{2082D695-52CF-4134-B8E3-95C26BB52B9B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2082D695-52CF-4134-B8E3-95C26BB52B9B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2082D695-52CF-4134-B8E3-95C26BB52B9B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{2082D695-52CF-4134-B8E3-95C26BB52B9B}.Debug|x64.Build.0 = Debug|Any CPU
+		{2082D695-52CF-4134-B8E3-95C26BB52B9B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{2082D695-52CF-4134-B8E3-95C26BB52B9B}.Debug|x86.Build.0 = Debug|Any CPU
+		{2082D695-52CF-4134-B8E3-95C26BB52B9B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2082D695-52CF-4134-B8E3-95C26BB52B9B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2082D695-52CF-4134-B8E3-95C26BB52B9B}.Release|x64.ActiveCfg = Release|Any CPU
+		{2082D695-52CF-4134-B8E3-95C26BB52B9B}.Release|x64.Build.0 = Release|Any CPU
+		{2082D695-52CF-4134-B8E3-95C26BB52B9B}.Release|x86.ActiveCfg = Release|Any CPU
+		{2082D695-52CF-4134-B8E3-95C26BB52B9B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -247,5 +261,6 @@ Global
 		{ABF9D0E9-29AC-4B42-81A8-A6D3BDD05B84} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{D4E88932-1F00-4C8A-90D0-8069E0EE6F67} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{422825A2-38A6-42F8-8E7C-17DD40175A09} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{2082D695-52CF-4134-B8E3-95C26BB52B9B} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

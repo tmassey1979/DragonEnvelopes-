@@ -18,8 +18,9 @@ public sealed class RouteRegistryClientRoutingTests
         var familyId = Guid.Parse("70000000-0000-0000-0000-000000000001");
         var familyClient = new TrackingBackendApiClient();
         var ledgerClient = new TrackingBackendApiClient();
+        var financialClient = new TrackingBackendApiClient();
         var familyContext = new TestFamilyContext(familyId);
-        var registry = new RouteRegistry(familyClient, ledgerClient, new TestAuthService(), familyContext);
+        var registry = new RouteRegistry(familyClient, ledgerClient, financialClient, new TestAuthService(), familyContext);
 
         var found = registry.TryGetRoute("/accounts", out var route);
         Assert.True(found);
@@ -37,8 +38,9 @@ public sealed class RouteRegistryClientRoutingTests
         var familyId = Guid.Parse("70000000-0000-0000-0000-000000000002");
         var familyClient = new TrackingBackendApiClient();
         var ledgerClient = new TrackingBackendApiClient();
+        var financialClient = new TrackingBackendApiClient();
         var familyContext = new TestFamilyContext(familyId);
-        var registry = new RouteRegistry(familyClient, ledgerClient, new TestAuthService(), familyContext);
+        var registry = new RouteRegistry(familyClient, ledgerClient, financialClient, new TestAuthService(), familyContext);
 
         var found = registry.TryGetRoute("/family-members", out var route);
         Assert.True(found);
@@ -57,8 +59,9 @@ public sealed class RouteRegistryClientRoutingTests
         var familyId = Guid.Parse("70000000-0000-0000-0000-000000000003");
         var familyClient = new TrackingBackendApiClient();
         var ledgerClient = new TrackingBackendApiClient();
+        var financialClient = new TrackingBackendApiClient();
         var familyContext = new TestFamilyContext(familyId);
-        var registry = new RouteRegistry(familyClient, ledgerClient, new TestAuthService(), familyContext);
+        var registry = new RouteRegistry(familyClient, ledgerClient, financialClient, new TestAuthService(), familyContext);
 
         var found = registry.TryGetRoute("/recurring-bills", out var route);
         Assert.True(found);
@@ -68,6 +71,30 @@ public sealed class RouteRegistryClientRoutingTests
 
         Assert.Contains(ledgerClient.GetRequests, path => path.StartsWith("recurring-bills?familyId=", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(familyClient.GetRequests, path => path.StartsWith("recurring-bills?familyId=", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task FinancialIntegrationsRoute_Uses_Financial_Client()
+    {
+        var familyId = Guid.Parse("70000000-0000-0000-0000-000000000004");
+        var familyClient = new TrackingBackendApiClient();
+        var ledgerClient = new TrackingBackendApiClient();
+        var financialClient = new TrackingBackendApiClient();
+        var familyContext = new TestFamilyContext(familyId);
+        var registry = new RouteRegistry(familyClient, ledgerClient, financialClient, new TestAuthService(), familyContext);
+
+        var found = registry.TryGetRoute("/financial-integrations", out var route);
+        Assert.True(found);
+
+        var viewModel = Assert.IsType<FinancialIntegrationsViewModel>(route.Content);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.Contains(
+            financialClient.GetRequests,
+            path => path.StartsWith($"families/{familyId}/financial/status", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(
+            familyClient.GetRequests,
+            path => path.StartsWith($"families/{familyId}/financial/status", StringComparison.OrdinalIgnoreCase));
     }
 
     private static async Task WaitForIdleAsync(object viewModel, int timeoutMilliseconds = 6000)

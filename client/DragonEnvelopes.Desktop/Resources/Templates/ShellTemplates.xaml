@@ -3302,6 +3302,9 @@
                                    Text="{Binding LedgerApiHealthStatus, StringFormat=Ledger API Health: {0}}"
                                    Style="{StaticResource CaptionTextStyle}" />
                         <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding FinancialApiHealthStatus, StringFormat=Financial API Health: {0}}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,6,0,0"
                                    Text="{Binding BackendVersion, StringFormat=Backend Version: {0}}"
                                    Style="{StaticResource CaptionTextStyle}" />
                         <TextBlock Margin="0,6,0,0"
@@ -3318,6 +3321,9 @@
                                    Style="{StaticResource CaptionTextStyle}" />
                         <TextBlock Margin="0,6,0,0"
                                    Text="{Binding LedgerApiStatusMessage}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding FinancialApiStatusMessage}"
                                    Style="{StaticResource CaptionTextStyle}" />
 
                         <TextBlock Margin="0,14,0,0"

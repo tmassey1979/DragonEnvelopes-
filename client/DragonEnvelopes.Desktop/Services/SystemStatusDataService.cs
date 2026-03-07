@@ -12,6 +12,7 @@ public sealed class SystemStatusDataService : ISystemStatusDataService
     private readonly IBackendApiClient _apiClient;
     private readonly string _familyApiHealthUrl;
     private readonly string _ledgerApiHealthUrl;
+    private readonly string _financialApiHealthUrl;
 
     public SystemStatusDataService(IBackendApiClient apiClient)
     {
@@ -22,6 +23,9 @@ public sealed class SystemStatusDataService : ISystemStatusDataService
         _ledgerApiHealthUrl = ResolveHealthUrl(
             "DRAGONENVELOPES_LEDGER_API_HEALTH_URL",
             "http://localhost:18090/health/ready");
+        _financialApiHealthUrl = ResolveHealthUrl(
+            "DRAGONENVELOPES_FINANCIAL_API_HEALTH_URL",
+            "http://localhost:18091/health/ready");
     }
 
     public async Task<SystemRuntimeStatusData> GetRuntimeStatusAsync(CancellationToken cancellationToken = default)
@@ -48,6 +52,7 @@ public sealed class SystemStatusDataService : ISystemStatusDataService
 
         var familyProbe = await ProbeExternalServiceHealthAsync("Family API", _familyApiHealthUrl, cancellationToken);
         var ledgerProbe = await ProbeExternalServiceHealthAsync("Ledger API", _ledgerApiHealthUrl, cancellationToken);
+        var financialProbe = await ProbeExternalServiceHealthAsync("Financial API", _financialApiHealthUrl, cancellationToken);
 
         var checkedAt = health.UtcTime > version.UtcTime
             ? health.UtcTime
@@ -61,7 +66,9 @@ public sealed class SystemStatusDataService : ISystemStatusDataService
             familyProbe.Status,
             ledgerProbe.Status,
             familyProbe.Message,
-            ledgerProbe.Message);
+            ledgerProbe.Message,
+            financialProbe.Status,
+            financialProbe.Message);
     }
 
     private async Task<ServiceProbeResult> ProbeExternalServiceHealthAsync(

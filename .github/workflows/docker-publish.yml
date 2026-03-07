@@ -24,6 +24,8 @@ jobs:
             dockerfile: src/DragonEnvelopes.Family.Api/Dockerfile
           - image: dragonenvelopes-ledger-api
             dockerfile: src/DragonEnvelopes.Ledger.Api/Dockerfile
+          - image: dragonenvelopes-financial-api
+            dockerfile: src/DragonEnvelopes.Financial.Api/Dockerfile
 
     steps:
       - name: Checkout

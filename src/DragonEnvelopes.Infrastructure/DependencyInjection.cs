@@ -1,5 +1,9 @@
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Application.Services;
+using DragonEnvelopes.Application.Cqrs;
+using DragonEnvelopes.Application.Cqrs.Messaging;
+using DragonEnvelopes.Infrastructure.Cqrs;
+using DragonEnvelopes.Infrastructure.Messaging;
 using DragonEnvelopes.Infrastructure.Repositories;
 using DragonEnvelopes.Infrastructure.Persistence;
 using DragonEnvelopes.Infrastructure.Services;
@@ -36,10 +40,22 @@ public static class DependencyInjection
             SmtpEnableSsl = bool.TryParse(configuration["FamilyInvites:Email:SmtpEnableSsl"], out var smtpEnableSsl) && smtpEnableSsl
         };
         var providerSecretEncryptionOptions = BuildProviderSecretEncryptionOptions(configuration);
+        var rabbitMqMessagingOptions = BuildRabbitMqMessagingOptions(configuration);
         services.AddSingleton(Options.Create(familyInviteEmailOptions));
         services.AddSingleton(Options.Create(providerSecretEncryptionOptions));
+        services.AddSingleton(Options.Create(rabbitMqMessagingOptions));
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IProviderSecretProtector, ProviderSecretProtector>();
+        services.AddScoped<ICommandBus, InProcessCommandBus>();
+        services.AddScoped<IQueryBus, InProcessQueryBus>();
+        if (rabbitMqMessagingOptions.Enabled)
+        {
+            services.AddSingleton<IIntegrationEventPublisher, RabbitMqIntegrationEventPublisher>();
+        }
+        else
+        {
+            services.AddSingleton<IIntegrationEventPublisher, NoOpIntegrationEventPublisher>();
+        }
         services.AddScoped<IFamilyInviteSender, FamilyInviteSender>();
         services.AddScoped<IRepositoryMarker, RepositoryMarker>();
         services.AddScoped<IFamilyRepository, FamilyRepository>();
@@ -69,6 +85,45 @@ public static class DependencyInjection
         services.AddScoped<IReportingRepository, ReportingRepository>();
 
         return services;
+    }
+
+    private static RabbitMqMessagingOptions BuildRabbitMqMessagingOptions(IConfiguration configuration)
+    {
+        var enabled = bool.TryParse(configuration["Messaging:RabbitMq:Enabled"], out var enabledValue) && enabledValue;
+        var hostName = configuration["Messaging:RabbitMq:HostName"] ?? "localhost";
+        var port = int.TryParse(configuration["Messaging:RabbitMq:Port"], out var portValue)
+            ? portValue
+            : 5672;
+        var userName = configuration["Messaging:RabbitMq:UserName"] ?? "guest";
+        var password = configuration["Messaging:RabbitMq:Password"] ?? "guest";
+        var virtualHost = configuration["Messaging:RabbitMq:VirtualHost"] ?? "/";
+        var exchangeName = configuration["Messaging:RabbitMq:ExchangeName"] ?? "dragonenvelopes.events";
+        var exchangeType = configuration["Messaging:RabbitMq:ExchangeType"] ?? "topic";
+        var durableExchange = !bool.TryParse(configuration["Messaging:RabbitMq:DurableExchange"], out var durableValue)
+            || durableValue;
+        var enableLedgerConsumer = !bool.TryParse(configuration["Messaging:RabbitMq:EnableLedgerTransactionConsumer"], out var consumerValue)
+            || consumerValue;
+        var ledgerQueue = configuration["Messaging:RabbitMq:LedgerTransactionCreatedQueue"]
+            ?? "dragonenvelopes.financial.ledger-transaction-created";
+        var prefetchCount = ushort.TryParse(configuration["Messaging:RabbitMq:ConsumerPrefetchCount"], out var prefetchValue)
+            ? prefetchValue
+            : (ushort)20;
+
+        return new RabbitMqMessagingOptions
+        {
+            Enabled = enabled,
+            HostName = hostName,
+            Port = port,
+            UserName = userName,
+            Password = password,
+            VirtualHost = virtualHost,
+            ExchangeName = exchangeName,
+            ExchangeType = exchangeType,
+            DurableExchange = durableExchange,
+            EnableLedgerTransactionConsumer = enableLedgerConsumer,
+            LedgerTransactionCreatedQueue = ledgerQueue,
+            ConsumerPrefetchCount = prefetchCount
+        };
     }
 
     private static ProviderSecretEncryptionOptions BuildProviderSecretEncryptionOptions(IConfiguration configuration)

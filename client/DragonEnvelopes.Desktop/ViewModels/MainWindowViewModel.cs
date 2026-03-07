@@ -267,7 +267,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         var familyContext = new FamilyContext();
         var familySelectionStore = new ProtectedFamilySelectionStore();
         var operationStatusCenter = new OperationStatusCenter();
-        var navigationService = new NavigationService(new RouteRegistry(apiClients.Family, apiClients.Ledger, authService, familyContext));
+        var navigationService = new NavigationService(
+            new RouteRegistry(apiClients.Family, apiClients.Ledger, apiClients.Financial, authService, familyContext));
         return (navigationService, authService, apiClient, familyContext, familySelectionStore, operationStatusCenter);
     }
 

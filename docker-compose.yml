@@ -69,6 +69,26 @@ services:
     networks:
       - dragonenvelopes_net
 
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: dragonenvelopes-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-dragon}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-dragon}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - dragonenvelopes_net
+
   api:
     container_name: dragonenvelopes-api
     build:
@@ -154,6 +174,8 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Default: Host=postgres;Port=5432;Database=${APP_DB_NAME:-dragonenvelopes_app};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
@@ -162,8 +184,59 @@ services:
       Authentication__Audience: ${KEYCLOAK_CLIENT_ID:-dragonenvelopes-api}
       Observability__EnableLokiSink: ${OBSERVABILITY_ENABLE_LOKI_SINK:-false}
       Observability__LokiUrl: ${OBSERVABILITY_LOKI_URL:-http://loki:3100}
+      Messaging__RabbitMq__Enabled: ${RABBITMQ_ENABLED:-true}
+      Messaging__RabbitMq__HostName: rabbitmq
+      Messaging__RabbitMq__Port: 5672
+      Messaging__RabbitMq__UserName: ${RABBITMQ_USER:-dragon}
+      Messaging__RabbitMq__Password: ${RABBITMQ_PASSWORD:-dragon}
+      Messaging__RabbitMq__VirtualHost: ${RABBITMQ_VHOST:-/}
+      Messaging__RabbitMq__ExchangeName: ${RABBITMQ_EXCHANGE_NAME:-dragonenvelopes.events}
+      Messaging__RabbitMq__EnableLedgerTransactionConsumer: "false"
     ports:
       - "${LEDGER_API_PORT:-18090}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - dragonenvelopes_net
+
+  financial-api:
+    container_name: dragonenvelopes-financial-api
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: src/DragonEnvelopes.Financial.Api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${APP_DB_NAME:-dragonenvelopes_app};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      Authentication__Authority: http://keycloak:8080/realms/${KEYCLOAK_REALM:-dragonenvelopes}
+      Authentication__PublicAuthority: http://localhost:${KEYCLOAK_PORT:-18080}/realms/${KEYCLOAK_REALM:-dragonenvelopes}
+      Authentication__Audience: ${KEYCLOAK_CLIENT_ID:-dragonenvelopes-api}
+      Observability__EnableLokiSink: ${OBSERVABILITY_ENABLE_LOKI_SINK:-false}
+      Observability__LokiUrl: ${OBSERVABILITY_LOKI_URL:-http://loki:3100}
+      FinancialWorkers__Enabled: ${FINANCIAL_WORKERS_ENABLED:-true}
+      Messaging__RabbitMq__Enabled: ${RABBITMQ_ENABLED:-true}
+      Messaging__RabbitMq__HostName: rabbitmq
+      Messaging__RabbitMq__Port: 5672
+      Messaging__RabbitMq__UserName: ${RABBITMQ_USER:-dragon}
+      Messaging__RabbitMq__Password: ${RABBITMQ_PASSWORD:-dragon}
+      Messaging__RabbitMq__VirtualHost: ${RABBITMQ_VHOST:-/}
+      Messaging__RabbitMq__ExchangeName: ${RABBITMQ_EXCHANGE_NAME:-dragonenvelopes.events}
+      Messaging__RabbitMq__EnableLedgerTransactionConsumer: ${RABBITMQ_LEDGER_CONSUMER_ENABLED:-true}
+      Messaging__RabbitMq__LedgerTransactionCreatedQueue: ${RABBITMQ_LEDGER_TRANSACTION_QUEUE:-dragonenvelopes.financial.ledger-transaction-created}
+    ports:
+      - "${FINANCIAL_API_PORT:-18091}:8080"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
       interval: 10s

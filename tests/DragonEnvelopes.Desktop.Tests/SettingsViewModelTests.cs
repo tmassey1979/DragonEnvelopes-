@@ -26,8 +26,10 @@ public sealed class SettingsViewModelTests
         Assert.Equal("Healthy", viewModel.BackendHealthStatus);
         Assert.Equal("Healthy", viewModel.FamilyApiHealthStatus);
         Assert.Equal("Unavailable", viewModel.LedgerApiHealthStatus);
+        Assert.Equal("Healthy", viewModel.FinancialApiHealthStatus);
         Assert.Contains("reachable", viewModel.FamilyApiStatusMessage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("timed out", viewModel.LedgerApiStatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("reachable", viewModel.FinancialApiStatusMessage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("settings-user", viewModel.SessionStatus, StringComparison.OrdinalIgnoreCase);
         Assert.NotEmpty(viewModel.CapabilityMatrix);
         Assert.Contains(viewModel.CapabilityMatrix, item => item.Status == "Available");
@@ -230,7 +232,9 @@ public sealed class SettingsViewModelTests
                 "Healthy",
                 "Unavailable",
                 "Family API reachable at http://localhost:18089/health/ready.",
-                "Ledger API timed out at http://localhost:18090/health/ready."));
+                "Ledger API timed out at http://localhost:18090/health/ready.",
+                "Healthy",
+                "Financial API reachable at http://localhost:18091/health/ready."));
         }
     }
 

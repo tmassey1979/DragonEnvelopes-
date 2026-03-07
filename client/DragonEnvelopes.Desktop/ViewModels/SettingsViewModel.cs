@@ -128,6 +128,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     private string ledgerApiStatusMessage = "Ledger API status not loaded.";
 
     [ObservableProperty]
+    private string financialApiHealthStatus = "Unknown";
+
+    [ObservableProperty]
+    private string financialApiStatusMessage = "Financial API status not loaded.";
+
+    [ObservableProperty]
     private bool hasSettingsError;
 
     [ObservableProperty]
@@ -215,6 +221,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             LedgerApiHealthStatus = status.LedgerApiHealthStatus;
             FamilyApiStatusMessage = status.FamilyApiStatusMessage;
             LedgerApiStatusMessage = status.LedgerApiStatusMessage;
+            FinancialApiHealthStatus = status.FinancialApiHealthStatus;
+            FinancialApiStatusMessage = status.FinancialApiStatusMessage;
         }
         catch (Exception ex)
         {
@@ -223,8 +231,10 @@ public sealed partial class SettingsViewModel : ObservableObject
             BackendCheckedAt = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd HH:mm:ss 'UTC'");
             FamilyApiHealthStatus = "Unavailable";
             LedgerApiHealthStatus = "Unavailable";
+            FinancialApiHealthStatus = "Unavailable";
             FamilyApiStatusMessage = "Family API status unavailable because primary runtime status check failed.";
             LedgerApiStatusMessage = "Ledger API status unavailable because primary runtime status check failed.";
+            FinancialApiStatusMessage = "Financial API status unavailable because primary runtime status check failed.";
         }
     }
 

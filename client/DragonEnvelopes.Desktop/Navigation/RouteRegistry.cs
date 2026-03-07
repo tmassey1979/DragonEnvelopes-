@@ -9,7 +9,12 @@ public sealed class RouteRegistry : IRouteRegistry
 {
     private readonly IReadOnlyDictionary<string, RouteDefinition> _routes;
 
-    public RouteRegistry(IBackendApiClient familyApiClient, IBackendApiClient ledgerApiClient, IAuthService authService, IFamilyContext familyContext)
+    public RouteRegistry(
+        IBackendApiClient familyApiClient,
+        IBackendApiClient ledgerApiClient,
+        IBackendApiClient financialApiClient,
+        IAuthService authService,
+        IFamilyContext familyContext)
     {
         var routeList = new[]
         {
@@ -49,7 +54,7 @@ public sealed class RouteRegistry : IRouteRegistry
                 Glyph: "\uE9CA",
                 TopBarSubtitle: "Plaid and Stripe onboarding + card controls",
                 Content: new FinancialIntegrationsViewModel(
-                    new FinancialIntegrationDataService(familyApiClient, familyContext),
+                    new FinancialIntegrationDataService(financialApiClient, familyContext),
                     new AccountsDataService(ledgerApiClient, familyContext),
                     new EnvelopesDataService(ledgerApiClient, familyContext),
                     new DesktopPlaidLinkService()),
@@ -95,7 +100,7 @@ public sealed class RouteRegistry : IRouteRegistry
                 Content: new OnboardingWizardViewModel(
                     new OnboardingDataService(familyApiClient, familyContext),
                     new FamilyMembersDataService(familyApiClient, familyContext),
-                    new FinancialIntegrationDataService(familyApiClient, familyContext),
+                    new FinancialIntegrationDataService(financialApiClient, familyContext),
                     new AccountsDataService(ledgerApiClient, familyContext),
                     new DesktopPlaidLinkService(),
                     new ReportsDataService(ledgerApiClient, familyContext),
@@ -118,7 +123,7 @@ public sealed class RouteRegistry : IRouteRegistry
     }
 
     public RouteRegistry(IBackendApiClient apiClient, IAuthService authService, IFamilyContext familyContext)
-        : this(apiClient, apiClient, authService, familyContext)
+        : this(apiClient, apiClient, apiClient, authService, familyContext)
     {
     }
 

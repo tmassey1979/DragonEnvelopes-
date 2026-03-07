@@ -1,5 +1,7 @@
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Application.Mapping;
+using DragonEnvelopes.Application.Cqrs;
+using DragonEnvelopes.Application.Cqrs.Transactions;
 using DragonEnvelopes.Application.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -37,6 +39,8 @@ public static class DependencyInjection
         services.AddScoped<IRecurringBillService, RecurringBillService>();
         services.AddScoped<IImportService, ImportService>();
         services.AddScoped<IReportingService, ReportingService>();
+        services.AddScoped<ICommandHandler<CreateTransactionCommand, DTOs.TransactionDetails>, CreateTransactionCommandHandler>();
+        services.AddScoped<IQueryHandler<ListTransactionsByAccountQuery, IReadOnlyList<DTOs.TransactionDetails>>, ListTransactionsByAccountQueryHandler>();
         services.AddSingleton<IImportDedupService, ImportDedupService>();
         services.AddSingleton<IRemainingBudgetCalculator, RemainingBudgetCalculator>();
         services.AddSingleton<IApplicationMapper, IdentityMapper>();

@@ -9,7 +9,8 @@ public static class DesktopApiClientFactory
     {
         var familyClient = CreateClient(authService, options.ResolveFamilyBaseUrl());
         var ledgerClient = CreateClient(authService, options.ResolveLedgerBaseUrl());
-        return new DesktopApiClients(familyClient, ledgerClient);
+        var financialClient = CreateClient(authService, options.ResolveFinancialBaseUrl());
+        return new DesktopApiClients(familyClient, ledgerClient, financialClient);
     }
 
     private static IBackendApiClient CreateClient(IAuthService authService, string baseUrl)

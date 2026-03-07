@@ -8,4 +8,6 @@ public sealed record SystemRuntimeStatusData(
     string FamilyApiHealthStatus = "Unknown",
     string LedgerApiHealthStatus = "Unknown",
     string FamilyApiStatusMessage = "Family API status not checked.",
-    string LedgerApiStatusMessage = "Ledger API status not checked.");
+    string LedgerApiStatusMessage = "Ledger API status not checked.",
+    string FinancialApiHealthStatus = "Unknown",
+    string FinancialApiStatusMessage = "Financial API status not checked.");

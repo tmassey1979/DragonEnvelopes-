@@ -11,6 +11,7 @@ Initial implementation uses .NET 8 with a Clean Architecture layout.
 - `src/DragonEnvelopes.Api`
 - `src/DragonEnvelopes.Family.Api`
 - `src/DragonEnvelopes.Ledger.Api`
+- `src/DragonEnvelopes.Financial.Api`
 - `src/DragonEnvelopes.Contracts`
 - `src/DragonEnvelopes.ProviderClients`
 - `client/DragonEnvelopes.Desktop`
@@ -34,7 +35,7 @@ Initial implementation uses .NET 8 with a Clean Architecture layout.
 - Application: references Domain.
 - ProviderClients: references Application and Domain.
 - Infrastructure: references Application and Domain.
-- API/Family API/Ledger API: reference Application, Infrastructure, Contracts, and ProviderClients.
+- API/Family API/Ledger API/Financial API: reference Application, Infrastructure, Contracts, and ProviderClients.
 - Desktop: references Contracts only.
 - Tests: reference only the layer they validate.
 
@@ -56,7 +57,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Start the split service profile (in addition to default services) when you want Family/Ledger API containers:
+Start the split service profile (in addition to default services) when you want Family/Ledger/Financial API containers:
 
 ```powershell
 docker compose --profile microservices up -d --build
@@ -77,6 +78,9 @@ docker compose --profile microservices up -d --build
 - `API_PORT`: Host port mapped to API container `8080`.
 - `FAMILY_API_PORT`: Host port mapped to Family API container `8080` (microservices profile).
 - `LEDGER_API_PORT`: Host port mapped to Ledger API container `8080` (microservices profile).
+- `FINANCIAL_API_PORT`: Host port mapped to Financial API container `8080` (microservices profile).
+- `RABBITMQ_PORT`: Host port mapped to RabbitMQ AMQP port `5672`.
+- `RABBITMQ_MANAGEMENT_PORT`: Host port mapped to RabbitMQ management UI `15672`.
 - `PGADMIN_DEFAULT_EMAIL`: pgAdmin login email.
 - `PGADMIN_DEFAULT_PASSWORD`: pgAdmin login password.
 - `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME`: Keycloak bootstrap admin username.
@@ -85,8 +89,16 @@ docker compose --profile microservices up -d --build
 - `KEYCLOAK_CLIENT_ID`: Client/audience used by API auth config.
 - `KEYCLOAK_ADMIN_REALM`: Realm used for Keycloak admin token flow (typically `master`).
 - `KEYCLOAK_ADMIN_CLIENT_ID`: Admin client id for token acquisition (typically `admin-cli`).
-- `OBSERVABILITY_ENABLE_LOKI_SINK`: Enables direct API -> Loki sink for API, Family API, and Ledger API (`true` or `false`).
+- `RABBITMQ_USER`: RabbitMQ default username.
+- `RABBITMQ_PASSWORD`: RabbitMQ default password.
+- `RABBITMQ_VHOST`: RabbitMQ virtual host.
+- `RABBITMQ_ENABLED`: Enables RabbitMQ publisher/consumer wiring for split services.
+- `RABBITMQ_EXCHANGE_NAME`: Topic exchange used for integration events.
+- `RABBITMQ_LEDGER_CONSUMER_ENABLED`: Enables Financial API ledger-transaction consumer worker.
+- `RABBITMQ_LEDGER_TRANSACTION_QUEUE`: Queue name for ledger transaction created events in Financial API.
+- `OBSERVABILITY_ENABLE_LOKI_SINK`: Enables direct API -> Loki sink for API, Family API, Ledger API, and Financial API (`true` or `false`).
 - `OBSERVABILITY_LOKI_URL`: Loki base URL used by all API sinks.
+- `FINANCIAL_WORKERS_ENABLED`: Enables hosted financial workers in Financial API (`true` or `false`).
 - `LOKI_PORT`: Host port mapped to Loki container `3100` (observability profile).
 - `GRAFANA_PORT`: Host port mapped to Grafana container `3000` (observability profile).
 - `GRAFANA_ADMIN_USER`: Grafana admin username (observability profile).
@@ -104,6 +116,9 @@ Default local endpoints:
 - API: `http://localhost:18088`
 - Family API: `http://localhost:18089` (microservices profile)
 - Ledger API: `http://localhost:18090` (microservices profile)
+- Financial API: `http://localhost:18091` (microservices profile)
+- RabbitMQ AMQP: `amqp://localhost:5672`
+- RabbitMQ Management UI: `http://localhost:15672`
 - Keycloak: `http://localhost:18080`
 - pgAdmin: `http://localhost:5050`
 - Postgres: `localhost:5433`
@@ -125,6 +140,24 @@ API health endpoints:
 - Readiness: `http://localhost:18088/health/ready`
 - Family API readiness: `http://localhost:18089/health/ready` (microservices profile)
 - Ledger API readiness: `http://localhost:18090/health/ready` (microservices profile)
+- Financial API readiness: `http://localhost:18091/health/ready` (microservices profile)
+
+### CQRS + RabbitMQ Baseline
+
+- Ledger transaction creation now runs through CQRS command dispatch.
+- Transaction list retrieval runs through CQRS query dispatch.
+- Ledger publish path emits `ledger.transaction.created.v1` to RabbitMQ topic exchange.
+- Financial API hosts a RabbitMQ consumer for `ledger.transaction.created.v1` and processes messages with explicit ack/nack behavior.
+- RabbitMQ config keys:
+  - `Messaging__RabbitMq__Enabled`
+  - `Messaging__RabbitMq__HostName`
+  - `Messaging__RabbitMq__Port`
+  - `Messaging__RabbitMq__UserName`
+  - `Messaging__RabbitMq__Password`
+  - `Messaging__RabbitMq__VirtualHost`
+  - `Messaging__RabbitMq__ExchangeName`
+  - `Messaging__RabbitMq__EnableLedgerTransactionConsumer`
+  - `Messaging__RabbitMq__LedgerTransactionCreatedQueue`
 
 ### Observability Profile (Grafana + Loki + Promtail)
 
@@ -154,9 +187,9 @@ Provisioned Grafana assets:
 Saved log query patterns:
 
 - Service error rate (5xx over 5 minutes):
-  - `sum by (application) (count_over_time({application=~"dragonenvelopes-(api|family-api|ledger-api)"} |= "HTTP" | json | StatusCode=~"5.." [5m]))`
+  - `sum by (application) (count_over_time({application=~"dragonenvelopes-(api|family-api|ledger-api|financial-api)"} |= "HTTP" | json | StatusCode=~"5.." [5m]))`
 - Service trace + exception details:
-  - `{application=~"dragonenvelopes-(api|family-api|ledger-api)"} | json | line_format "{{.application}} {{.level}} {{.CorrelationId}} {{.RequestPath}} {{.StatusCode}} {{.ExceptionType}} {{.message}}"`
+  - `{application=~"dragonenvelopes-(api|family-api|ledger-api|financial-api)"} | json | line_format "{{.application}} {{.level}} {{.CorrelationId}} {{.RequestPath}} {{.StatusCode}} {{.ExceptionType}} {{.message}}"`
 
 Verification flow:
 
@@ -165,9 +198,10 @@ Verification flow:
    - `Invoke-WebRequest http://localhost:18088/health/live`
    - `Invoke-WebRequest http://localhost:18089/health/live`
    - `Invoke-WebRequest http://localhost:18090/health/live`
+   - `Invoke-WebRequest http://localhost:18091/health/live`
    - `Invoke-WebRequest http://localhost:18088/api/v1/system/health`
 3. Open Grafana Explore and run:
-   - `{application=~"dragonenvelopes-(api|family-api|ledger-api)"}`
+   - `{application=~"dragonenvelopes-(api|family-api|ledger-api|financial-api)"}`
 4. Confirm logs include `CorrelationId`, `RequestPath`, and `StatusCode`.
 
 Troubleshooting:
@@ -182,6 +216,7 @@ Troubleshooting:
   - `docker compose exec api printenv Observability__LokiUrl`
   - `docker compose exec family-api printenv Observability__LokiUrl`
   - `docker compose exec ledger-api printenv Observability__LokiUrl`
+  - `docker compose exec financial-api printenv Observability__LokiUrl`
 
 ## Keycloak Bootstrap
 
@@ -248,9 +283,11 @@ Troubleshooting:
   - `DRAGONENVELOPES_API_BASE_URL` (default `http://localhost:18088/api/v1/`)
   - `DRAGONENVELOPES_FAMILY_API_BASE_URL` (defaults to `DRAGONENVELOPES_API_BASE_URL` when not set)
   - `DRAGONENVELOPES_LEDGER_API_BASE_URL` (defaults to `DRAGONENVELOPES_API_BASE_URL` when not set)
+  - `DRAGONENVELOPES_FINANCIAL_API_BASE_URL` (defaults to `DRAGONENVELOPES_API_BASE_URL` when not set)
 - Optional split-service health probe overrides used by desktop Settings:
   - `DRAGONENVELOPES_FAMILY_API_HEALTH_URL` (default `http://localhost:18089/health/ready`)
   - `DRAGONENVELOPES_LEDGER_API_HEALTH_URL` (default `http://localhost:18090/health/ready`)
+  - `DRAGONENVELOPES_FINANCIAL_API_HEALTH_URL` (default `http://localhost:18091/health/ready`)
 
 ## Desktop Installer (MSI)
 
