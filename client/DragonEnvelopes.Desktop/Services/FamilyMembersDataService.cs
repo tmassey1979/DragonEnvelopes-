@@ -119,6 +119,50 @@ public sealed class FamilyMembersDataService : IFamilyMembersDataService
             .ToArray();
     }
 
+    public async Task<IReadOnlyList<FamilyInviteTimelineItemViewModel>> GetInviteTimelineAsync(
+        string? emailFilter = null,
+        string? eventTypeFilter = null,
+        int take = 200,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var boundedTake = Math.Clamp(take, 1, 500);
+        var queryParts = new List<string> { $"take={boundedTake}" };
+        if (!string.IsNullOrWhiteSpace(emailFilter))
+        {
+            queryParts.Add($"email={Uri.EscapeDataString(emailFilter.Trim())}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(eventTypeFilter))
+        {
+            queryParts.Add($"eventType={Uri.EscapeDataString(eventTypeFilter.Trim())}");
+        }
+
+        var query = string.Join('&', queryParts);
+        using var response = await _apiClient.GetAsync(
+            $"families/{familyId}/invites/timeline?{query}",
+            cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Family invite timeline request failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var events = await JsonSerializer.DeserializeAsync<List<FamilyInviteTimelineEventResponse>>(stream, SerializerOptions, cancellationToken)
+            ?? [];
+
+        return events
+            .OrderByDescending(static timelineEvent => timelineEvent.OccurredAtUtc)
+            .Select(static timelineEvent => new FamilyInviteTimelineItemViewModel(
+                timelineEvent.Id,
+                timelineEvent.InviteId,
+                timelineEvent.Email,
+                timelineEvent.EventType,
+                string.IsNullOrWhiteSpace(timelineEvent.ActorUserId) ? "unknown" : timelineEvent.ActorUserId!,
+                timelineEvent.OccurredAtUtc))
+            .ToArray();
+    }
+
     public async Task<CreateFamilyInviteResultData> CreateInviteAsync(
         string email,
         string role,

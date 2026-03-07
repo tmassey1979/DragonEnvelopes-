@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `none (ready for next issue)`.
+- Active task: `#240 Role-aware command gating audit across desktop workspaces`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#233` Family members: add remove confirmation + short undo window.
-- Last updated: `2026-03-06`.
+- Previous completed task: `#234` Family invite audit timeline (create/resend/cancel/redeem).
+- Last updated: `2026-03-07`.

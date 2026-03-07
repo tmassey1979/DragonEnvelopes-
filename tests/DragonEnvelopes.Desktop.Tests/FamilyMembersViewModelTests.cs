@@ -144,6 +144,51 @@ public sealed class FamilyMembersViewModelTests
         Assert.Equal(0, familyMembersDataService.ResendInviteCallCount);
     }
 
+    [Fact]
+    public async Task InviteTimeline_Filters_By_Email_And_EventType()
+    {
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        var inviteId = Guid.NewGuid();
+        familyMembersDataService.InviteTimeline.AddRange(
+        [
+            new FamilyInviteTimelineItemViewModel(
+                Guid.NewGuid(),
+                inviteId,
+                "alpha@test.dev",
+                "Created",
+                "parent-a",
+                DateTimeOffset.UtcNow.AddMinutes(-15)),
+            new FamilyInviteTimelineItemViewModel(
+                Guid.NewGuid(),
+                inviteId,
+                "alpha@test.dev",
+                "Resent",
+                "parent-a",
+                DateTimeOffset.UtcNow.AddMinutes(-10)),
+            new FamilyInviteTimelineItemViewModel(
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                "bravo@test.dev",
+                "Redeemed",
+                "redeemer-a",
+                DateTimeOffset.UtcNow.AddMinutes(-5))
+        ]);
+
+        var viewModel = new FamilyMembersViewModel(familyMembersDataService);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.Equal(1, familyMembersDataService.GetInviteTimelineCallCount);
+        Assert.Equal(3, viewModel.InviteTimeline.Count);
+
+        viewModel.InviteTimelineEmailFilter = "alpha@test.dev";
+        Assert.Equal(2, viewModel.InviteTimeline.Count);
+
+        viewModel.InviteTimelineEventTypeFilter = "Resent";
+        Assert.Single(viewModel.InviteTimeline);
+        Assert.Equal("Resent", viewModel.InviteTimeline.Single().EventType);
+        Assert.Contains("1 timeline event", viewModel.InviteTimelineSummary, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static async Task WaitForIdleAsync(FamilyMembersViewModel viewModel, int timeoutMilliseconds = 6000)
     {
         var stopwatch = Stopwatch.StartNew();

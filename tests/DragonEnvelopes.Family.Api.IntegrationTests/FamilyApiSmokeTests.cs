@@ -105,6 +105,38 @@ public sealed class FamilyApiSmokeTests : IClassFixture<FamilyApiFactory>
     }
 
     [Fact]
+    public async Task Authenticated_User_Can_List_Invite_Timeline_For_Own_Family()
+    {
+        var userId = "family-invite-timeline-user-a";
+        var ownFamilyId = Guid.Parse("d2050000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("d2050000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var inviteEmail = $"family-api-timeline-{Guid.NewGuid():N}@test.dev";
+        var createResponse = await client.PostAsJsonAsync($"/api/v1/families/{ownFamilyId}/invites", new
+        {
+            email = inviteEmail,
+            role = "Adult",
+            expiresInHours = 24
+        });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        var timelineResponse = await client.GetAsync(
+            $"/api/v1/families/{ownFamilyId}/invites/timeline?email={Uri.EscapeDataString(inviteEmail)}&take=20");
+        Assert.Equal(HttpStatusCode.OK, timelineResponse.StatusCode);
+
+        var timeline = await timelineResponse.Content.ReadFromJsonAsync<List<FamilyInviteTimelineEventResponse>>();
+        Assert.NotNull(timeline);
+        Assert.Contains(timeline!, timelineEvent => timelineEvent.EventType == "Created");
+
+        var forbiddenResponse = await client.GetAsync($"/api/v1/families/{otherFamilyId}/invites/timeline?take=20");
+        Assert.Equal(HttpStatusCode.Forbidden, forbiddenResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task Authenticated_User_Can_Update_And_Remove_Family_Member()
     {
         var userId = "family-member-manage-user-a";

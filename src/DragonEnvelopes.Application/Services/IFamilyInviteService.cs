@@ -9,6 +9,7 @@ public interface IFamilyInviteService
         string email,
         string role,
         int expiresInHours,
+        string? actorUserId = null,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<FamilyInviteDetails>> ListByFamilyAsync(
@@ -17,15 +18,25 @@ public interface IFamilyInviteService
 
     Task<FamilyInviteDetails> CancelAsync(
         Guid inviteId,
+        string? actorUserId = null,
         CancellationToken cancellationToken = default);
 
     Task<CreateFamilyInviteResult> ResendAsync(
         Guid inviteId,
         int expiresInHours,
+        string? actorUserId = null,
         CancellationToken cancellationToken = default);
 
     Task<FamilyInviteDetails> AcceptAsync(
         string inviteToken,
+        string? actorUserId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<FamilyInviteTimelineEventDetails>> ListTimelineByFamilyAsync(
+        Guid familyId,
+        string? emailFilter = null,
+        string? eventTypeFilter = null,
+        int take = 200,
         CancellationToken cancellationToken = default);
 
     Task<FamilyInviteRedemptionDetails> RedeemAsync(

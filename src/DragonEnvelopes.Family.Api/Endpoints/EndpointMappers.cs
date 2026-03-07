@@ -77,6 +77,18 @@ internal static class EndpointMappers
             invite.CancelledAtUtc);
     }
 
+    public static FamilyInviteTimelineEventResponse MapFamilyInviteTimelineEventResponse(FamilyInviteTimelineEventDetails timelineEvent)
+    {
+        return new FamilyInviteTimelineEventResponse(
+            timelineEvent.Id,
+            timelineEvent.FamilyId,
+            timelineEvent.InviteId,
+            timelineEvent.Email,
+            timelineEvent.EventType,
+            timelineEvent.ActorUserId,
+            timelineEvent.OccurredAtUtc);
+    }
+
     public static RedeemFamilyInviteResponse MapRedeemFamilyInviteResponse(FamilyInviteRedemptionDetails details)
     {
         return new RedeemFamilyInviteResponse(

@@ -21,6 +21,7 @@ public sealed class FamilyInviteService(
         string email,
         string role,
         int expiresInHours,
+        string? actorUserId = null,
         CancellationToken cancellationToken = default)
     {
         var family = await familyRepository.GetFamilyByIdAsync(familyId, cancellationToken);
@@ -53,6 +54,12 @@ public sealed class FamilyInviteService(
             now.AddHours(Math.Clamp(expiresInHours, 1, 24 * 30)));
 
         await familyInviteRepository.AddAsync(invite, cancellationToken);
+        await RecordTimelineEventAsync(
+            invite,
+            FamilyInviteTimelineEventType.Created,
+            actorUserId,
+            now,
+            cancellationToken);
 
         try
         {
@@ -96,20 +103,29 @@ public sealed class FamilyInviteService(
 
     public async Task<FamilyInviteDetails> CancelAsync(
         Guid inviteId,
+        string? actorUserId = null,
         CancellationToken cancellationToken = default)
     {
         var invite = await familyInviteRepository.GetByIdForUpdateAsync(inviteId, cancellationToken)
             ?? throw new DomainValidationException("Invite was not found.");
 
-        invite.Expire(clock.UtcNow);
-        invite.Cancel(clock.UtcNow);
+        var now = clock.UtcNow;
+        invite.Expire(now);
+        invite.Cancel(now);
         await familyInviteRepository.SaveChangesAsync(cancellationToken);
+        await RecordTimelineEventAsync(
+            invite,
+            FamilyInviteTimelineEventType.Cancelled,
+            actorUserId,
+            now,
+            cancellationToken);
         return Map(invite);
     }
 
     public async Task<CreateFamilyInviteResult> ResendAsync(
         Guid inviteId,
         int expiresInHours,
+        string? actorUserId = null,
         CancellationToken cancellationToken = default)
     {
         var invite = await familyInviteRepository.GetByIdForUpdateAsync(inviteId, cancellationToken)
@@ -129,6 +145,12 @@ public sealed class FamilyInviteService(
             now);
 
         await familyInviteRepository.SaveChangesAsync(cancellationToken);
+        await RecordTimelineEventAsync(
+            invite,
+            FamilyInviteTimelineEventType.Resent,
+            actorUserId,
+            now,
+            cancellationToken);
 
         try
         {
@@ -150,14 +172,22 @@ public sealed class FamilyInviteService(
 
     public async Task<FamilyInviteDetails> AcceptAsync(
         string inviteToken,
+        string? actorUserId = null,
         CancellationToken cancellationToken = default)
     {
         var tokenHash = ComputeTokenHash(inviteToken);
         var invite = await familyInviteRepository.GetByTokenHashForUpdateAsync(tokenHash, cancellationToken)
             ?? throw new DomainValidationException("Invite was not found.");
 
-        invite.Accept(clock.UtcNow);
+        var now = clock.UtcNow;
+        invite.Accept(now);
         await familyInviteRepository.SaveChangesAsync(cancellationToken);
+        await RecordTimelineEventAsync(
+            invite,
+            FamilyInviteTimelineEventType.Accepted,
+            actorUserId,
+            now,
+            cancellationToken);
         return Map(invite);
     }
 
@@ -192,6 +222,12 @@ public sealed class FamilyInviteService(
             {
                 invite.Accept(now);
                 await familyInviteRepository.SaveChangesAsync(cancellationToken);
+                await RecordTimelineEventAsync(
+                    invite,
+                    FamilyInviteTimelineEventType.Redeemed,
+                    normalizedUserId,
+                    now,
+                    cancellationToken);
             }
 
             return new FamilyInviteRedemptionDetails(
@@ -225,11 +261,47 @@ public sealed class FamilyInviteService(
 
         invite.Accept(now);
         await familyInviteRepository.SaveChangesAsync(cancellationToken);
+        await RecordTimelineEventAsync(
+            invite,
+            FamilyInviteTimelineEventType.Redeemed,
+            normalizedUserId,
+            now,
+            cancellationToken);
 
         return new FamilyInviteRedemptionDetails(
             Map(invite),
             MapMember(member),
             CreatedNewMember: true);
+    }
+
+    public async Task<IReadOnlyList<FamilyInviteTimelineEventDetails>> ListTimelineByFamilyAsync(
+        Guid familyId,
+        string? emailFilter = null,
+        string? eventTypeFilter = null,
+        int take = 200,
+        CancellationToken cancellationToken = default)
+    {
+        var events = await familyInviteRepository.ListTimelineByFamilyAsync(familyId, cancellationToken);
+
+        var filtered = events.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(emailFilter))
+        {
+            var normalizedEmailFilter = emailFilter.Trim().ToLowerInvariant();
+            filtered = filtered.Where(timelineEvent => timelineEvent.Email.Contains(normalizedEmailFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(eventTypeFilter))
+        {
+            filtered = filtered.Where(timelineEvent =>
+                timelineEvent.EventType.ToString().Equals(eventTypeFilter.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        var boundedTake = Math.Clamp(take, 1, 500);
+        return filtered
+            .OrderByDescending(static timelineEvent => timelineEvent.OccurredAtUtc)
+            .Take(boundedTake)
+            .Select(MapTimelineEvent)
+            .ToArray();
     }
 
     private static string ComputeTokenHash(string token)
@@ -266,6 +338,18 @@ public sealed class FamilyInviteService(
             member.Name,
             member.Email.Value,
             member.Role.ToString());
+    }
+
+    private static FamilyInviteTimelineEventDetails MapTimelineEvent(FamilyInviteTimelineEvent timelineEvent)
+    {
+        return new FamilyInviteTimelineEventDetails(
+            timelineEvent.Id,
+            timelineEvent.FamilyId,
+            timelineEvent.InviteId,
+            timelineEvent.Email,
+            timelineEvent.EventType.ToString(),
+            timelineEvent.ActorUserId,
+            timelineEvent.OccurredAtUtc);
     }
 
     private static void EnsureRedeemable(FamilyInvite invite)
@@ -320,5 +404,30 @@ public sealed class FamilyInviteService(
         }
 
         return value.Trim();
+    }
+
+    private Task RecordTimelineEventAsync(
+        FamilyInvite invite,
+        FamilyInviteTimelineEventType eventType,
+        string? actorUserId,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var timelineEvent = new FamilyInviteTimelineEvent(
+            Guid.NewGuid(),
+            invite.FamilyId,
+            invite.Id,
+            invite.Email,
+            eventType,
+            NormalizeOptional(actorUserId),
+            occurredAtUtc);
+        return familyInviteRepository.AddTimelineEventAsync(timelineEvent, cancellationToken);
+    }
+
+    private static string? NormalizeOptional(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Trim();
     }
 }

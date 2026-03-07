@@ -419,6 +419,87 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_List_Invite_Timeline_And_Filter_By_Email_And_EventType()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var inviteEmail = $"timeline-{Guid.NewGuid():N}@test.dev";
+        var createResponse = await client.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/invites", new
+        {
+            email = inviteEmail,
+            role = "Adult",
+            expiresInHours = 24
+        });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        var created = await createResponse.Content.ReadFromJsonAsync<CreateFamilyInviteResponse>();
+        Assert.NotNull(created);
+
+        var resendResponse = await client.PostAsJsonAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/invites/{created!.Invite.Id}/resend",
+            new
+            {
+                expiresInHours = 96
+            });
+        Assert.Equal(HttpStatusCode.OK, resendResponse.StatusCode);
+
+        var cancelResponse = await client.PostAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/invites/{created.Invite.Id}/cancel",
+            content: null);
+        Assert.Equal(HttpStatusCode.OK, cancelResponse.StatusCode);
+
+        var escapedEmail = Uri.EscapeDataString(inviteEmail);
+        var timelineResponse = await client.GetAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/invites/timeline?email={escapedEmail}&take=20");
+        Assert.Equal(HttpStatusCode.OK, timelineResponse.StatusCode);
+
+        var timeline = await timelineResponse.Content.ReadFromJsonAsync<List<FamilyInviteTimelineEventResponse>>();
+        Assert.NotNull(timeline);
+        Assert.Contains(timeline!, timelineEvent => timelineEvent.EventType == "Created" && timelineEvent.ActorUserId == TestApiFactory.UserAId);
+        Assert.Contains(timeline!, timelineEvent => timelineEvent.EventType == "Resent" && timelineEvent.ActorUserId == TestApiFactory.UserAId);
+        Assert.Contains(timeline!, timelineEvent => timelineEvent.EventType == "Cancelled" && timelineEvent.ActorUserId == TestApiFactory.UserAId);
+
+        var filteredResponse = await client.GetAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/invites/timeline?email={escapedEmail}&eventType=Resent&take=20");
+        Assert.Equal(HttpStatusCode.OK, filteredResponse.StatusCode);
+
+        var filteredTimeline = await filteredResponse.Content.ReadFromJsonAsync<List<FamilyInviteTimelineEventResponse>>();
+        Assert.NotNull(filteredTimeline);
+        Assert.NotEmpty(filteredTimeline!);
+        Assert.All(
+            filteredTimeline!,
+            timelineEvent =>
+            {
+                Assert.Equal("Resent", timelineEvent.EventType);
+                Assert.True(
+                    string.Equals(inviteEmail, timelineEvent.Email, StringComparison.OrdinalIgnoreCase),
+                    "Filtered timeline should only include invite email matches.");
+            });
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_List_FamilyB_Invite_Timeline()
+    {
+        using var ownerClient = _factory.CreateClient();
+        ownerClient.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserBId);
+
+        var createResponse = await ownerClient.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/invites", new
+        {
+            email = $"timeline-b-{Guid.NewGuid():N}@test.dev",
+            role = "Adult",
+            expiresInHours = 24
+        });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/invites/timeline?take=20");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserA_Cannot_Resend_Invite_For_FamilyB()
     {
         using var ownerClient = _factory.CreateClient();

@@ -1689,6 +1689,61 @@
                                             <DataGridTextColumn Header="Expires" Binding="{Binding ExpiresAtUtc}" Width="130" />
                                         </DataGrid.Columns>
                                     </DataGrid>
+
+                                    <Border Margin="0,12,0,0"
+                                            Padding="10"
+                                            CornerRadius="8"
+                                            Background="{StaticResource PanelBackgroundBrush}"
+                                            BorderBrush="{StaticResource PanelOutlineBrush}"
+                                            BorderThickness="1">
+                                        <StackPanel>
+                                            <TextBlock Text="Invite Timeline" Style="{StaticResource CaptionTextStyle}" />
+                                            <TextBlock Margin="0,6,0,0"
+                                                       Text="{Binding InviteTimelineSummary}"
+                                                       Style="{StaticResource CaptionTextStyle}" />
+
+                                            <Grid Margin="0,10,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="1.2*" />
+                                                    <ColumnDefinition Width="10" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Margin="0,0,0,6" Text="Email Filter" Style="{StaticResource CaptionTextStyle}" />
+                                                    <TextBox Text="{Binding InviteTimelineEmailFilter, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Margin="0,0,0,6" Text="Event Type" Style="{StaticResource CaptionTextStyle}" />
+                                                    <ComboBox ItemsSource="{Binding TimelineEventFilterOptions}"
+                                                              SelectedItem="{Binding InviteTimelineEventTypeFilter, Mode=TwoWay}" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <DataGrid Margin="0,10,0,0"
+                                                      ItemsSource="{Binding InviteTimeline}"
+                                                      AutoGenerateColumns="False"
+                                                      HeadersVisibility="Column"
+                                                      CanUserAddRows="False"
+                                                      CanUserDeleteRows="False"
+                                                      IsReadOnly="True"
+                                                      RowHeight="30"
+                                                      Background="{StaticResource PanelMutedBackgroundBrush}"
+                                                      BorderBrush="{StaticResource PanelOutlineBrush}"
+                                                      BorderThickness="1"
+                                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                      ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Occurred" Binding="{Binding OccurredAtUtcDisplay}" Width="145" />
+                                                    <DataGridTextColumn Header="Email" Binding="{Binding Email}" Width="*" />
+                                                    <DataGridTextColumn Header="Event" Binding="{Binding EventType}" Width="95" />
+                                                    <DataGridTextColumn Header="Actor User Id" Binding="{Binding ActorUserId}" Width="165" />
+                                                    <DataGridTextColumn Header="Invite Id" Binding="{Binding InviteId}" Width="220" />
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

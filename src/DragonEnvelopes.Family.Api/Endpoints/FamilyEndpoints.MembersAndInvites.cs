@@ -125,6 +125,7 @@ internal static partial class FamilyEndpoints
                     request.Email,
                     request.Role,
                     request.ExpiresInHours,
+                    user.FindFirstValue("sub"),
                     cancellationToken);
 
                 return Results.Created(
@@ -156,6 +157,34 @@ internal static partial class FamilyEndpoints
             .WithName("ListFamilyInvites")
             .WithOpenApi();
 
+        v1.MapGet("/families/{familyId:guid}/invites/timeline", async (
+                Guid familyId,
+                string? email,
+                string? eventType,
+                int? take,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IFamilyInviteService familyInviteService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var timelineEvents = await familyInviteService.ListTimelineByFamilyAsync(
+                    familyId,
+                    email,
+                    eventType,
+                    take ?? 200,
+                    cancellationToken);
+
+                return Results.Ok(timelineEvents.Select(EndpointMappers.MapFamilyInviteTimelineEventResponse).ToArray());
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("ListFamilyInviteTimeline")
+            .WithOpenApi();
+
         v1.MapPost("/families/{familyId:guid}/invites/{inviteId:guid}/cancel", async (
                 Guid familyId,
                 Guid inviteId,
@@ -169,7 +198,10 @@ internal static partial class FamilyEndpoints
                     return Results.Forbid();
                 }
 
-                var invite = await familyInviteService.CancelAsync(inviteId, cancellationToken);
+                var invite = await familyInviteService.CancelAsync(
+                    inviteId,
+                    user.FindFirstValue("sub"),
+                    cancellationToken);
                 return Results.Ok(EndpointMappers.MapFamilyInviteResponse(invite));
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
@@ -193,6 +225,7 @@ internal static partial class FamilyEndpoints
                 var result = await familyInviteService.ResendAsync(
                     inviteId,
                     request.ExpiresInHours,
+                    user.FindFirstValue("sub"),
                     cancellationToken);
 
                 return Results.Ok(new CreateFamilyInviteResponse(
@@ -208,7 +241,10 @@ internal static partial class FamilyEndpoints
                 IFamilyInviteService familyInviteService,
                 CancellationToken cancellationToken) =>
             {
-                var invite = await familyInviteService.AcceptAsync(request.InviteToken, cancellationToken);
+                var invite = await familyInviteService.AcceptAsync(
+                    request.InviteToken,
+                    actorUserId: null,
+                    cancellationToken);
                 return Results.Ok(EndpointMappers.MapFamilyInviteResponse(invite));
             })
             .AllowAnonymous()

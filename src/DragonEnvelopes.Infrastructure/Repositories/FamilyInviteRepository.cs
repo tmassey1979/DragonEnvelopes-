@@ -13,6 +13,14 @@ public sealed class FamilyInviteRepository(DragonEnvelopesDbContext dbContext) :
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task AddTimelineEventAsync(
+        FamilyInviteTimelineEvent timelineEvent,
+        CancellationToken cancellationToken = default)
+    {
+        dbContext.FamilyInviteTimelineEvents.Add(timelineEvent);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<FamilyInvite>> ListByFamilyAsync(
         Guid familyId,
         CancellationToken cancellationToken = default)
@@ -20,6 +28,17 @@ public sealed class FamilyInviteRepository(DragonEnvelopesDbContext dbContext) :
         return await dbContext.FamilyInvites
             .Where(x => x.FamilyId == familyId)
             .OrderByDescending(x => x.CreatedAtUtc)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<FamilyInviteTimelineEvent>> ListTimelineByFamilyAsync(
+        Guid familyId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.FamilyInviteTimelineEvents
+            .AsNoTracking()
+            .Where(x => x.FamilyId == familyId)
+            .OrderByDescending(x => x.OccurredAtUtc)
             .ToArrayAsync(cancellationToken);
     }
 

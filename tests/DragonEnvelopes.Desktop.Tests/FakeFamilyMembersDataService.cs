@@ -7,9 +7,11 @@ internal sealed class FakeFamilyMembersDataService : IFamilyMembersDataService
 {
     public List<FamilyMemberItemViewModel> Members { get; } = [];
     public List<FamilyInviteItemViewModel> Invites { get; } = [];
+    public List<FamilyInviteTimelineItemViewModel> InviteTimeline { get; } = [];
 
     public int GetMembersCallCount { get; private set; }
     public int GetInvitesCallCount { get; private set; }
+    public int GetInviteTimelineCallCount { get; private set; }
     public int CreateInviteCallCount { get; private set; }
     public int CancelInviteCallCount { get; private set; }
     public int ResendInviteCallCount { get; private set; }
@@ -61,6 +63,35 @@ internal sealed class FakeFamilyMembersDataService : IFamilyMembersDataService
     {
         GetInvitesCallCount += 1;
         return Task.FromResult<IReadOnlyList<FamilyInviteItemViewModel>>(Invites.ToArray());
+    }
+
+    public Task<IReadOnlyList<FamilyInviteTimelineItemViewModel>> GetInviteTimelineAsync(
+        string? emailFilter = null,
+        string? eventTypeFilter = null,
+        int take = 200,
+        CancellationToken cancellationToken = default)
+    {
+        GetInviteTimelineCallCount += 1;
+        var filtered = InviteTimeline.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(emailFilter))
+        {
+            var normalizedEmail = emailFilter.Trim();
+            filtered = filtered.Where(item => item.Email.Contains(normalizedEmail, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(eventTypeFilter) && !eventTypeFilter.Equals("All", StringComparison.OrdinalIgnoreCase))
+        {
+            var normalizedEventType = eventTypeFilter.Trim();
+            filtered = filtered.Where(item => item.EventType.Equals(normalizedEventType, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var rows = filtered
+            .OrderByDescending(static item => item.OccurredAtUtc)
+            .Take(Math.Clamp(take, 1, 500))
+            .ToArray();
+
+        return Task.FromResult<IReadOnlyList<FamilyInviteTimelineItemViewModel>>(rows);
     }
 
     public Task<CreateFamilyInviteResultData> CreateInviteAsync(

@@ -24,6 +24,12 @@ public interface IFamilyMembersDataService
 
     Task<IReadOnlyList<FamilyInviteItemViewModel>> GetInvitesAsync(CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<FamilyInviteTimelineItemViewModel>> GetInviteTimelineAsync(
+        string? emailFilter = null,
+        string? eventTypeFilter = null,
+        int take = 200,
+        CancellationToken cancellationToken = default);
+
     Task<CreateFamilyInviteResultData> CreateInviteAsync(
         string email,
         string role,

@@ -9,9 +9,11 @@ namespace DragonEnvelopes.Desktop.ViewModels;
 public sealed partial class FamilyMembersViewModel : ObservableObject
 {
     private static readonly string[] Roles = ["Parent", "Adult", "Teen", "Child"];
+    private static readonly string[] TimelineEventFilters = ["All", "Created", "Resent", "Cancelled", "Accepted", "Redeemed"];
     private const int RemoveConfirmationWindowSeconds = 10;
     private const int UndoWindowSeconds = 10;
     private readonly IFamilyMembersDataService _familyMembersDataService;
+    private IReadOnlyList<FamilyInviteTimelineItemViewModel> _allInviteTimeline = [];
     private Guid? _pendingRemoveConfirmationMemberId;
     private DateTimeOffset? _pendingRemoveConfirmationExpiresAtUtc;
     private FamilyMemberItemViewModel? _undoMemberSnapshot;
@@ -48,6 +50,7 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
     public IAsyncRelayCommand UndoRemoveMemberCommand { get; }
     public IRelayCommand ResetDraftCommand { get; }
     public IReadOnlyList<string> RoleOptions { get; } = Roles;
+    public IReadOnlyList<string> TimelineEventFilterOptions { get; } = TimelineEventFilters;
 
     [ObservableProperty]
     private ObservableCollection<FamilyMemberItemViewModel> members = [];
@@ -60,6 +63,9 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
 
     [ObservableProperty]
     private FamilyInviteItemViewModel? selectedInvite;
+
+    [ObservableProperty]
+    private ObservableCollection<FamilyInviteTimelineItemViewModel> inviteTimeline = [];
 
     [ObservableProperty]
     private string draftKeycloakUserId = string.Empty;
@@ -84,6 +90,12 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
 
     [ObservableProperty]
     private string draftInviteExpiresInHours = "168";
+
+    [ObservableProperty]
+    private string inviteTimelineEmailFilter = string.Empty;
+
+    [ObservableProperty]
+    private string inviteTimelineEventTypeFilter = TimelineEventFilters[0];
 
     [ObservableProperty]
     private string editorMessage = "Add a family member to the active family.";
@@ -112,6 +124,9 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
     [ObservableProperty]
     private bool canUndoRemove;
 
+    [ObservableProperty]
+    private string inviteTimelineSummary = "Invite timeline not loaded.";
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         IsLoading = true;
@@ -126,6 +141,8 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
             var invites = await _familyMembersDataService.GetInvitesAsync(cancellationToken);
             Invites = new ObservableCollection<FamilyInviteItemViewModel>(invites);
             SelectedInvite = Invites.FirstOrDefault();
+            _allInviteTimeline = await _familyMembersDataService.GetInviteTimelineAsync(cancellationToken: cancellationToken);
+            ApplyInviteTimelineFilters();
             IsEmpty = Members.Count == 0 && Invites.Count == 0;
         }
         catch (Exception ex)
@@ -152,6 +169,10 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
             ClearRemoveConfirmation();
         }
     }
+
+    partial void OnInviteTimelineEmailFilterChanged(string value) => ApplyInviteTimelineFilters();
+
+    partial void OnInviteTimelineEventTypeFilterChanged(string value) => ApplyInviteTimelineFilters();
 
     private async Task AddMemberAsync(CancellationToken cancellationToken)
     {
@@ -494,5 +515,30 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
     {
         _pendingRemoveConfirmationMemberId = null;
         _pendingRemoveConfirmationExpiresAtUtc = null;
+    }
+
+    private void ApplyInviteTimelineFilters()
+    {
+        var filtered = _allInviteTimeline.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(InviteTimelineEmailFilter))
+        {
+            var emailFilter = InviteTimelineEmailFilter.Trim();
+            filtered = filtered.Where(item => item.Email.Contains(emailFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(InviteTimelineEventTypeFilter)
+            && !InviteTimelineEventTypeFilter.Equals("All", StringComparison.OrdinalIgnoreCase))
+        {
+            filtered = filtered.Where(item => item.EventType.Equals(InviteTimelineEventTypeFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var rows = filtered
+            .OrderByDescending(static item => item.OccurredAtUtc)
+            .ToArray();
+        InviteTimeline = new ObservableCollection<FamilyInviteTimelineItemViewModel>(rows);
+        InviteTimelineSummary = InviteTimeline.Count == 0
+            ? "No timeline events match current filters."
+            : $"{InviteTimeline.Count} timeline event(s) shown.";
     }
 }
