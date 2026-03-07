@@ -1744,6 +1744,79 @@
                                             </DataGrid>
                                         </StackPanel>
                                     </Border>
+
+                                    <Border Margin="0,12,0,0"
+                                            Padding="10"
+                                            CornerRadius="8"
+                                            Background="{StaticResource PanelMutedBackgroundBrush}"
+                                            BorderBrush="{StaticResource PanelOutlineBrush}"
+                                            BorderThickness="1">
+                                        <StackPanel>
+                                            <TextBlock Text="Bulk Member Import (CSV)" Style="{StaticResource CaptionTextStyle}" />
+                                            <TextBlock Margin="0,6,0,0"
+                                                       Text="{Binding MemberImportPreviewSummary}"
+                                                       Style="{StaticResource CaptionTextStyle}" />
+                                            <TextBlock Margin="0,4,0,0"
+                                                       Text="{Binding MemberImportCommitSummary}"
+                                                       Style="{StaticResource CaptionTextStyle}" />
+
+                                            <Grid Margin="0,10,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBox Grid.Column="0"
+                                                         Text="{Binding MemberImportCsvFilePath, UpdateSourceTrigger=PropertyChanged}" />
+                                                <Button Grid.Column="2"
+                                                        Content="Browse CSV"
+                                                        Command="{Binding BrowseMemberImportCsvCommand}" />
+                                            </Grid>
+
+                                            <TextBox Margin="0,8,0,0"
+                                                     Height="110"
+                                                     AcceptsReturn="True"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     TextWrapping="NoWrap"
+                                                     Text="{Binding MemberImportCsvContent, UpdateSourceTrigger=PropertyChanged}" />
+
+                                            <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                                                <Button Margin="0,0,8,0"
+                                                        Content="Preview Import"
+                                                        Command="{Binding PreviewMemberImportCommand}" />
+                                                <Button Margin="0,0,8,0"
+                                                        Content="Commit Import"
+                                                        Command="{Binding CommitMemberImportCommand}" />
+                                                <Button Content="Clear"
+                                                        Command="{Binding ClearMemberImportCommand}" />
+                                            </StackPanel>
+
+                                            <DataGrid Margin="0,10,0,0"
+                                                      ItemsSource="{Binding MemberImportPreviewRows}"
+                                                      AutoGenerateColumns="False"
+                                                      HeadersVisibility="Column"
+                                                      CanUserAddRows="False"
+                                                      CanUserDeleteRows="False"
+                                                      IsReadOnly="True"
+                                                      RowHeight="30"
+                                                      Background="{StaticResource PanelBackgroundBrush}"
+                                                      BorderBrush="{StaticResource PanelOutlineBrush}"
+                                                      BorderThickness="1"
+                                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                      ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Row" Binding="{Binding RowNumber}" Width="55" />
+                                                    <DataGridTextColumn Header="Keycloak User Id" Binding="{Binding KeycloakUserId}" Width="150" />
+                                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="120" />
+                                                    <DataGridTextColumn Header="Email" Binding="{Binding Email}" Width="*" />
+                                                    <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="80" />
+                                                    <DataGridCheckBoxColumn Header="Duplicate" Binding="{Binding IsDuplicate}" Width="75" />
+                                                    <DataGridTextColumn Header="Errors" Binding="{Binding Errors}" Width="240" />
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

@@ -808,3 +808,29 @@ public sealed class ImportCommitRequestValidator : AbstractValidator<ImportCommi
             .WithMessage("Delimiter must be exactly one character when provided.");
     }
 }
+
+public sealed class FamilyMemberImportPreviewRequestValidator : AbstractValidator<FamilyMemberImportPreviewRequest>
+{
+    public FamilyMemberImportPreviewRequestValidator()
+    {
+        RuleFor(static request => request.CsvContent)
+            .NotEmpty();
+
+        RuleFor(static request => request.Delimiter)
+            .Must(static delimiter => string.IsNullOrEmpty(delimiter) || delimiter.Length == 1)
+            .WithMessage("Delimiter must be exactly one character when provided.");
+    }
+}
+
+public sealed class FamilyMemberImportCommitRequestValidator : AbstractValidator<FamilyMemberImportCommitRequest>
+{
+    public FamilyMemberImportCommitRequestValidator()
+    {
+        RuleFor(static request => request.CsvContent)
+            .NotEmpty();
+
+        RuleFor(static request => request.Delimiter)
+            .Must(static delimiter => string.IsNullOrEmpty(delimiter) || delimiter.Length == 1)
+            .WithMessage("Delimiter must be exactly one character when provided.");
+    }
+}

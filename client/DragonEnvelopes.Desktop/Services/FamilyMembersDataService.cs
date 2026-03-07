@@ -241,6 +241,85 @@ public sealed class FamilyMembersDataService : IFamilyMembersDataService
             resent.InviteToken);
     }
 
+    public async Task<FamilyMemberImportPreviewResultData> PreviewMemberImportAsync(
+        string csvContent,
+        string? delimiter = null,
+        IReadOnlyDictionary<string, string>? headerMappings = null,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var payload = new FamilyMemberImportPreviewRequest(
+            csvContent,
+            delimiter,
+            headerMappings);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"families/{familyId}/members/import/preview")
+        {
+            Content = JsonContent.Create(payload, options: SerializerOptions)
+        };
+
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Family member import preview request failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var preview = await JsonSerializer.DeserializeAsync<FamilyMemberImportPreviewResponse>(stream, SerializerOptions, cancellationToken)
+            ?? throw new InvalidOperationException("Family member import preview returned an empty response.");
+
+        return new FamilyMemberImportPreviewResultData(
+            preview.Parsed,
+            preview.Valid,
+            preview.Deduped,
+            preview.Rows.Select(static row => new FamilyMemberImportPreviewRowData(
+                    row.RowNumber,
+                    row.KeycloakUserId ?? string.Empty,
+                    row.Name ?? string.Empty,
+                    row.Email ?? string.Empty,
+                    row.Role ?? string.Empty,
+                    row.IsDuplicate,
+                    row.Errors.Count == 0 ? string.Empty : string.Join("; ", row.Errors)))
+                .ToArray());
+    }
+
+    public async Task<FamilyMemberImportCommitResultData> CommitMemberImportAsync(
+        string csvContent,
+        string? delimiter = null,
+        IReadOnlyDictionary<string, string>? headerMappings = null,
+        IReadOnlyList<int>? acceptedRowNumbers = null,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var payload = new FamilyMemberImportCommitRequest(
+            csvContent,
+            delimiter,
+            headerMappings,
+            acceptedRowNumbers);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"families/{familyId}/members/import/commit")
+        {
+            Content = JsonContent.Create(payload, options: SerializerOptions)
+        };
+
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Family member import commit request failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var commit = await JsonSerializer.DeserializeAsync<FamilyMemberImportCommitResponse>(stream, SerializerOptions, cancellationToken)
+            ?? throw new InvalidOperationException("Family member import commit returned an empty response.");
+
+        return new FamilyMemberImportCommitResultData(
+            commit.Parsed,
+            commit.Valid,
+            commit.Deduped,
+            commit.Inserted,
+            commit.Failed);
+    }
+
     private static FamilyInviteItemViewModel MapInvite(FamilyInviteResponse invite)
     {
         return new FamilyInviteItemViewModel(

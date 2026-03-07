@@ -89,6 +89,33 @@ internal static class EndpointMappers
             timelineEvent.OccurredAtUtc);
     }
 
+    public static FamilyMemberImportPreviewResponse MapFamilyMemberImportPreviewResponse(FamilyMemberImportPreviewDetails preview)
+    {
+        return new FamilyMemberImportPreviewResponse(
+            preview.Parsed,
+            preview.Valid,
+            preview.Deduped,
+            preview.Rows.Select(static row => new FamilyMemberImportPreviewRowResponse(
+                    row.RowNumber,
+                    row.KeycloakUserId,
+                    row.Name,
+                    row.Email,
+                    row.Role,
+                    row.IsDuplicate,
+                    row.Errors))
+                .ToArray());
+    }
+
+    public static FamilyMemberImportCommitResponse MapFamilyMemberImportCommitResponse(FamilyMemberImportCommitDetails commit)
+    {
+        return new FamilyMemberImportCommitResponse(
+            commit.Parsed,
+            commit.Valid,
+            commit.Deduped,
+            commit.Inserted,
+            commit.Failed);
+    }
+
     public static RedeemFamilyInviteResponse MapRedeemFamilyInviteResponse(FamilyInviteRedemptionDetails details)
     {
         return new RedeemFamilyInviteResponse(

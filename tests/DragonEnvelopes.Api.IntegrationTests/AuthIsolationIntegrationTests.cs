@@ -807,6 +807,87 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Preview_And_Commit_FamilyMember_Csv_Import()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var duplicateEmail = $"family-import-{suffix}-dup@test.dev";
+        var csv = string.Join('\n', [
+            "keycloakUserId,name,email,role",
+            $"family-import-{suffix}-1,Import One,family-import-{suffix}-1@test.dev,Adult",
+            $"family-import-{suffix}-2,Import Two,{duplicateEmail},Teen",
+            $"family-import-{suffix}-3,Import Three,{duplicateEmail},Child",
+            $"family-import-{suffix}-4,Import Four,family-import-{suffix}-4@test.dev,UnknownRole"
+        ]);
+
+        var previewResponse = await client.PostAsJsonAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/members/import/preview",
+            new
+            {
+                csvContent = csv,
+                delimiter = ",",
+                headerMappings = (object?)null
+            });
+
+        Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
+        var preview = await previewResponse.Content.ReadFromJsonAsync<FamilyMemberImportPreviewResponse>();
+        Assert.NotNull(preview);
+        Assert.Equal(4, preview!.Parsed);
+        Assert.Equal(2, preview.Valid);
+        Assert.Equal(1, preview.Deduped);
+        Assert.Contains(preview.Rows, row => row.RowNumber == 4 && row.Errors.Any(static error => error.Contains("Duplicate email", StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(preview.Rows, row => row.RowNumber == 5 && row.Errors.Any(static error => error.Contains("Role is invalid", StringComparison.OrdinalIgnoreCase)));
+
+        var commitResponse = await client.PostAsJsonAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/members/import/commit",
+            new
+            {
+                csvContent = csv,
+                delimiter = ",",
+                headerMappings = (object?)null,
+                acceptedRowNumbers = new[] { 2, 3, 4, 5 }
+            });
+
+        Assert.Equal(HttpStatusCode.OK, commitResponse.StatusCode);
+        var commit = await commitResponse.Content.ReadFromJsonAsync<FamilyMemberImportCommitResponse>();
+        Assert.NotNull(commit);
+        Assert.Equal(4, commit!.Parsed);
+        Assert.Equal(2, commit.Valid);
+        Assert.Equal(1, commit.Deduped);
+        Assert.Equal(2, commit.Inserted);
+        Assert.Equal(2, commit.Failed);
+
+        var membersResponse = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/members");
+        Assert.Equal(HttpStatusCode.OK, membersResponse.StatusCode);
+        var members = await membersResponse.Content.ReadFromJsonAsync<List<FamilyMemberResponse>>();
+        Assert.NotNull(members);
+        Assert.Contains(members!, member => member.KeycloakUserId == $"family-import-{suffix}-1");
+        Assert.Contains(members!, member => member.KeycloakUserId == $"family-import-{suffix}-2");
+        Assert.DoesNotContain(members!, member => member.KeycloakUserId == $"family-import-{suffix}-3");
+        Assert.DoesNotContain(members!, member => member.KeycloakUserId == $"family-import-{suffix}-4");
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Import_FamilyMembers_For_FamilyB()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/members/import/preview",
+            new
+            {
+                csvContent = "keycloakUserId,name,email,role\\nblocked-user,Blocked User,blocked@test.dev,Adult",
+                delimiter = ",",
+                headerMappings = (object?)null
+            });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Invite_Can_Be_Accepted_Anonymously_By_Token()
     {
         using var authorizedClient = _factory.CreateClient();

@@ -8,10 +8,13 @@ internal sealed class FakeFamilyMembersDataService : IFamilyMembersDataService
     public List<FamilyMemberItemViewModel> Members { get; } = [];
     public List<FamilyInviteItemViewModel> Invites { get; } = [];
     public List<FamilyInviteTimelineItemViewModel> InviteTimeline { get; } = [];
+    public List<FamilyMemberImportPreviewRowData> MemberImportPreviewRows { get; } = [];
 
     public int GetMembersCallCount { get; private set; }
     public int GetInvitesCallCount { get; private set; }
     public int GetInviteTimelineCallCount { get; private set; }
+    public int PreviewMemberImportCallCount { get; private set; }
+    public int CommitMemberImportCallCount { get; private set; }
     public int CreateInviteCallCount { get; private set; }
     public int CancelInviteCallCount { get; private set; }
     public int ResendInviteCallCount { get; private set; }
@@ -147,5 +150,56 @@ internal sealed class FakeFamilyMembersDataService : IFamilyMembersDataService
         Invites.Remove(existing);
         Invites.Add(resent);
         return Task.FromResult(new CreateFamilyInviteResultData(resent, "resend-test-invite-token"));
+    }
+
+    public Task<FamilyMemberImportPreviewResultData> PreviewMemberImportAsync(
+        string csvContent,
+        string? delimiter = null,
+        IReadOnlyDictionary<string, string>? headerMappings = null,
+        CancellationToken cancellationToken = default)
+    {
+        PreviewMemberImportCallCount += 1;
+        var rows = MemberImportPreviewRows.ToArray();
+        return Task.FromResult(new FamilyMemberImportPreviewResultData(
+            Parsed: rows.Length,
+            Valid: rows.Count(static row => !row.IsDuplicate && string.IsNullOrWhiteSpace(row.Errors)),
+            Deduped: rows.Count(static row => row.IsDuplicate),
+            Rows: rows));
+    }
+
+    public Task<FamilyMemberImportCommitResultData> CommitMemberImportAsync(
+        string csvContent,
+        string? delimiter = null,
+        IReadOnlyDictionary<string, string>? headerMappings = null,
+        IReadOnlyList<int>? acceptedRowNumbers = null,
+        CancellationToken cancellationToken = default)
+    {
+        CommitMemberImportCallCount += 1;
+        var acceptedSet = acceptedRowNumbers is { Count: > 0 }
+            ? acceptedRowNumbers.ToHashSet()
+            : null;
+        var rows = MemberImportPreviewRows
+            .Where(row => acceptedSet is null || acceptedSet.Contains(row.RowNumber))
+            .ToArray();
+        var insertedRows = rows
+            .Where(static row => !row.IsDuplicate && string.IsNullOrWhiteSpace(row.Errors))
+            .ToArray();
+
+        foreach (var row in insertedRows)
+        {
+            Members.Add(new FamilyMemberItemViewModel(
+                Guid.NewGuid(),
+                row.KeycloakUserId,
+                row.Name,
+                row.Email,
+                row.Role));
+        }
+
+        return Task.FromResult(new FamilyMemberImportCommitResultData(
+            Parsed: MemberImportPreviewRows.Count,
+            Valid: MemberImportPreviewRows.Count(static row => !row.IsDuplicate && string.IsNullOrWhiteSpace(row.Errors)),
+            Deduped: MemberImportPreviewRows.Count(static row => row.IsDuplicate),
+            Inserted: insertedRows.Length,
+            Failed: rows.Length - insertedRows.Length));
     }
 }

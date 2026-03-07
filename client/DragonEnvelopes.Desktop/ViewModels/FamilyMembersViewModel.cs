@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Net.Mail;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DragonEnvelopes.Desktop.Services;
+using Microsoft.Win32;
 
 namespace DragonEnvelopes.Desktop.ViewModels;
 
@@ -36,6 +38,10 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
         RemoveSelectedMemberCommand = new AsyncRelayCommand(RemoveSelectedMemberAsync);
         UndoRemoveMemberCommand = new AsyncRelayCommand(UndoRemoveMemberAsync);
         ResetDraftCommand = new RelayCommand(ResetDraft);
+        BrowseMemberImportCsvCommand = new RelayCommand(BrowseMemberImportCsv);
+        PreviewMemberImportCommand = new AsyncRelayCommand(PreviewMemberImportAsync);
+        CommitMemberImportCommand = new AsyncRelayCommand(CommitMemberImportAsync);
+        ClearMemberImportCommand = new RelayCommand(ClearMemberImport);
 
         _ = LoadCommand.ExecuteAsync(null);
     }
@@ -49,6 +55,10 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
     public IAsyncRelayCommand RemoveSelectedMemberCommand { get; }
     public IAsyncRelayCommand UndoRemoveMemberCommand { get; }
     public IRelayCommand ResetDraftCommand { get; }
+    public IRelayCommand BrowseMemberImportCsvCommand { get; }
+    public IAsyncRelayCommand PreviewMemberImportCommand { get; }
+    public IAsyncRelayCommand CommitMemberImportCommand { get; }
+    public IRelayCommand ClearMemberImportCommand { get; }
     public IReadOnlyList<string> RoleOptions { get; } = Roles;
     public IReadOnlyList<string> TimelineEventFilterOptions { get; } = TimelineEventFilters;
 
@@ -66,6 +76,9 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
 
     [ObservableProperty]
     private ObservableCollection<FamilyInviteTimelineItemViewModel> inviteTimeline = [];
+
+    [ObservableProperty]
+    private ObservableCollection<FamilyMemberImportPreviewRowViewModel> memberImportPreviewRows = [];
 
     [ObservableProperty]
     private string draftKeycloakUserId = string.Empty;
@@ -90,6 +103,12 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
 
     [ObservableProperty]
     private string draftInviteExpiresInHours = "168";
+
+    [ObservableProperty]
+    private string memberImportCsvFilePath = string.Empty;
+
+    [ObservableProperty]
+    private string memberImportCsvContent = string.Empty;
 
     [ObservableProperty]
     private string inviteTimelineEmailFilter = string.Empty;
@@ -126,6 +145,12 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
 
     [ObservableProperty]
     private string inviteTimelineSummary = "Invite timeline not loaded.";
+
+    [ObservableProperty]
+    private string memberImportPreviewSummary = "No family member import preview loaded.";
+
+    [ObservableProperty]
+    private string memberImportCommitSummary = "No family member import commit has run.";
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
@@ -540,5 +565,135 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
         InviteTimelineSummary = InviteTimeline.Count == 0
             ? "No timeline events match current filters."
             : $"{InviteTimeline.Count} timeline event(s) shown.";
+    }
+
+    private void BrowseMemberImportCsv()
+    {
+        try
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                CheckFileExists = true,
+                Multiselect = false
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            MemberImportCsvFilePath = dialog.FileName;
+            MemberImportCsvContent = File.ReadAllText(dialog.FileName);
+            MemberImportPreviewSummary = $"Loaded CSV file '{Path.GetFileName(dialog.FileName)}'.";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to load member import CSV file: {ex.Message}";
+        }
+    }
+
+    private async Task PreviewMemberImportAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(MemberImportCsvContent))
+        {
+            HasError = true;
+            ErrorMessage = "CSV content is required for member import preview.";
+            return;
+        }
+
+        try
+        {
+            var preview = await _familyMembersDataService.PreviewMemberImportAsync(
+                MemberImportCsvContent,
+                delimiter: ",",
+                headerMappings: null,
+                cancellationToken);
+
+            MemberImportPreviewRows = new ObservableCollection<FamilyMemberImportPreviewRowViewModel>(
+                preview.Rows.Select(static row => new FamilyMemberImportPreviewRowViewModel(
+                    row.RowNumber,
+                    row.KeycloakUserId,
+                    row.Name,
+                    row.Email,
+                    row.Role,
+                    row.IsDuplicate,
+                    row.Errors)));
+            MemberImportPreviewSummary =
+                $"Preview parsed {preview.Parsed} row(s): valid {preview.Valid}, duplicates {preview.Deduped}.";
+            MemberImportCommitSummary = "No family member import commit has run.";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to preview family member import: {ex.Message}";
+            MemberImportPreviewRows.Clear();
+        }
+    }
+
+    private async Task CommitMemberImportAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(MemberImportCsvContent))
+        {
+            HasError = true;
+            ErrorMessage = "CSV content is required for member import commit.";
+            return;
+        }
+
+        if (MemberImportPreviewRows.Count == 0)
+        {
+            await PreviewMemberImportAsync(cancellationToken);
+            if (HasError)
+            {
+                return;
+            }
+        }
+
+        var acceptedRows = MemberImportPreviewRows
+            .Where(static row => !row.IsDuplicate && string.IsNullOrWhiteSpace(row.Errors))
+            .Select(static row => row.RowNumber)
+            .ToArray();
+
+        if (acceptedRows.Length == 0)
+        {
+            HasError = true;
+            ErrorMessage = "No valid import rows are available to commit.";
+            return;
+        }
+
+        try
+        {
+            var result = await _familyMembersDataService.CommitMemberImportAsync(
+                MemberImportCsvContent,
+                delimiter: ",",
+                headerMappings: null,
+                acceptedRowNumbers: acceptedRows,
+                cancellationToken: cancellationToken);
+            MemberImportCommitSummary =
+                $"Commit parsed {result.Parsed} row(s): inserted {result.Inserted}, failed {result.Failed}, duplicates {result.Deduped}.";
+            EditorMessage = $"Family member import committed {result.Inserted} row(s).";
+            await LoadAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to commit family member import: {ex.Message}";
+        }
+    }
+
+    private void ClearMemberImport()
+    {
+        MemberImportCsvFilePath = string.Empty;
+        MemberImportCsvContent = string.Empty;
+        MemberImportPreviewRows.Clear();
+        MemberImportPreviewSummary = "No family member import preview loaded.";
+        MemberImportCommitSummary = "No family member import commit has run.";
     }
 }

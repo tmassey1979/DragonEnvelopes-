@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using DragonEnvelopes.Desktop.Services;
 using DragonEnvelopes.Desktop.ViewModels;
 
 namespace DragonEnvelopes.Desktop.Tests;
@@ -187,6 +188,50 @@ public sealed class FamilyMembersViewModelTests
         Assert.Single(viewModel.InviteTimeline);
         Assert.Equal("Resent", viewModel.InviteTimeline.Single().EventType);
         Assert.Contains("1 timeline event", viewModel.InviteTimelineSummary, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task MemberImportPreview_And_Commit_Uses_ValidRows()
+    {
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        familyMembersDataService.MemberImportPreviewRows.AddRange(
+        [
+            new FamilyMemberImportPreviewRowData(
+                2,
+                "import-kc-1",
+                "Import One",
+                "import-one@test.dev",
+                "Adult",
+                IsDuplicate: false,
+                Errors: string.Empty),
+            new FamilyMemberImportPreviewRowData(
+                3,
+                "import-kc-2",
+                "Import Two",
+                "import-two@test.dev",
+                "Teen",
+                IsDuplicate: true,
+                Errors: "Duplicate email.")
+        ]);
+
+        var viewModel = new FamilyMembersViewModel(familyMembersDataService);
+        await WaitForIdleAsync(viewModel);
+        viewModel.MemberImportCsvContent = "keycloakUserId,name,email,role\nimport-kc-1,Import One,import-one@test.dev,Adult";
+
+        await viewModel.PreviewMemberImportCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.Equal(1, familyMembersDataService.PreviewMemberImportCallCount);
+        Assert.Equal(2, viewModel.MemberImportPreviewRows.Count);
+        Assert.Contains("parsed 2 row", viewModel.MemberImportPreviewSummary, StringComparison.OrdinalIgnoreCase);
+
+        await viewModel.CommitMemberImportCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.Equal(1, familyMembersDataService.CommitMemberImportCallCount);
+        Assert.Contains("inserted 1", viewModel.MemberImportCommitSummary, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(viewModel.Members, member => member.KeycloakUserId == "import-kc-1");
+        Assert.DoesNotContain(viewModel.Members, member => member.KeycloakUserId == "import-kc-2");
     }
 
     private static async Task WaitForIdleAsync(FamilyMembersViewModel viewModel, int timeoutMilliseconds = 6000)

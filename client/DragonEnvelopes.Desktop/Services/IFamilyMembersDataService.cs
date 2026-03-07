@@ -44,4 +44,17 @@ public interface IFamilyMembersDataService
         Guid inviteId,
         int expiresInHours,
         CancellationToken cancellationToken = default);
+
+    Task<FamilyMemberImportPreviewResultData> PreviewMemberImportAsync(
+        string csvContent,
+        string? delimiter = null,
+        IReadOnlyDictionary<string, string>? headerMappings = null,
+        CancellationToken cancellationToken = default);
+
+    Task<FamilyMemberImportCommitResultData> CommitMemberImportAsync(
+        string csvContent,
+        string? delimiter = null,
+        IReadOnlyDictionary<string, string>? headerMappings = null,
+        IReadOnlyList<int>? acceptedRowNumbers = null,
+        CancellationToken cancellationToken = default);
 }

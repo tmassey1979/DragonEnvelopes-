@@ -171,6 +171,44 @@ public sealed class FamilyApiSmokeTests : IClassFixture<FamilyApiFactory>
     }
 
     [Fact]
+    public async Task Authenticated_User_Can_Preview_FamilyMember_Import_For_Own_Family()
+    {
+        var userId = "family-member-import-user-a";
+        var ownFamilyId = Guid.Parse("d2150000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("d2150000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var csv = "keycloakUserId,name,email,role\nimport-family-api-1,Family API Import,import-family-api-1@test.dev,Adult";
+        var ownResponse = await client.PostAsJsonAsync(
+            $"/api/v1/families/{ownFamilyId}/members/import/preview",
+            new
+            {
+                csvContent = csv,
+                delimiter = ",",
+                headerMappings = (object?)null
+            });
+        Assert.Equal(HttpStatusCode.OK, ownResponse.StatusCode);
+
+        var preview = await ownResponse.Content.ReadFromJsonAsync<FamilyMemberImportPreviewResponse>();
+        Assert.NotNull(preview);
+        Assert.Equal(1, preview!.Parsed);
+        Assert.Equal(1, preview.Valid);
+
+        var otherResponse = await client.PostAsJsonAsync(
+            $"/api/v1/families/{otherFamilyId}/members/import/preview",
+            new
+            {
+                csvContent = csv,
+                delimiter = ",",
+                headerMappings = (object?)null
+            });
+        Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task Authenticated_User_Can_Read_AuthMe_With_FamilyMembership()
     {
         var userId = "family-auth-user-a";

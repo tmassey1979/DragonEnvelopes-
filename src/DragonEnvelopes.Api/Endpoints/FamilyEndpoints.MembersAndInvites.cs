@@ -61,6 +61,57 @@ internal static partial class FamilyEndpoints
             .WithName("ListFamilyMembers")
             .WithOpenApi();
 
+        v1.MapPost("/families/{familyId:guid}/members/import/preview", async (
+                Guid familyId,
+                FamilyMemberImportPreviewRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IFamilyMemberImportService familyMemberImportService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var preview = await familyMemberImportService.PreviewAsync(
+                    familyId,
+                    request.CsvContent,
+                    request.Delimiter,
+                    request.HeaderMappings,
+                    cancellationToken);
+                return Results.Ok(EndpointMappers.MapFamilyMemberImportPreviewResponse(preview));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
+            .WithName("PreviewFamilyMemberImport")
+            .WithOpenApi();
+
+        v1.MapPost("/families/{familyId:guid}/members/import/commit", async (
+                Guid familyId,
+                FamilyMemberImportCommitRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IFamilyMemberImportService familyMemberImportService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var result = await familyMemberImportService.CommitAsync(
+                    familyId,
+                    request.CsvContent,
+                    request.Delimiter,
+                    request.HeaderMappings,
+                    request.AcceptedRowNumbers,
+                    cancellationToken);
+                return Results.Ok(EndpointMappers.MapFamilyMemberImportCommitResponse(result));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
+            .WithName("CommitFamilyMemberImport")
+            .WithOpenApi();
+
         v1.MapPut("/families/{familyId:guid}/members/{memberId:guid}/role", async (
                 Guid familyId,
                 Guid memberId,
