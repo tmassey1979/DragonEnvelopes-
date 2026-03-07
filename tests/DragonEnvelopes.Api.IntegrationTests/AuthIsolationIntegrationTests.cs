@@ -2593,6 +2593,109 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task Plaid_Webhook_Transactions_Duplicate_Delivery_Is_Suppressed()
+    {
+        var syncService = new TestPlaidTransactionSyncService();
+        var balanceService = new TestPlaidBalanceReconciliationService();
+
+        using var factory = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IPlaidTransactionSyncService>();
+                services.AddSingleton<IPlaidTransactionSyncService>(syncService);
+                services.RemoveAll<IPlaidBalanceReconciliationService>();
+                services.AddSingleton<IPlaidBalanceReconciliationService>(balanceService);
+            }));
+
+        var familyId = Guid.NewGuid();
+        const string itemId = "item_webhook_duplicate_transactions";
+        const string payload = "{\"webhook_type\":\"TRANSACTIONS\",\"webhook_code\":\"SYNC_UPDATES_AVAILABLE\",\"item_id\":\"item_webhook_duplicate_transactions\"}";
+        await SeedPlaidWebhookProfileAsync(factory.Services, familyId, itemId);
+
+        using var client = factory.CreateClient();
+        using var firstRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/plaid")
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+        using var secondRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/plaid")
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+
+        var firstResponse = await client.SendAsync(firstRequest);
+        var secondResponse = await client.SendAsync(secondRequest);
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+
+        var firstPayload = await firstResponse.Content.ReadFromJsonAsync<PlaidWebhookProcessResponse>();
+        var secondPayload = await secondResponse.Content.ReadFromJsonAsync<PlaidWebhookProcessResponse>();
+        Assert.NotNull(firstPayload);
+        Assert.NotNull(secondPayload);
+        Assert.Equal("Processed", firstPayload!.Outcome);
+        Assert.Equal("Duplicate", secondPayload!.Outcome);
+        Assert.Equal(1, syncService.SyncFamilyCallCount);
+        Assert.Equal(0, balanceService.RefreshFamilyCallCount);
+
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var dbContext = verificationScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var persistedStatuses = await dbContext.PlaidWebhookEvents
+            .AsNoTracking()
+            .Where(x => x.ItemId == itemId)
+            .OrderBy(x => x.ReceivedAtUtc)
+            .Select(x => x.ProcessingStatus)
+            .ToListAsync();
+        Assert.Contains("Processed", persistedStatuses);
+        Assert.Contains("Duplicate", persistedStatuses);
+    }
+
+    [Fact]
+    public async Task Plaid_Webhook_Balance_Duplicate_Delivery_Is_Suppressed()
+    {
+        var syncService = new TestPlaidTransactionSyncService();
+        var balanceService = new TestPlaidBalanceReconciliationService();
+
+        using var factory = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IPlaidTransactionSyncService>();
+                services.AddSingleton<IPlaidTransactionSyncService>(syncService);
+                services.RemoveAll<IPlaidBalanceReconciliationService>();
+                services.AddSingleton<IPlaidBalanceReconciliationService>(balanceService);
+            }));
+
+        var familyId = Guid.NewGuid();
+        const string itemId = "item_webhook_duplicate_balance";
+        const string payload = "{\"webhook_type\":\"BALANCE\",\"webhook_code\":\"DEFAULT_UPDATE\",\"item_id\":\"item_webhook_duplicate_balance\"}";
+        await SeedPlaidWebhookProfileAsync(factory.Services, familyId, itemId);
+
+        using var client = factory.CreateClient();
+        using var firstRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/plaid")
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+        using var secondRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/plaid")
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+
+        var firstResponse = await client.SendAsync(firstRequest);
+        var secondResponse = await client.SendAsync(secondRequest);
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+
+        var firstPayload = await firstResponse.Content.ReadFromJsonAsync<PlaidWebhookProcessResponse>();
+        var secondPayload = await secondResponse.Content.ReadFromJsonAsync<PlaidWebhookProcessResponse>();
+        Assert.NotNull(firstPayload);
+        Assert.NotNull(secondPayload);
+        Assert.Equal("Processed", firstPayload!.Outcome);
+        Assert.Equal("Duplicate", secondPayload!.Outcome);
+        Assert.Equal(0, syncService.SyncFamilyCallCount);
+        Assert.Equal(1, balanceService.RefreshFamilyCallCount);
+    }
+
+    [Fact]
     public async Task Plaid_Webhook_Transactions_With_Matched_Item_And_SyncFailure_ReturnsFailed()
     {
         var syncService = new TestPlaidTransactionSyncService { ThrowOnSync = true };

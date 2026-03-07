@@ -121,6 +121,8 @@ internal static partial class FinancialIntegrationEndpoints
                     var normalizedItemId = string.IsNullOrWhiteSpace(itemId)
                         ? null
                         : itemId.Trim();
+                    // Keep a bounded dedupe window to prevent unbounded webhook lookup scans.
+                    var deduplicationLookbackStart = receivedAtUtc.AddHours(-72);
 
                     async Task<IResult> PersistAndReturnAsync(string outcome, Guid? familyId, string? message)
                     {
@@ -148,6 +150,25 @@ internal static partial class FinancialIntegrationEndpoints
                             ItemId: normalizedItemId,
                             FamilyId: familyId,
                             Message: message));
+                    }
+
+                    var duplicateEvent = await dbContext.PlaidWebhookEvents
+                        .AsNoTracking()
+                        .Where(x => x.ReceivedAtUtc >= deduplicationLookbackStart)
+                        .Where(x => x.ProcessingStatus != "Duplicate")
+                        .Where(x => x.WebhookType == normalizedWebhookType
+                                    && x.WebhookCode == normalizedWebhookCode
+                                    && x.ItemId == normalizedItemId
+                                    && x.PayloadJson == payload)
+                        .OrderByDescending(x => x.ReceivedAtUtc)
+                        .Select(x => new { x.Id, x.FamilyId })
+                        .FirstOrDefaultAsync(cancellationToken);
+                    if (duplicateEvent is not null)
+                    {
+                        return await PersistAndReturnAsync(
+                            outcome: "Duplicate",
+                            familyId: duplicateEvent.FamilyId,
+                            message: $"Duplicate webhook delivery suppressed. Original event id: {duplicateEvent.Id}.");
                     }
 
                     if (string.IsNullOrWhiteSpace(normalizedItemId))
