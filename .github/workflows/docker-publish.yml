@@ -9,11 +9,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  publish-api-image:
+  publish-service-images:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - image: dragonenvelopes-api
+            dockerfile: src/DragonEnvelopes.Api/Dockerfile
+          - image: dragonenvelopes-family-api
+            dockerfile: src/DragonEnvelopes.Family.Api/Dockerfile
+          - image: dragonenvelopes-ledger-api
+            dockerfile: src/DragonEnvelopes.Ledger.Api/Dockerfile
 
     steps:
       - name: Checkout
@@ -33,17 +43,17 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/dragonenvelopes-api
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.service.image }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
             type=sha
 
-      - name: Build and push API image
+      - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: src/DragonEnvelopes.Api/Dockerfile
+          file: ${{ matrix.service.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

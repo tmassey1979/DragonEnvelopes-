@@ -21,5 +21,5 @@ Use this checklist at the start and end of every task.
 ## Session Run Log
 - Active task: `TBD`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#202` Ledger API startup SoC: extract Program.cs into bootstrap modules.
+- Previous completed task: `#203` CI/CD: publish Family and Ledger API Docker images to GHCR.
 - Last updated: `2026-03-06`.
