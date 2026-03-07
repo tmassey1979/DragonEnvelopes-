@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DragonEnvelopes.Application\DragonEnvelopes.Application.csproj" />
+    <ProjectReference Include="..\DragonEnvelopes.Contracts\DragonEnvelopes.Contracts.csproj" />
     <ProjectReference Include="..\DragonEnvelopes.Domain\DragonEnvelopes.Domain.csproj" />
   </ItemGroup>
 

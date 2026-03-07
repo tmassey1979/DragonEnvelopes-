@@ -20,6 +20,8 @@ public sealed class RabbitMqMessagingOptions
 
     public bool DurableExchange { get; init; } = true;
 
+    public string SourceService { get; init; } = "dragonenvelopes-service";
+
     public bool EnableLedgerTransactionConsumer { get; init; } = true;
 
     public string LedgerTransactionCreatedQueue { get; init; } = "dragonenvelopes.financial.ledger-transaction-created";

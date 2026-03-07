@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DragonEnvelopes.Application.Cqrs.Messaging;
+using DragonEnvelopes.Contracts.IntegrationEvents;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -35,9 +36,7 @@ public sealed class LedgerTransactionCreatedConsumer(
 
         try
         {
-            var payload = JsonSerializer.Deserialize<LedgerTransactionCreatedIntegrationEvent>(
-                args.Body.Span,
-                SerializerOptions);
+            var payload = ResolvePayload(args.Body.Span);
             if (payload is null)
             {
                 logger.LogWarning("Received empty or invalid ledger transaction event payload.");
@@ -171,5 +170,46 @@ public sealed class LedgerTransactionCreatedConsumer(
         _connection?.Dispose();
         _channel = null;
         _connection = null;
+    }
+
+    private LedgerTransactionCreatedIntegrationEvent? ResolvePayload(ReadOnlySpan<byte> bodySpan)
+    {
+        try
+        {
+            var envelope = IntegrationEventEnvelopeJson.Deserialize<LedgerTransactionCreatedIntegrationEvent>(bodySpan);
+            if (envelope is not null)
+            {
+                if (!IntegrationEventEnvelopeValidator.TryValidate(envelope, out var errors))
+                {
+                    logger.LogWarning(
+                        "Received invalid event envelope. Errors={Errors}",
+                        string.Join("; ", errors));
+                    return null;
+                }
+
+                if (!IntegrationEventEnvelopeValidator.IsSupportedMajorVersion(envelope.SchemaVersion, supportedMajorVersion: 1))
+                {
+                    logger.LogWarning(
+                        "Unsupported event schema version for ledger transaction event. SchemaVersion={SchemaVersion}",
+                        envelope.SchemaVersion);
+                    return null;
+                }
+
+                return envelope.Payload;
+            }
+        }
+        catch (JsonException)
+        {
+            // Fall back to raw payload compatibility path.
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<LedgerTransactionCreatedIntegrationEvent>(bodySpan, SerializerOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 }
