@@ -1,7 +1,7 @@
 namespace DragonEnvelopes.Api.Services;
 
 public sealed class RecurringBillAutoPostWorker(
-    IRecurringAutoPostService recurringAutoPostService,
+    IServiceScopeFactory serviceScopeFactory,
     ILogger<RecurringBillAutoPostWorker> logger) : BackgroundService
 {
     private static readonly TimeSpan LoopInterval = TimeSpan.FromMinutes(30);
@@ -21,6 +21,9 @@ public sealed class RecurringBillAutoPostWorker(
     {
         try
         {
+            await using var scope = serviceScopeFactory.CreateAsyncScope();
+            var recurringAutoPostService = scope.ServiceProvider.GetRequiredService<IRecurringAutoPostService>();
+
             var summary = await recurringAutoPostService.RunAsync(
                 familyId: null,
                 dueDate: null,

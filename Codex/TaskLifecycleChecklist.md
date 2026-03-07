@@ -21,5 +21,5 @@ Use this checklist at the start and end of every task.
 ## Session Run Log
 - Active task: `TBD`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#210` CI hardening: smoke-build all service Dockerfiles on PR.
+- Previous completed task: `#211` CI runtime smoke: compose startup + readiness checks for split APIs.
 - Last updated: `2026-03-06`.
