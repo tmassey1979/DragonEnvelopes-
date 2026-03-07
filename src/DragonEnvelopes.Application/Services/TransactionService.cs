@@ -10,7 +10,8 @@ public sealed class TransactionService(
     ITransactionRepository transactionRepository,
     IEnvelopeRepository envelopeRepository,
     ICategorizationRuleEngine categorizationRuleEngine,
-    IIncomeAllocationEngine incomeAllocationEngine) : ITransactionService
+    IIncomeAllocationEngine incomeAllocationEngine,
+    ISpendAnomalyService? spendAnomalyService = null) : ITransactionService
 {
     public async Task<TransactionDetails> CreateAsync(
         Guid accountId,
@@ -161,6 +162,19 @@ public sealed class TransactionService(
         }
 
         await transactionRepository.AddTransactionAsync(transaction, splitEntries, cancellationToken);
+
+        if (spendAnomalyService is not null && amount < 0m)
+        {
+            await spendAnomalyService.DetectAndRecordAsync(
+                familyId.Value,
+                transaction.Id,
+                transaction.AccountId,
+                transaction.Merchant,
+                transaction.Amount.Amount,
+                transaction.OccurredAt,
+                cancellationToken);
+        }
+
         return Map(transaction, splitEntries);
     }
 

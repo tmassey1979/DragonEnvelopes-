@@ -1,5 +1,6 @@
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Contracts.Accounts;
+using DragonEnvelopes.Contracts.Anomalies;
 using DragonEnvelopes.Contracts.Automation;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.EnvelopeGoals;
@@ -339,6 +340,24 @@ internal static class EndpointMappers
             details.DepletionMonth,
             details.EndingBalance,
             details.Months.Select(MapScenarioSimulationMonthResponse).ToArray());
+    }
+
+    public static SpendAnomalyEventResponse MapSpendAnomalyEventResponse(SpendAnomalyEventDetails details)
+    {
+        return new SpendAnomalyEventResponse(
+            details.Id,
+            details.FamilyId,
+            details.TransactionId,
+            details.AccountId,
+            details.Merchant,
+            details.Amount,
+            details.BaselineAverageAmount,
+            details.BaselineStandardDeviation,
+            details.BaselineSampleSize,
+            details.DeviationRatio,
+            details.SeverityScore,
+            details.Reason,
+            details.DetectedAtUtc);
     }
 
     private static EnvelopeRolloverItemResponse MapEnvelopeRolloverItemResponse(EnvelopeRolloverItemDetails details)

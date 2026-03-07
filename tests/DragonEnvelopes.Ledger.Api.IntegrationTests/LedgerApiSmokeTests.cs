@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using DragonEnvelopes.Contracts.Accounts;
+using DragonEnvelopes.Contracts.Anomalies;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.EnvelopeGoals;
 using DragonEnvelopes.Contracts.Envelopes;
@@ -222,6 +223,31 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
             new SimulateScenarioRequest(ownFamilyId, 2000m, 1500m, 10m, 0));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Can_List_Own_Family_SpendAnomalies_But_Not_Other_Family()
+    {
+        var userId = "ledger-user-anomaly-a";
+        var ownFamilyId = Guid.Parse("e1250000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e1250000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAndSpendAnomaliesAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var ownResponse = await client.GetAsync($"/api/v1/spend-anomalies?familyId={ownFamilyId}&take=10");
+        var ownPayload = await ownResponse.Content.ReadFromJsonAsync<List<SpendAnomalyEventResponse>>();
+
+        var otherResponse = await client.GetAsync($"/api/v1/spend-anomalies?familyId={otherFamilyId}&take=10");
+
+        Assert.Equal(HttpStatusCode.OK, ownResponse.StatusCode);
+        Assert.NotNull(ownPayload);
+        Assert.Single(ownPayload!);
+        Assert.True(ownPayload[0].SeverityScore >= 50);
+        Assert.Contains("baseline", ownPayload[0].Reason, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
     }
 
     [Fact]
@@ -694,6 +720,94 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
                 new DateOnly(2026, 6, 1),
                 EnvelopeGoalStatus.Active,
                 now,
+                now));
+
+        await dbContext.SaveChangesAsync();
+    }
+
+    private async Task SeedFamilyMembershipAndSpendAnomaliesAsync(
+        string userId,
+        Guid ownFamilyId,
+        Guid otherFamilyId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+
+        dbContext.SpendAnomalyEvents.RemoveRange(dbContext.SpendAnomalyEvents);
+        dbContext.TransactionSplits.RemoveRange(dbContext.TransactionSplits);
+        dbContext.Transactions.RemoveRange(dbContext.Transactions);
+        dbContext.Accounts.RemoveRange(dbContext.Accounts);
+        dbContext.FamilyMembers.RemoveRange(dbContext.FamilyMembers);
+        dbContext.Families.RemoveRange(dbContext.Families);
+
+        var now = DateTimeOffset.UtcNow;
+        var ownAccountId = Guid.NewGuid();
+        var otherAccountId = Guid.NewGuid();
+        var ownTransactionId = Guid.NewGuid();
+        var otherTransactionId = Guid.NewGuid();
+
+        dbContext.Families.AddRange(
+            new Family(ownFamilyId, "Authorized Ledger Family", now),
+            new Family(otherFamilyId, "Forbidden Ledger Family", now));
+
+        dbContext.FamilyMembers.Add(new FamilyMember(
+            Guid.NewGuid(),
+            ownFamilyId,
+            userId,
+            "Ledger Parent User",
+            EmailAddress.Parse("ledger.parent@test.local"),
+            MemberRole.Parent));
+
+        dbContext.Accounts.AddRange(
+            new Account(ownAccountId, ownFamilyId, "Primary Checking", AccountType.Checking, Money.FromDecimal(500m)),
+            new Account(otherAccountId, otherFamilyId, "Other Checking", AccountType.Checking, Money.FromDecimal(500m)));
+
+        dbContext.Transactions.AddRange(
+            new Transaction(
+                ownTransactionId,
+                ownAccountId,
+                Money.FromDecimal(-95m),
+                "Laptop accessories",
+                "Tech Outlet",
+                now,
+                "Shopping"),
+            new Transaction(
+                otherTransactionId,
+                otherAccountId,
+                Money.FromDecimal(-125m),
+                "Other family purchase",
+                "Other Store",
+                now,
+                "Shopping"));
+
+        dbContext.SpendAnomalyEvents.AddRange(
+            new SpendAnomalyEvent(
+                Guid.NewGuid(),
+                ownFamilyId,
+                ownTransactionId,
+                ownAccountId,
+                "Tech Outlet",
+                95m,
+                22m,
+                3m,
+                15,
+                4.3182m,
+                88,
+                "Tech Outlet spend exceeded merchant baseline by 5.4 standard deviations.",
+                now),
+            new SpendAnomalyEvent(
+                Guid.NewGuid(),
+                otherFamilyId,
+                otherTransactionId,
+                otherAccountId,
+                "Other Store",
+                125m,
+                30m,
+                4m,
+                10,
+                4.1667m,
+                90,
+                "Other Store spend exceeded merchant baseline by 4.8 standard deviations.",
                 now));
 
         await dbContext.SaveChangesAsync();

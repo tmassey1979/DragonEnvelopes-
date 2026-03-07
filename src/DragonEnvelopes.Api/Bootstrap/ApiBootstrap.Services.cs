@@ -32,6 +32,7 @@ internal static partial class ApiBootstrap
         builder.Services.AddSingleton(Options.Create(BuildRecurringAutoPostWorkerOptions(builder.Configuration)));
         builder.Services.AddSingleton(Options.Create(BuildStripeWebhookOptions(builder.Configuration)));
         builder.Services.AddSingleton(Options.Create(BuildDataRetentionOptions(builder.Configuration)));
+        builder.Services.AddSingleton(Options.Create(BuildSpendAnomalyDetectionOptions(builder.Configuration)));
         builder.Services.AddSingleton(BuildKeycloakAdminOptions(builder.Configuration));
         builder.Services.AddHttpClient<IKeycloakProvisioningService, KeycloakProvisioningService>();
         if (!builder.Environment.IsEnvironment("Testing"))
@@ -121,6 +122,44 @@ internal static partial class ApiBootstrap
             DistributedLockKey = long.TryParse(configuration["RecurringAutoPost:DistributedLockKey"], out var distributedLockKey)
                 ? distributedLockKey
                 : 2147482647
+        };
+    }
+
+    private static SpendAnomalyDetectionOptions BuildSpendAnomalyDetectionOptions(IConfiguration configuration)
+    {
+        return new SpendAnomalyDetectionOptions
+        {
+            LookbackDays = int.TryParse(configuration["SpendAnomalies:LookbackDays"], out var lookbackDays)
+                ? Math.Max(1, lookbackDays)
+                : 90,
+            HistorySampleLimit = int.TryParse(configuration["SpendAnomalies:HistorySampleLimit"], out var sampleLimit)
+                ? Math.Max(10, sampleLimit)
+                : 500,
+            MinimumMerchantSamples = int.TryParse(configuration["SpendAnomalies:MinimumMerchantSamples"], out var minimumMerchantSamples)
+                ? Math.Max(1, minimumMerchantSamples)
+                : 3,
+            MinimumFamilySamples = int.TryParse(configuration["SpendAnomalies:MinimumFamilySamples"], out var minimumFamilySamples)
+                ? Math.Max(1, minimumFamilySamples)
+                : 10,
+            MerchantDeviationZScoreThreshold = decimal.TryParse(
+                configuration["SpendAnomalies:MerchantDeviationZScoreThreshold"],
+                out var merchantDeviationThreshold)
+                ? Math.Max(0.1m, merchantDeviationThreshold)
+                : 2.5m,
+            FamilyDeviationRatioThreshold = decimal.TryParse(
+                configuration["SpendAnomalies:FamilyDeviationRatioThreshold"],
+                out var familyDeviationRatioThreshold)
+                ? Math.Max(1m, familyDeviationRatioThreshold)
+                : 3.0m,
+            MinimumAbsoluteAmount = decimal.TryParse(configuration["SpendAnomalies:MinimumAbsoluteAmount"], out var minimumAbsoluteAmount)
+                ? Math.Max(0m, minimumAbsoluteAmount)
+                : 50m,
+            MinimumStandardDeviation = decimal.TryParse(configuration["SpendAnomalies:MinimumStandardDeviation"], out var minimumStandardDeviation)
+                ? Math.Max(0.01m, minimumStandardDeviation)
+                : 5m,
+            MaxListTake = int.TryParse(configuration["SpendAnomalies:MaxListTake"], out var maxListTake)
+                ? Math.Max(1, maxListTake)
+                : 200
         };
     }
 }

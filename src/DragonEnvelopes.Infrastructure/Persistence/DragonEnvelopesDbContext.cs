@@ -17,6 +17,7 @@ public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbC
     public DbSet<PlaidWebhookEvent> PlaidWebhookEvents => Set<PlaidWebhookEvent>();
     public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
     public DbSet<SpendNotificationEvent> SpendNotificationEvents => Set<SpendNotificationEvent>();
+    public DbSet<SpendAnomalyEvent> SpendAnomalyEvents => Set<SpendAnomalyEvent>();
     public DbSet<PlaidAccountLink> PlaidAccountLinks => Set<PlaidAccountLink>();
     public DbSet<PlaidSyncCursor> PlaidSyncCursors => Set<PlaidSyncCursor>();
     public DbSet<PlaidSyncedTransaction> PlaidSyncedTransactions => Set<PlaidSyncedTransaction>();

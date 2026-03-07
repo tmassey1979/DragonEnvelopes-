@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `none` (Documentation story completed and closed).
+- Active task: `#271` (Spend Anomaly Detection Baseline - implementation complete, issue close in progress).
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#262`.
+- Previous completed task: `#270`.
 - Last updated: `2026-03-07`.

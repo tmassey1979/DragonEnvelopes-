@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IRecurringBillService, RecurringBillService>();
         services.AddScoped<IImportService, ImportService>();
+        services.AddScoped<ISpendAnomalyService, SpendAnomalyService>();
         services.AddScoped<IReportingService, ReportingService>();
         services.AddScoped<IScenarioSimulationService, ScenarioSimulationService>();
         services.AddScoped<ICommandHandler<CreateTransactionCommand, DTOs.TransactionDetails>, CreateTransactionCommandHandler>();

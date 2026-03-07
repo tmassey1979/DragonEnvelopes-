@@ -1,10 +1,12 @@
 using DragonEnvelopes.Application;
+using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Infrastructure;
 using DragonEnvelopes.Ledger.Api.CrossCutting.Errors;
 using DragonEnvelopes.Ledger.Api.Services;
 using DragonEnvelopes.ProviderClients;
 using FluentValidation;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 
 namespace DragonEnvelopes.Ledger.Api.Bootstrap;
 
@@ -26,6 +28,7 @@ internal static partial class LedgerApiBootstrap
         builder.Services.AddInfrastructure(builder.Configuration);
         builder.Services.AddProviderClients(builder.Configuration);
         builder.Services.AddScoped<IRecurringAutoPostService, RecurringAutoPostService>();
+        builder.Services.AddSingleton(Options.Create(BuildSpendAnomalyDetectionOptions(builder.Configuration)));
     }
 
     public static void ConfigureHealthChecks(IServiceCollection services, string? defaultConnection)
@@ -44,6 +47,44 @@ internal static partial class LedgerApiBootstrap
                 () => HealthCheckResult.Unhealthy("ConnectionStrings:Default is not configured."),
                 tags: ["ready"]);
         }
+    }
+
+    private static SpendAnomalyDetectionOptions BuildSpendAnomalyDetectionOptions(IConfiguration configuration)
+    {
+        return new SpendAnomalyDetectionOptions
+        {
+            LookbackDays = int.TryParse(configuration["SpendAnomalies:LookbackDays"], out var lookbackDays)
+                ? Math.Max(1, lookbackDays)
+                : 90,
+            HistorySampleLimit = int.TryParse(configuration["SpendAnomalies:HistorySampleLimit"], out var sampleLimit)
+                ? Math.Max(10, sampleLimit)
+                : 500,
+            MinimumMerchantSamples = int.TryParse(configuration["SpendAnomalies:MinimumMerchantSamples"], out var minimumMerchantSamples)
+                ? Math.Max(1, minimumMerchantSamples)
+                : 3,
+            MinimumFamilySamples = int.TryParse(configuration["SpendAnomalies:MinimumFamilySamples"], out var minimumFamilySamples)
+                ? Math.Max(1, minimumFamilySamples)
+                : 10,
+            MerchantDeviationZScoreThreshold = decimal.TryParse(
+                configuration["SpendAnomalies:MerchantDeviationZScoreThreshold"],
+                out var merchantDeviationThreshold)
+                ? Math.Max(0.1m, merchantDeviationThreshold)
+                : 2.5m,
+            FamilyDeviationRatioThreshold = decimal.TryParse(
+                configuration["SpendAnomalies:FamilyDeviationRatioThreshold"],
+                out var familyDeviationRatioThreshold)
+                ? Math.Max(1m, familyDeviationRatioThreshold)
+                : 3.0m,
+            MinimumAbsoluteAmount = decimal.TryParse(configuration["SpendAnomalies:MinimumAbsoluteAmount"], out var minimumAbsoluteAmount)
+                ? Math.Max(0m, minimumAbsoluteAmount)
+                : 50m,
+            MinimumStandardDeviation = decimal.TryParse(configuration["SpendAnomalies:MinimumStandardDeviation"], out var minimumStandardDeviation)
+                ? Math.Max(0.01m, minimumStandardDeviation)
+                : 5m,
+            MaxListTake = int.TryParse(configuration["SpendAnomalies:MaxListTake"], out var maxListTake)
+                ? Math.Max(1, maxListTake)
+                : 200
+        };
     }
 }
 
