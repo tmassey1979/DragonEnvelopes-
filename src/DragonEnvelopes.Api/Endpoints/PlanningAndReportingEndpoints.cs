@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using DragonEnvelopes.Api.CrossCutting.Auth;
+using DragonEnvelopes.Api.Services;
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
@@ -363,6 +364,47 @@ internal static class PlanningAndReportingEndpoints
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
             .WithName("ListRecurringBillExecutions")
+            .WithOpenApi();
+
+        v1.MapPost("/families/{familyId:guid}/recurring-bills/auto-post/run", async (
+                Guid familyId,
+                DateOnly? dueDate,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IRecurringAutoPostService recurringAutoPostService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var summary = await recurringAutoPostService.RunAsync(
+                    familyId,
+                    dueDate,
+                    cancellationToken);
+
+                var response = new RecurringAutoPostRunResponse(
+                    familyId,
+                    summary.DueDate,
+                    summary.DueBillCount,
+                    summary.PostedCount,
+                    summary.SkippedCount,
+                    summary.FailedCount,
+                    summary.AlreadyProcessedCount,
+                    summary.Executions
+                        .Select(static execution => new RecurringAutoPostExecutionResponse(
+                            execution.RecurringBillId,
+                            execution.RecurringBillName,
+                            execution.Result,
+                            execution.TransactionId,
+                            execution.Notes))
+                        .ToArray());
+
+                return Results.Ok(response);
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
+            .WithName("RunRecurringAutoPost")
             .WithOpenApi();
 
         v1.MapGet("/reports/envelope-balances", async (

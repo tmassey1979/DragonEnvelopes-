@@ -541,6 +541,73 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Run_Manual_Recurring_AutoPost_For_Own_Family()
+    {
+        var familyId = Guid.NewGuid();
+        var accountId = Guid.NewGuid();
+        var recurringBillId = Guid.NewGuid();
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.Families.Add(new Family(familyId, "Manual AutoPost Family", DateTimeOffset.UtcNow));
+            dbContext.FamilyMembers.Add(new FamilyMember(
+                Guid.NewGuid(),
+                familyId,
+                TestApiFactory.UserAId,
+                "Owner User",
+                EmailAddress.Parse($"manual-autopost-owner-{familyId:N}@test.dev"),
+                MemberRole.Parent));
+            dbContext.Accounts.Add(new Account(
+                accountId,
+                familyId,
+                "Manual AutoPost Checking",
+                AccountType.Checking,
+                Money.FromDecimal(1000m)));
+            dbContext.RecurringBills.Add(new RecurringBill(
+                recurringBillId,
+                familyId,
+                "Manual AutoPost Bill",
+                "Manual Merchant",
+                Money.FromDecimal(75m),
+                RecurringBillFrequency.Monthly,
+                dayOfMonth: 1,
+                startDate: new DateOnly(2026, 1, 1),
+                endDate: null,
+                isActive: true));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsync($"/api/v1/families/{familyId}/recurring-bills/auto-post/run?dueDate=2026-03-01", content: null);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<RecurringAutoPostRunResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(familyId, payload!.FamilyId);
+        Assert.Equal(1, payload.PostedCount);
+        Assert.Equal(1, payload.DueBillCount);
+        Assert.Contains(payload.Executions, execution =>
+            execution.RecurringBillId == recurringBillId
+            && execution.Result == "Posted");
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Run_Manual_Recurring_AutoPost_For_FamilyB()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/recurring-bills/auto-post/run?dueDate=2026-03-01",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserA_Can_Get_And_Update_Own_Onboarding_Profile()
     {
         var familyId = Guid.NewGuid();

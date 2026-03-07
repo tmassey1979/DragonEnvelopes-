@@ -158,6 +158,7 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddProviderClients(builder.Configuration);
+builder.Services.AddScoped<IRecurringAutoPostService, RecurringAutoPostService>();
 builder.Services.AddSingleton(Options.Create(BuildStripeWebhookOptions(builder.Configuration)));
 builder.Services.AddSingleton(Options.Create(BuildDataRetentionOptions(builder.Configuration)));
 builder.Services.AddSingleton(BuildKeycloakAdminOptions(builder.Configuration));

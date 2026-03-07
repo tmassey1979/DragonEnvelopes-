@@ -1727,6 +1727,43 @@
                                     BorderBrush="{StaticResource PanelOutlineBrush}"
                                     BorderThickness="1">
                                 <StackPanel>
+                                    <TextBlock Text="Manual Auto-Post"
+                                               Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               Text="{Binding AutoPostRunSummary}"
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource CaptionTextStyle}" />
+
+                                    <Button Margin="0,10,0,0"
+                                            Width="170"
+                                            Content="Run Auto-Post Now"
+                                            Command="{Binding RunAutoPostNowCommand}" />
+
+                                    <DataGrid Margin="0,10,0,0"
+                                              ItemsSource="{Binding AutoPostRunExecutions}"
+                                              AutoGenerateColumns="False"
+                                              HeadersVisibility="Column"
+                                              CanUserAddRows="False"
+                                              CanUserDeleteRows="False"
+                                              IsReadOnly="True"
+                                              RowHeight="30">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Bill" Binding="{Binding RecurringBillName}" Width="*" />
+                                            <DataGridTextColumn Header="Result" Binding="{Binding Result}" Width="120" />
+                                            <DataGridTextColumn Header="Transaction" Binding="{Binding TransactionId}" Width="200" />
+                                            <DataGridTextColumn Header="Notes" Binding="{Binding Notes}" Width="220" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Margin="0,16,0,0"
+                                    Padding="10"
+                                    CornerRadius="10"
+                                    Background="{StaticResource PanelMutedBackgroundBrush}"
+                                    BorderBrush="{StaticResource PanelOutlineBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
                                     <TextBlock Text="Execution History" Style="{StaticResource CaptionTextStyle}" />
                                     <TextBlock Margin="0,4,0,0"
                                                Text="{Binding ExecutionSummary}"

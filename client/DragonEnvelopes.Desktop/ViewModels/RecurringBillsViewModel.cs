@@ -26,6 +26,7 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
         BeginCreateCommand = new RelayCommand(BeginCreate);
         LoadProjectionCommand = new AsyncRelayCommand(LoadProjectionAsync);
         RefreshExecutionHistoryCommand = new AsyncRelayCommand(LoadExecutionHistoryAsync);
+        RunAutoPostNowCommand = new AsyncRelayCommand(RunAutoPostNowAsync);
 
         _ = LoadCommand.ExecuteAsync(null);
     }
@@ -36,6 +37,7 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
     public IRelayCommand BeginCreateCommand { get; }
     public IAsyncRelayCommand LoadProjectionCommand { get; }
     public IAsyncRelayCommand RefreshExecutionHistoryCommand { get; }
+    public IAsyncRelayCommand RunAutoPostNowCommand { get; }
     public IReadOnlyList<string> FrequencyOptions { get; } = Frequencies;
 
     [ObservableProperty]
@@ -51,6 +53,9 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
     private ObservableCollection<RecurringBillExecutionItemViewModel> executionItems = [];
 
     [ObservableProperty]
+    private ObservableCollection<RecurringAutoPostExecutionItemViewModel> autoPostRunExecutions = [];
+
+    [ObservableProperty]
     private string projectionFrom = string.Empty;
 
     [ObservableProperty]
@@ -58,6 +63,9 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
 
     [ObservableProperty]
     private string executionSummary = "Select a recurring bill to view execution history.";
+
+    [ObservableProperty]
+    private string autoPostRunSummary = "Manual auto-post has not been run in this session.";
 
     [ObservableProperty]
     private bool isLoading;
@@ -153,6 +161,8 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
             ProjectionItems.Clear();
             ExecutionItems.Clear();
             ExecutionSummary = "Execution history unavailable.";
+            AutoPostRunExecutions.Clear();
+            AutoPostRunSummary = "Manual auto-post result unavailable.";
             IsEmpty = true;
         }
         finally
@@ -334,6 +344,31 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
             ErrorMessage = $"Unable to load execution history: {ex.Message}";
             ExecutionItems.Clear();
             ExecutionSummary = "Execution history unavailable.";
+        }
+    }
+
+    private async Task RunAutoPostNowAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        try
+        {
+            var dueDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            var result = await _recurringBillsDataService.RunAutoPostAsync(dueDate, cancellationToken);
+
+            AutoPostRunExecutions = new ObservableCollection<RecurringAutoPostExecutionItemViewModel>(result.Executions);
+            AutoPostRunSummary =
+                $"Run date {result.DueDate:yyyy-MM-dd}: due {result.DueBillCount}, posted {result.PostedCount}, skipped {result.SkippedCount}, failed {result.FailedCount}, already processed {result.AlreadyProcessedCount}.";
+
+            await LoadAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to run recurring auto-post: {ex.Message}";
+            AutoPostRunExecutions.Clear();
+            AutoPostRunSummary = "Manual auto-post execution failed.";
         }
     }
 

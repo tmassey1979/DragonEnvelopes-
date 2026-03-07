@@ -188,6 +188,49 @@ public sealed class RecurringBillsDataService : IRecurringBillsDataService
             .ToArray();
     }
 
+    public async Task<RecurringAutoPostRunResultViewModel> RunAutoPostAsync(
+        DateOnly? dueDate = null,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var path = dueDate.HasValue
+            ? $"families/{familyId}/recurring-bills/auto-post/run?dueDate={dueDate:yyyy-MM-dd}"
+            : $"families/{familyId}/recurring-bills/auto-post/run";
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, path);
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"Manual recurring auto-post run failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var result = await JsonSerializer.DeserializeAsync<RecurringAutoPostRunResponse>(
+            stream,
+            SerializerOptions,
+            cancellationToken) ?? throw new InvalidOperationException("Manual recurring auto-post run returned empty response.");
+
+        var executions = result.Executions
+            .OrderBy(static execution => execution.RecurringBillName, StringComparer.OrdinalIgnoreCase)
+            .Select(static execution => new RecurringAutoPostExecutionItemViewModel(
+                execution.RecurringBillId,
+                execution.RecurringBillName,
+                execution.Result,
+                execution.TransactionId?.ToString() ?? "-",
+                string.IsNullOrWhiteSpace(execution.Notes) ? "-" : execution.Notes))
+            .ToArray();
+
+        return new RecurringAutoPostRunResultViewModel(
+            result.DueDate,
+            result.DueBillCount,
+            result.PostedCount,
+            result.SkippedCount,
+            result.FailedCount,
+            result.AlreadyProcessedCount,
+            executions);
+    }
+
     private Guid RequireFamilyId()
     {
         if (!_familyContext.FamilyId.HasValue)

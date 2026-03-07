@@ -40,4 +40,8 @@ public interface IRecurringBillsDataService
         Guid recurringBillId,
         int take = 25,
         CancellationToken cancellationToken = default);
+
+    Task<RecurringAutoPostRunResultViewModel> RunAutoPostAsync(
+        DateOnly? dueDate = null,
+        CancellationToken cancellationToken = default);
 }
