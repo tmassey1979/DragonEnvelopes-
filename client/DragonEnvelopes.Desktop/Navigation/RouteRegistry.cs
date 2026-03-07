@@ -18,7 +18,7 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Dashboard",
                 Glyph: "\uE80F",
                 TopBarSubtitle: "Budget health and status",
-                Content: new DashboardViewModel()),
+                Content: new DashboardViewModel(new DashboardDataService(apiClient, familyContext))),
             new RouteDefinition(
                 Key: "/envelopes",
                 Label: "Envelopes",

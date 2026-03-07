@@ -1,15 +1,22 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DragonEnvelopes.Desktop.Services;
 
 namespace DragonEnvelopes.Desktop.ViewModels;
 
 public sealed partial class DashboardViewModel : ObservableObject
 {
-    public DashboardViewModel()
+    private readonly IDashboardDataService _dashboardDataService;
+
+    public DashboardViewModel(IDashboardDataService dashboardDataService, bool autoLoad = true)
     {
+        _dashboardDataService = dashboardDataService;
         LoadCommand = new AsyncRelayCommand(LoadAsync);
-        _ = LoadCommand.ExecuteAsync(null);
+        if (autoLoad)
+        {
+            _ = LoadCommand.ExecuteAsync(null);
+        }
     }
 
     public IAsyncRelayCommand LoadCommand { get; }
@@ -36,38 +43,55 @@ public sealed partial class DashboardViewModel : ObservableObject
     {
         IsLoading = true;
         HasError = false;
+        IsEmpty = false;
         ErrorMessage = string.Empty;
 
         try
         {
-            await Task.Delay(450, cancellationToken);
+            var workspace = await _dashboardDataService.GetWorkspaceAsync(cancellationToken);
 
             var kpis = new[]
             {
-                new MetricTileViewModel("Net Worth", FormatCurrency(18420.73m), "+3.8% month-over-month", MetricTrendDirection.Positive),
-                new MetricTileViewModel("Cash Balance", FormatCurrency(4560.10m), "+$220 this week", MetricTrendDirection.Positive),
-                new MetricTileViewModel("Budget Health", "81%", "Stable", MetricTrendDirection.Neutral)
+                new MetricTileViewModel("Net Worth", FormatCurrency(workspace.NetWorth), "Across all linked accounts", MetricTrendDirection.Neutral),
+                new MetricTileViewModel("Cash Balance", FormatCurrency(workspace.CashBalance), "Checking, savings, and cash accounts", MetricTrendDirection.Neutral),
+                new MetricTileViewModel("Monthly Spend", FormatCurrency(workspace.MonthlySpend), "Current month spend", MetricTrendDirection.Negative),
+                new MetricTileViewModel(
+                    "Budget Health",
+                    $"{workspace.BudgetHealthPercent:0.0}%",
+                    $"Remaining {FormatCurrency(workspace.RemainingBudget)}",
+                    workspace.BudgetHealthPercent >= 50m
+                        ? MetricTrendDirection.Positive
+                        : MetricTrendDirection.Neutral)
             };
 
-            var transactions = new[]
-            {
-                new TransactionRowViewModel("2026-03-04", "Trader Joe's", FormatCurrency(64.31m), "Groceries", "Food"),
-                new TransactionRowViewModel("2026-03-03", "ComEd", FormatCurrency(118.07m), "Utilities", "Bills"),
-                new TransactionRowViewModel("2026-03-02", "Fuel Station", FormatCurrency(39.12m), "Fuel", "Transport")
-            };
+            var transactions = workspace.RecentTransactions
+                .Select(transaction => new TransactionRowViewModel(
+                    transaction.OccurredAt.ToString("yyyy-MM-dd"),
+                    transaction.Merchant,
+                    FormatCurrency(transaction.Amount),
+                    transaction.EnvelopeName,
+                    transaction.Category))
+                .ToArray();
 
             KpiCards = new ObservableCollection<MetricTileViewModel>(kpis);
             RecentTransactions = new ObservableCollection<TransactionRowViewModel>(transactions);
-            IsEmpty = KpiCards.Count == 0 && RecentTransactions.Count == 0;
+            IsEmpty = workspace.AccountCount == 0 && RecentTransactions.Count == 0;
         }
         catch (OperationCanceledException)
         {
+            HasError = true;
             ErrorMessage = "Dashboard load canceled.";
+            KpiCards.Clear();
+            RecentTransactions.Clear();
+            IsEmpty = true;
         }
         catch (Exception ex)
         {
             HasError = true;
             ErrorMessage = $"Dashboard load failed: {ex.Message}";
+            KpiCards.Clear();
+            RecentTransactions.Clear();
+            IsEmpty = true;
         }
         finally
         {
