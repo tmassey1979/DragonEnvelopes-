@@ -237,7 +237,7 @@ internal static class FinancialIntegrationEndpoints
                     result.FieldsTouched,
                     result.ExecutedAtUtc));
             })
-            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
             .WithName("RewrapProviderSecrets")
             .WithOpenApi();
 

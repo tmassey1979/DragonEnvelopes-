@@ -608,6 +608,56 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task Teen_With_Family_Access_Cannot_Run_Manual_Recurring_AutoPost()
+    {
+        var familyId = Guid.NewGuid();
+        var accountId = Guid.NewGuid();
+        var recurringBillId = Guid.NewGuid();
+        const string teenUserId = "teen-user-autopost";
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.Families.Add(new Family(familyId, "Teen AutoPost Family", DateTimeOffset.UtcNow));
+            dbContext.FamilyMembers.Add(new FamilyMember(
+                Guid.NewGuid(),
+                familyId,
+                teenUserId,
+                "Teen User",
+                EmailAddress.Parse($"teen-autopost-{familyId:N}@test.dev"),
+                MemberRole.Teen));
+            dbContext.Accounts.Add(new Account(
+                accountId,
+                familyId,
+                "Teen AutoPost Checking",
+                AccountType.Checking,
+                Money.FromDecimal(800m)));
+            dbContext.RecurringBills.Add(new RecurringBill(
+                recurringBillId,
+                familyId,
+                "Teen Restricted Bill",
+                "Teen Restricted Merchant",
+                Money.FromDecimal(25m),
+                RecurringBillFrequency.Monthly,
+                dayOfMonth: 1,
+                startDate: new DateOnly(2026, 1, 1),
+                endDate: null,
+                isActive: true));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, teenUserId);
+        client.DefaultRequestHeaders.Add(TestAuthHandler.RoleHeader, "Teen");
+
+        var response = await client.PostAsync(
+            $"/api/v1/families/{familyId}/recurring-bills/auto-post/run?dueDate=2026-03-01",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserA_Can_Get_And_Update_Own_Onboarding_Profile()
     {
         var familyId = Guid.NewGuid();
@@ -957,6 +1007,37 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.StartsWith("enc:v1:", stored.PlaidAccessToken, StringComparison.Ordinal);
         Assert.StartsWith("enc:v1:", stored.StripeCustomerId, StringComparison.Ordinal);
         Assert.StartsWith("enc:v1:", stored.StripeDefaultPaymentMethodId, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Adult_With_Family_Access_Cannot_Rewrap_Provider_Secrets()
+    {
+        var familyId = Guid.NewGuid();
+        const string adultUserId = "adult-user-rewrap";
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.Families.Add(new Family(familyId, "Adult Rewrap Family", DateTimeOffset.UtcNow));
+            dbContext.FamilyMembers.Add(new FamilyMember(
+                Guid.NewGuid(),
+                familyId,
+                adultUserId,
+                "Adult User",
+                EmailAddress.Parse($"adult-rewrap-{familyId:N}@test.dev"),
+                MemberRole.Adult));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, adultUserId);
+        client.DefaultRequestHeaders.Add(TestAuthHandler.RoleHeader, "Adult");
+
+        var response = await client.PostAsync(
+            $"/api/v1/families/{familyId}/financial/security/rewrap-provider-secrets",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -1656,6 +1737,7 @@ public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationScheme
 {
     public const string SchemeName = "TestAuth";
     public const string UserHeader = "X-Test-User";
+    public const string RoleHeader = "X-Test-Role";
 
     public TestAuthHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -1672,12 +1754,24 @@ public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationScheme
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-        var claims = new[]
+        var roles = Request.Headers.TryGetValue(RoleHeader, out var roleHeaderValue)
+            ? roleHeaderValue.ToString()
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(static role => !string.IsNullOrWhiteSpace(role))
+                .ToArray()
+            : [];
+        if (roles.Length == 0)
+        {
+            roles = ["Parent"];
+        }
+
+        var claims = new List<Claim>
         {
             new Claim("sub", userId.ToString()),
-            new Claim(ClaimTypes.Role, "Parent"),
             new Claim("preferred_username", userId.ToString())
         };
+        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+
         var identity = new ClaimsIdentity(claims, SchemeName, "preferred_username", ClaimTypes.Role);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, SchemeName);

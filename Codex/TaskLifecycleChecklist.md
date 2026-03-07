@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#184` Recurring operations: manual auto-post run API + desktop control.
+- Active task: `#186` Authorization hardening: role matrix tests + UI gating for parent-only operations.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#183` Family invites: redeem token into actual family membership + desktop flow.
+- Previous completed task: `#184` Recurring operations: manual auto-post run API + desktop control.
 - Last updated: `2026-03-06`.
