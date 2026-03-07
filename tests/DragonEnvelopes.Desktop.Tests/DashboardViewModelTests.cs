@@ -17,6 +17,9 @@ public sealed class DashboardViewModelTests
                 MonthlySpend: 1288.50m,
                 RemainingBudget: 2111.50m,
                 BudgetHealthPercent: 62.1m,
+                GoalCount: 3,
+                GoalsOnTrackCount: 2,
+                GoalsBehindCount: 1,
                 RecentTransactions:
                 [
                     new DashboardRecentTransactionData(
@@ -41,7 +44,7 @@ public sealed class DashboardViewModelTests
         Assert.False(viewModel.IsEmpty);
         Assert.False(viewModel.IsKpiEmpty);
         Assert.False(viewModel.IsRecentTransactionsEmpty);
-        Assert.Equal(4, viewModel.KpiCards.Count);
+        Assert.Equal(5, viewModel.KpiCards.Count);
         Assert.Equal(2, viewModel.RecentTransactions.Count);
         Assert.Equal("Trader Joe's", viewModel.RecentTransactions[0].Merchant);
     }
@@ -58,6 +61,9 @@ public sealed class DashboardViewModelTests
                 MonthlySpend: 0m,
                 RemainingBudget: 0m,
                 BudgetHealthPercent: 0m,
+                GoalCount: 0,
+                GoalsOnTrackCount: 0,
+                GoalsBehindCount: 0,
                 RecentTransactions: [])
         };
         var viewModel = new DashboardViewModel(service, autoLoad: false);
@@ -69,7 +75,7 @@ public sealed class DashboardViewModelTests
         Assert.False(viewModel.IsKpiEmpty);
         Assert.True(viewModel.IsRecentTransactionsEmpty);
         Assert.Empty(viewModel.RecentTransactions);
-        Assert.Equal(4, viewModel.KpiCards.Count);
+        Assert.Equal(5, viewModel.KpiCards.Count);
     }
 
     [Fact]
@@ -84,6 +90,9 @@ public sealed class DashboardViewModelTests
                 MonthlySpend: 0m,
                 RemainingBudget: 500m,
                 BudgetHealthPercent: 50m,
+                GoalCount: 1,
+                GoalsOnTrackCount: 1,
+                GoalsBehindCount: 0,
                 RecentTransactions: [])
         };
         var viewModel = new DashboardViewModel(service, autoLoad: false);
@@ -94,7 +103,7 @@ public sealed class DashboardViewModelTests
         Assert.False(viewModel.IsEmpty);
         Assert.False(viewModel.IsKpiEmpty);
         Assert.True(viewModel.IsRecentTransactionsEmpty);
-        Assert.Equal(4, viewModel.KpiCards.Count);
+        Assert.Equal(5, viewModel.KpiCards.Count);
         Assert.Empty(viewModel.RecentTransactions);
     }
 
@@ -127,6 +136,9 @@ public sealed class DashboardViewModelTests
             MonthlySpend: 0m,
             RemainingBudget: 0m,
             BudgetHealthPercent: 0m,
+            GoalCount: 0,
+            GoalsOnTrackCount: 0,
+            GoalsBehindCount: 0,
             RecentTransactions: []);
 
         public Exception? ExceptionToThrow { get; init; }

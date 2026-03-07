@@ -7,6 +7,9 @@ public sealed record DashboardWorkspaceData(
     decimal MonthlySpend,
     decimal RemainingBudget,
     decimal BudgetHealthPercent,
+    int GoalCount,
+    int GoalsOnTrackCount,
+    int GoalsBehindCount,
     IReadOnlyList<DashboardRecentTransactionData> RecentTransactions);
 
 public sealed record DashboardRecentTransactionData(

@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using DragonEnvelopes.Contracts.EnvelopeGoals;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Desktop.Api;
 using DragonEnvelopes.Desktop.ViewModels;
@@ -22,17 +23,51 @@ public sealed class EnvelopesDataService : IEnvelopesDataService
     public async Task<IReadOnlyList<EnvelopeListItemViewModel>> GetEnvelopesAsync(CancellationToken cancellationToken = default)
     {
         var familyId = RequireFamilyId();
-        using var response = await _apiClient.GetAsync($"envelopes?familyId={familyId}", cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        using var envelopeResponse = await _apiClient.GetAsync($"envelopes?familyId={familyId}", cancellationToken);
+        if (!envelopeResponse.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException($"Envelopes API request failed with status {(int)response.StatusCode}.");
+            throw new InvalidOperationException($"Envelopes API request failed with status {(int)envelopeResponse.StatusCode}.");
         }
 
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        await using var stream = await envelopeResponse.Content.ReadAsStreamAsync(cancellationToken);
         var envelopes = await JsonSerializer.DeserializeAsync<List<EnvelopeResponse>>(stream, SerializerOptions, cancellationToken)
             ?? [];
 
-        return envelopes.Select(MapEnvelope).ToArray();
+        using var goalsResponse = await _apiClient.GetAsync($"envelope-goals?familyId={familyId}", cancellationToken);
+        if (!goalsResponse.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Envelope goals API request failed with status {(int)goalsResponse.StatusCode}.");
+        }
+
+        await using var goalsStream = await goalsResponse.Content.ReadAsStreamAsync(cancellationToken);
+        var goals = await JsonSerializer.DeserializeAsync<List<EnvelopeGoalResponse>>(goalsStream, SerializerOptions, cancellationToken)
+            ?? [];
+
+        var asOf = DateOnly.FromDateTime(DateTime.UtcNow);
+        using var projectionResponse = await _apiClient.GetAsync(
+            $"envelope-goals/projection?familyId={familyId}&asOf={asOf:yyyy-MM-dd}",
+            cancellationToken);
+        if (!projectionResponse.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Envelope goal projection request failed with status {(int)projectionResponse.StatusCode}.");
+        }
+
+        await using var projectionStream = await projectionResponse.Content.ReadAsStreamAsync(cancellationToken);
+        var projections = await JsonSerializer.DeserializeAsync<List<EnvelopeGoalProjectionResponse>>(
+            projectionStream,
+            SerializerOptions,
+            cancellationToken) ?? [];
+
+        var goalByEnvelopeId = goals.ToDictionary(static goal => goal.EnvelopeId);
+        var projectionByEnvelopeId = projections.ToDictionary(static projection => projection.EnvelopeId);
+
+        return envelopes
+            .Select(envelope => MapEnvelope(
+                envelope,
+                goalByEnvelopeId.TryGetValue(envelope.Id, out var goal) ? goal : null,
+                projectionByEnvelopeId.TryGetValue(envelope.Id, out var projection) ? projection : null,
+                asOf))
+            .ToArray();
     }
 
     public async Task<EnvelopeListItemViewModel> CreateEnvelopeAsync(
@@ -81,6 +116,51 @@ public sealed class EnvelopesDataService : IEnvelopesDataService
         return MapEnvelope(envelope);
     }
 
+    public async Task CreateGoalAsync(
+        Guid envelopeId,
+        decimal targetAmount,
+        DateOnly dueDate,
+        string status,
+        CancellationToken cancellationToken = default)
+    {
+        var payload = new CreateEnvelopeGoalRequest(
+            RequireFamilyId(),
+            envelopeId,
+            targetAmount,
+            dueDate,
+            status);
+
+        using var response = await SendAsync(HttpMethod.Post, "envelope-goals", payload, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Envelope goal create failed with status {(int)response.StatusCode}.");
+        }
+    }
+
+    public async Task UpdateGoalAsync(
+        Guid goalId,
+        decimal targetAmount,
+        DateOnly dueDate,
+        string status,
+        CancellationToken cancellationToken = default)
+    {
+        var payload = new UpdateEnvelopeGoalRequest(targetAmount, dueDate, status);
+        using var response = await SendAsync(HttpMethod.Put, $"envelope-goals/{goalId}", payload, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Envelope goal update failed with status {(int)response.StatusCode}.");
+        }
+    }
+
+    public async Task DeleteGoalAsync(Guid goalId, CancellationToken cancellationToken = default)
+    {
+        using var response = await SendAsync(HttpMethod.Delete, $"envelope-goals/{goalId}", payload: null, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Envelope goal delete failed with status {(int)response.StatusCode}.");
+        }
+    }
+
     private Guid RequireFamilyId()
     {
         if (!_familyContext.FamilyId.HasValue)
@@ -118,13 +198,46 @@ public sealed class EnvelopesDataService : IEnvelopesDataService
         return envelope ?? throw new InvalidOperationException("Envelope response payload was invalid.");
     }
 
-    private static EnvelopeListItemViewModel MapEnvelope(EnvelopeResponse envelope)
+    private static EnvelopeListItemViewModel MapEnvelope(
+        EnvelopeResponse envelope,
+        EnvelopeGoalResponse? goal = null,
+        EnvelopeGoalProjectionResponse? projection = null,
+        DateOnly? asOfDate = null)
     {
+        var dueStatus = ResolveDueStatus(goal?.DueDate, asOfDate ?? DateOnly.FromDateTime(DateTime.UtcNow));
+
         return new EnvelopeListItemViewModel(
             envelope.Id,
             envelope.Name,
             envelope.MonthlyBudget,
             envelope.CurrentBalance,
-            envelope.IsArchived);
+            envelope.IsArchived,
+            goalId: goal?.Id,
+            goalTargetAmount: goal?.TargetAmount,
+            goalDueDate: goal?.DueDate,
+            goalStatus: goal?.Status,
+            goalProgressPercent: projection?.ProgressPercent,
+            goalProjectionStatus: projection?.ProjectionStatus,
+            goalDueStatus: dueStatus);
+    }
+
+    private static string ResolveDueStatus(DateOnly? dueDate, DateOnly asOfDate)
+    {
+        if (!dueDate.HasValue)
+        {
+            return "NoGoal";
+        }
+
+        if (dueDate.Value < asOfDate)
+        {
+            return "Overdue";
+        }
+
+        if (dueDate.Value <= asOfDate.AddDays(30))
+        {
+            return "DueSoon";
+        }
+
+        return "OnSchedule";
     }
 }

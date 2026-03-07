@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DragonEnvelopes.Contracts.Accounts;
+using DragonEnvelopes.Contracts.EnvelopeGoals;
 using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Reports;
 using DragonEnvelopes.Contracts.Transactions;
@@ -27,6 +28,7 @@ public sealed class DashboardDataService : IDashboardDataService
 
         var monthlySpend = await GetMonthlySpendAsync(familyId, cancellationToken);
         var (remainingBudget, budgetHealthPercent) = await GetRemainingBudgetAsync(familyId, cancellationToken);
+        var (goalCount, goalsOnTrackCount, goalsBehindCount) = await GetGoalSummaryAsync(familyId, cancellationToken);
         var recentTransactions = await GetRecentTransactionsAsync(accounts, envelopes, cancellationToken);
 
         return new DashboardWorkspaceData(
@@ -38,6 +40,9 @@ public sealed class DashboardDataService : IDashboardDataService
             MonthlySpend: monthlySpend,
             RemainingBudget: remainingBudget,
             BudgetHealthPercent: budgetHealthPercent,
+            GoalCount: goalCount,
+            GoalsOnTrackCount: goalsOnTrackCount,
+            GoalsBehindCount: goalsBehindCount,
             RecentTransactions: recentTransactions);
     }
 
@@ -124,6 +129,30 @@ public sealed class DashboardDataService : IDashboardDataService
             : decimal.Round((report.RemainingAmount / report.TotalIncome) * 100m, 1, MidpointRounding.AwayFromZero);
 
         return (report.RemainingAmount, budgetHealthPercent);
+    }
+
+    private async Task<(int GoalCount, int GoalsOnTrackCount, int GoalsBehindCount)> GetGoalSummaryAsync(
+        Guid familyId,
+        CancellationToken cancellationToken)
+    {
+        var asOf = DateOnly.FromDateTime(DateTime.UtcNow);
+        using var response = await _apiClient.GetAsync(
+            $"envelope-goals/projection?familyId={familyId}&asOf={asOf:yyyy-MM-dd}",
+            cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Envelope goal projection request failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var rows = await JsonSerializer.DeserializeAsync<List<EnvelopeGoalProjectionResponse>>(
+            stream,
+            SerializerOptions,
+            cancellationToken) ?? [];
+
+        var onTrack = rows.Count(row => string.Equals(row.ProjectionStatus, "OnTrack", StringComparison.OrdinalIgnoreCase));
+        var behind = rows.Count(row => string.Equals(row.ProjectionStatus, "Behind", StringComparison.OrdinalIgnoreCase));
+        return (rows.Count, onTrack, behind);
     }
 
     private async Task<IReadOnlyList<DashboardRecentTransactionData>> GetRecentTransactionsAsync(

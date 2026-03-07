@@ -7,6 +7,7 @@ namespace DragonEnvelopes.Desktop.ViewModels;
 
 public sealed partial class EnvelopesViewModel : ObservableObject
 {
+    private static readonly string[] GoalStatuses = ["Active", "Completed", "Cancelled"];
     private readonly IEnvelopesDataService _envelopesDataService;
     private bool _isCreatingNew;
     private bool _isApplyingSelection;
@@ -31,6 +32,7 @@ public sealed partial class EnvelopesViewModel : ObservableObject
     public IAsyncRelayCommand ArchiveCommand { get; }
     public IRelayCommand<EnvelopeListItemViewModel?> SelectEnvelopeCommand { get; }
     public IRelayCommand CancelEditCommand { get; }
+    public IReadOnlyList<string> GoalStatusOptions { get; } = GoalStatuses;
 
     [ObservableProperty]
     private ObservableCollection<EnvelopeListItemViewModel> envelopes = [];
@@ -65,6 +67,21 @@ public sealed partial class EnvelopesViewModel : ObservableObject
     [ObservableProperty]
     private string editorMessage = "Select an envelope or create a new one.";
 
+    [ObservableProperty]
+    private bool draftHasGoal;
+
+    [ObservableProperty]
+    private decimal draftGoalTargetAmount;
+
+    [ObservableProperty]
+    private string draftGoalDueDate = string.Empty;
+
+    [ObservableProperty]
+    private string draftGoalStatus = GoalStatuses[0];
+
+    [ObservableProperty]
+    private string goalEditorMessage = "Goal not configured.";
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         IsLoading = true;
@@ -94,6 +111,11 @@ public sealed partial class EnvelopesViewModel : ObservableObject
                 DraftName = string.Empty;
                 DraftMonthlyBudget = 0m;
                 DraftIsArchived = false;
+                DraftHasGoal = false;
+                DraftGoalTargetAmount = 0m;
+                DraftGoalDueDate = string.Empty;
+                DraftGoalStatus = GoalStatuses[0];
+                GoalEditorMessage = "Goal not configured.";
                 _isCreatingNew = false;
             }
         }
@@ -135,6 +157,11 @@ public sealed partial class EnvelopesViewModel : ObservableObject
             DraftName = string.Empty;
             DraftMonthlyBudget = 0m;
             DraftIsArchived = false;
+            DraftHasGoal = false;
+            DraftGoalTargetAmount = 0m;
+            DraftGoalDueDate = string.Empty;
+            DraftGoalStatus = GoalStatuses[0];
+            GoalEditorMessage = "Goal not configured.";
             EditorMessage = "Select an envelope from the list.";
             return;
         }
@@ -143,6 +170,13 @@ public sealed partial class EnvelopesViewModel : ObservableObject
         DraftName = envelope.Name;
         DraftMonthlyBudget = envelope.MonthlyBudget;
         DraftIsArchived = envelope.IsArchived;
+        DraftHasGoal = envelope.HasGoal;
+        DraftGoalTargetAmount = envelope.GoalTargetAmount ?? 0m;
+        DraftGoalDueDate = envelope.GoalDueDate?.ToString("yyyy-MM-dd") ?? string.Empty;
+        DraftGoalStatus = string.IsNullOrWhiteSpace(envelope.GoalStatus) ? GoalStatuses[0] : envelope.GoalStatus!;
+        GoalEditorMessage = envelope.HasGoal
+            ? envelope.GoalSummaryDisplay
+            : "Goal not configured.";
         EditorMessage = "Update values and save changes.";
     }
 
@@ -169,6 +203,11 @@ public sealed partial class EnvelopesViewModel : ObservableObject
         DraftName = string.Empty;
         DraftMonthlyBudget = 0m;
         DraftIsArchived = false;
+        DraftHasGoal = false;
+        DraftGoalTargetAmount = 0m;
+        DraftGoalDueDate = string.Empty;
+        DraftGoalStatus = GoalStatuses[0];
+        GoalEditorMessage = "Goal not configured.";
         EditorMessage = "Enter a name and monthly budget for the new envelope.";
         HasError = false;
         ErrorMessage = string.Empty;
@@ -196,6 +235,7 @@ public sealed partial class EnvelopesViewModel : ObservableObject
         try
         {
             EnvelopeListItemViewModel updated;
+            var existingGoalId = _isCreatingNew ? (Guid?)null : SelectedEnvelope?.GoalId;
             if (_isCreatingNew)
             {
                 updated = await _envelopesDataService.CreateEnvelopeAsync(
@@ -221,6 +261,8 @@ public sealed partial class EnvelopesViewModel : ObservableObject
                     cancellationToken);
                 EditorMessage = "Envelope updated.";
             }
+
+            await SaveGoalAsync(updated.Id, existingGoalId, cancellationToken);
 
             await RefreshSelectionAsync(updated.Id, cancellationToken);
         }
@@ -291,7 +333,65 @@ public sealed partial class EnvelopesViewModel : ObservableObject
             DraftName = SelectedEnvelope.Name;
             DraftMonthlyBudget = SelectedEnvelope.MonthlyBudget;
             DraftIsArchived = SelectedEnvelope.IsArchived;
+            DraftHasGoal = SelectedEnvelope.HasGoal;
+            DraftGoalTargetAmount = SelectedEnvelope.GoalTargetAmount ?? 0m;
+            DraftGoalDueDate = SelectedEnvelope.GoalDueDate?.ToString("yyyy-MM-dd") ?? string.Empty;
+            DraftGoalStatus = string.IsNullOrWhiteSpace(SelectedEnvelope.GoalStatus) ? GoalStatuses[0] : SelectedEnvelope.GoalStatus!;
+            GoalEditorMessage = SelectedEnvelope.GoalSummaryDisplay;
             EditorMessage = "Changes reverted.";
         }
+    }
+
+    private async Task SaveGoalAsync(Guid envelopeId, Guid? existingGoalId, CancellationToken cancellationToken)
+    {
+        if (!DraftHasGoal)
+        {
+            if (existingGoalId.HasValue)
+            {
+                await _envelopesDataService.DeleteGoalAsync(existingGoalId.Value, cancellationToken);
+                GoalEditorMessage = "Goal removed.";
+            }
+            else
+            {
+                GoalEditorMessage = "Goal not configured.";
+            }
+
+            return;
+        }
+
+        if (DraftGoalTargetAmount <= 0m)
+        {
+            throw new InvalidOperationException("Goal target amount must be greater than zero.");
+        }
+
+        if (!DateOnly.TryParse(DraftGoalDueDate, out var dueDate))
+        {
+            throw new InvalidOperationException("Goal due date is invalid. Use yyyy-MM-dd format.");
+        }
+
+        if (!GoalStatuses.Contains(DraftGoalStatus, StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Goal status is invalid.");
+        }
+
+        if (existingGoalId.HasValue)
+        {
+            await _envelopesDataService.UpdateGoalAsync(
+                existingGoalId.Value,
+                DraftGoalTargetAmount,
+                dueDate,
+                DraftGoalStatus,
+                cancellationToken);
+            GoalEditorMessage = "Goal updated.";
+            return;
+        }
+
+        await _envelopesDataService.CreateGoalAsync(
+            envelopeId,
+            DraftGoalTargetAmount,
+            dueDate,
+            DraftGoalStatus,
+            cancellationToken);
+        GoalEditorMessage = "Goal created.";
     }
 }

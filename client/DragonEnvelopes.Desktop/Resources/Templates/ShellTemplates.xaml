@@ -1151,27 +1151,46 @@
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="120" />
-                                            <ColumnDefinition Width="120" />
-                                            <ColumnDefinition Width="90" />
-                                        </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="120" />
+                                                <ColumnDefinition Width="120" />
+                                                <ColumnDefinition Width="90" />
+                                            </Grid.ColumnDefinitions>
 
-                                        <TextBlock Grid.Column="0"
-                                                   Text="{Binding Name}"
-                                                   Style="{StaticResource BodyTextStyle}" />
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding MonthlyBudgetDisplay}"
-                                                   Style="{StaticResource CaptionTextStyle}" />
-                                        <TextBlock Grid.Column="2"
-                                                   Text="{Binding CurrentBalanceDisplay}"
-                                                   Style="{StaticResource CaptionTextStyle}" />
-                                        <TextBlock Grid.Column="3"
-                                                   Text="{Binding IsArchived, StringFormat=Archived: {0}}"
-                                                   Style="{StaticResource CaptionTextStyle}" />
-                                    </Grid>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding Name}"
+                                                       Style="{StaticResource BodyTextStyle}" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding MonthlyBudgetDisplay}"
+                                                       Style="{StaticResource CaptionTextStyle}" />
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding CurrentBalanceDisplay}"
+                                                       Style="{StaticResource CaptionTextStyle}" />
+                                            <TextBlock Grid.Column="3"
+                                                       Text="{Binding IsArchived, StringFormat=Archived: {0}}"
+                                                       Style="{StaticResource CaptionTextStyle}" />
+                                        </Grid>
+
+                                        <TextBlock Margin="0,6,0,0"
+                                                   Text="{Binding GoalSummaryDisplay}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+                                                    <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding GoalProjectionStatus}" Value="OnTrack">
+                                                            <Setter Property="Foreground" Value="#8FD19E" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding GoalProjectionStatus}" Value="Behind">
+                                                            <Setter Property="Foreground" Value="#FFB36B" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
                                 </Border>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -1196,6 +1215,48 @@
                         <CheckBox Margin="0,14,0,0"
                                   Content="Archived"
                                   IsChecked="{Binding DraftIsArchived}" />
+
+                        <CheckBox Margin="0,14,0,0"
+                                  Content="Track savings goal for this envelope"
+                                  IsChecked="{Binding DraftHasGoal}" />
+
+                        <Border Margin="0,10,0,0"
+                                Padding="10"
+                                CornerRadius="10"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DraftHasGoal}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+
+                            <StackPanel>
+                                <TextBlock Text="Goal Target Amount" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Margin="0,6,0,0"
+                                         Text="{Binding DraftGoalTargetAmount, UpdateSourceTrigger=PropertyChanged, StringFormat=F2}" />
+
+                                <TextBlock Margin="0,10,0,0" Text="Goal Due Date (yyyy-MM-dd)" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Margin="0,6,0,0"
+                                         Text="{Binding DraftGoalDueDate, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Margin="0,10,0,0" Text="Goal Status" Style="{StaticResource CaptionTextStyle}" />
+                                <ComboBox Margin="0,6,0,0"
+                                          ItemsSource="{Binding GoalStatusOptions}"
+                                          SelectedItem="{Binding DraftGoalStatus, Mode=TwoWay}" />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Margin="0,10,0,0"
+                                   Text="{Binding GoalEditorMessage}"
+                                   Style="{StaticResource CaptionTextStyle}"
+                                   TextWrapping="Wrap" />
 
                         <StackPanel Margin="0,18,0,0" Orientation="Horizontal">
                             <Button Margin="0,0,8,0"

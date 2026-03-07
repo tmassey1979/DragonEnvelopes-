@@ -69,7 +69,18 @@ public sealed partial class DashboardViewModel : ObservableObject
                     $"Remaining {FormatCurrency(workspace.RemainingBudget)}",
                     workspace.BudgetHealthPercent >= 50m
                         ? MetricTrendDirection.Positive
-                        : MetricTrendDirection.Neutral)
+                        : MetricTrendDirection.Neutral),
+                new MetricTileViewModel(
+                    "Envelope Goals",
+                    workspace.GoalCount == 0
+                        ? "No goals"
+                        : $"{workspace.GoalsOnTrackCount}/{workspace.GoalCount} on track",
+                    workspace.GoalCount == 0
+                        ? "Define envelope goals to monitor progress."
+                        : $"{workspace.GoalsBehindCount} behind schedule",
+                    workspace.GoalCount == 0 || workspace.GoalsBehindCount == 0
+                        ? MetricTrendDirection.Positive
+                        : MetricTrendDirection.Negative)
             };
 
             var transactions = workspace.RecentTransactions

@@ -52,4 +52,29 @@ internal sealed class FakeEnvelopesDataService(Guid envelopeId) : IEnvelopesData
     {
         throw new NotSupportedException("Not required for smoke tests.");
     }
+
+    public Task CreateGoalAsync(
+        Guid envelopeId,
+        decimal targetAmount,
+        DateOnly dueDate,
+        string status,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("Not required for smoke tests.");
+    }
+
+    public Task UpdateGoalAsync(
+        Guid goalId,
+        decimal targetAmount,
+        DateOnly dueDate,
+        string status,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("Not required for smoke tests.");
+    }
+
+    public Task DeleteGoalAsync(Guid goalId, CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("Not required for smoke tests.");
+    }
 }

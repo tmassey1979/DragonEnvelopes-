@@ -207,6 +207,9 @@ public sealed class MainWindowViewModelTests
                 MonthlySpend: 0m,
                 RemainingBudget: 0m,
                 BudgetHealthPercent: 0m,
+                GoalCount: 0,
+                GoalsOnTrackCount: 0,
+                GoalsBehindCount: 0,
                 RecentTransactions: []));
         }
     }

@@ -19,4 +19,20 @@ public interface IEnvelopesDataService
         CancellationToken cancellationToken = default);
 
     Task<EnvelopeListItemViewModel> ArchiveEnvelopeAsync(Guid envelopeId, CancellationToken cancellationToken = default);
+
+    Task CreateGoalAsync(
+        Guid envelopeId,
+        decimal targetAmount,
+        DateOnly dueDate,
+        string status,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateGoalAsync(
+        Guid goalId,
+        decimal targetAmount,
+        DateOnly dueDate,
+        string status,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteGoalAsync(Guid goalId, CancellationToken cancellationToken = default);
 }
