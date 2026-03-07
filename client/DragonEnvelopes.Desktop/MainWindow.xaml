@@ -16,6 +16,18 @@
         <viewModels:MainWindowViewModel />
     </Window.DataContext>
 
+    <Window.Resources>
+        <SolidColorBrush x:Key="ShellBackgroundBrush" Color="#F5F5F7" />
+        <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="PanelMutedBackgroundBrush" Color="#F6F6F7" />
+        <SolidColorBrush x:Key="PanelOutlineBrush" Color="#D6D6D9" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#C91515" />
+        <SolidColorBrush x:Key="AccentMutedBrush" Color="#F8E2E2" />
+        <SolidColorBrush x:Key="PrimaryTextBrush" Color="#171717" />
+        <SolidColorBrush x:Key="SecondaryTextBrush" Color="#555555" />
+    </Window.Resources>
+
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="260" />
@@ -92,7 +104,6 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
@@ -129,17 +140,7 @@
                            Text="{Binding RoleSummary}"
                            Style="{StaticResource CaptionTextStyle}" />
 
-                <Border Grid.Column="5"
-                        Padding="12,8"
-                        CornerRadius="8"
-                        Background="{StaticResource AccentMutedBrush}"
-                        BorderBrush="{StaticResource PanelOutlineBrush}"
-                        BorderThickness="1"
-                        VerticalAlignment="Center">
-                    <TextBlock Text="Dark Theme" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource PrimaryTextBrush}" FontWeight="SemiBold" />
-                </Border>
-
-                <Button Grid.Column="6"
+                <Button Grid.Column="5"
                         Margin="12,0,0,0"
                         VerticalAlignment="Center"
                         MinWidth="92"
@@ -147,7 +148,7 @@
                         AutomationProperties.Name="Authentication action"
                         Click="OnAuthButtonClicked" />
 
-                <Button Grid.Column="7"
+                <Button Grid.Column="6"
                         Margin="12,0,0,0"
                         VerticalAlignment="Center"
                         MinWidth="84"
@@ -163,14 +164,28 @@
             </Border>
 
             <Border HorizontalAlignment="Right"
-                    VerticalAlignment="Top"
-                    Margin="0,16,16,0"
-                    Width="360"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,16,16"
+                    Width="340"
+                    MaxHeight="360"
                     CornerRadius="10"
                     BorderBrush="{StaticResource PanelOutlineBrush}"
                     BorderThickness="1"
                     Background="{StaticResource SidebarBackgroundBrush}"
                     Padding="10">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding OperationStatusCenter.HasToasts}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding OperationStatusCenter.HasActiveOperations}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -188,29 +203,44 @@
                                 Command="{Binding ClearOperationToastsCommand}" />
                     </Grid>
 
-                    <ItemsControl Margin="0,8,0,0"
-                                  ItemsSource="{Binding OperationStatusCenter.Toasts}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Margin="0,0,0,6"
-                                        Padding="8"
-                                        CornerRadius="8"
-                                        BorderBrush="{Binding LevelBrush}"
-                                        BorderThickness="1"
-                                        Background="{StaticResource PanelMutedBackgroundBrush}">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding LevelLabel}"
-                                                   Style="{StaticResource CaptionTextStyle}"
-                                                   Foreground="{Binding LevelBrush}" />
-                                        <TextBlock Margin="0,4,0,0"
-                                                   Text="{Binding Message}"
-                                                   TextWrapping="Wrap"
-                                                   Style="{StaticResource CaptionTextStyle}" />
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <ScrollViewer Margin="0,8,0,0"
+                                  VerticalScrollBarVisibility="Auto"
+                                  MaxHeight="280">
+                        <ItemsControl ItemsSource="{Binding OperationStatusCenter.Toasts}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,6"
+                                            Padding="8"
+                                            CornerRadius="8"
+                                            BorderBrush="{Binding LevelBrush}"
+                                            BorderThickness="1"
+                                            Background="{StaticResource PanelMutedBackgroundBrush}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding LevelLabel}"
+                                                           Style="{StaticResource CaptionTextStyle}"
+                                                           Foreground="{Binding LevelBrush}" />
+                                                <TextBlock Margin="0,4,0,0"
+                                                           Text="{Binding Message}"
+                                                           TextWrapping="Wrap"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1"
+                                                    Margin="8,0,0,0"
+                                                    Padding="6,0"
+                                                    Content="x"
+                                                    Command="{Binding DataContext.DismissOperationToastCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding Id}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
                 </StackPanel>
             </Border>
         </Grid>

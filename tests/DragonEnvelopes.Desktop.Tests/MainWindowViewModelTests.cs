@@ -193,6 +193,37 @@ public sealed class MainWindowViewModelTests
         Assert.True(recurringViewModel.CanRunAutoPostNow);
     }
 
+    [Fact]
+    public async Task SignInWithPasswordAsync_ResolvesFamilyId_FromCamelCaseFamilyResponse()
+    {
+        var familyId = Guid.Parse("e3000000-0000-0000-0000-000000000001");
+        var familyContext = new FakeFamilyContext();
+        var navigationService = new FakeNavigationService(
+        [
+            new RouteDefinition(
+                Key: "/dashboard",
+                Label: "Dashboard",
+                Glyph: "D",
+                TopBarSubtitle: "Dashboard",
+                Content: new ShellContentViewModel("Dashboard", "Summary", "Empty", "Body", []))
+        ]);
+
+        var viewModel = new MainWindowViewModel(
+            navigationService,
+            new FakeAuthService(signInSucceeds: true, subject: "parent-user"),
+            new RoleAwareBackendApiClient(["Parent"], familyId),
+            familyContext,
+            new FakeFamilySelectionStore(),
+            new FakeOperationStatusCenter());
+
+        var signIn = await viewModel.SignInWithPasswordAsync("parent-user", "password");
+
+        Assert.True(signIn.Succeeded);
+        Assert.NotNull(viewModel.SelectedFamily);
+        Assert.Equal(familyId, viewModel.SelectedFamily!.Id);
+        Assert.Equal(familyId, familyContext.FamilyId);
+    }
+
     private sealed class CountingDashboardDataService : IDashboardDataService
     {
         public int GetWorkspaceCallCount { get; private set; }
@@ -480,6 +511,8 @@ public sealed class MainWindowViewModelTests
 
         public bool HasActiveOperations => false;
 
+        public bool HasToasts => false;
+
         public string ActiveOperationSummary => "Idle";
 
         public event PropertyChangedEventHandler? PropertyChanged
@@ -501,7 +534,7 @@ public sealed class MainWindowViewModelTests
         {
         }
 
-        public void ReportError(string message, bool isTransient = false)
+        public void ReportError(string message, bool isTransient = true)
         {
         }
 

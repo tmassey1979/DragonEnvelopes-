@@ -14,6 +14,7 @@ namespace DragonEnvelopes.Desktop.ViewModels;
 
 public sealed partial class MainWindowViewModel : ObservableObject
 {
+    private static readonly JsonSerializerOptions JsonSerializerOptions = new(JsonSerializerDefaults.Web);
     private readonly INavigationService _navigationService;
     private readonly IAuthService _authService;
     private readonly IBackendApiClient _apiClient;
@@ -60,6 +61,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ToggleAuthenticationCommand = new AsyncRelayCommand(ToggleAuthenticationAsync);
         PingApiCommand = new AsyncRelayCommand(PingApiAsync);
         ClearOperationToastsCommand = new RelayCommand(ClearOperationToasts);
+        DismissOperationToastCommand = new RelayCommand<Guid>(DismissOperationToast);
 
         _navigationService.PropertyChanged += OnNavigationServiceChanged;
         _navigationService.Navigate("/dashboard");
@@ -76,6 +78,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public IAsyncRelayCommand PingApiCommand { get; }
     public IRelayCommand ClearOperationToastsCommand { get; }
+    public IRelayCommand<Guid> DismissOperationToastCommand { get; }
     public IOperationStatusCenter OperationStatusCenter => _operationStatusCenter;
 
     [ObservableProperty]
@@ -330,6 +333,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 _familyContext.SetFamilyId(null);
                 AvailableFamilies.Clear();
                 SelectedFamily = null;
+                AuthStatus = "Signed in (no family membership)";
+                ApiStatus = "No family memberships found for this account.";
                 await _familySelectionStore.ClearAsync();
                 return;
             }
@@ -404,13 +409,17 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 }
 
                 await using var stream = await response.Content.ReadAsStreamAsync();
-                var family = await JsonSerializer.DeserializeAsync<FamilyResponse>(stream);
+                var family = await JsonSerializer.DeserializeAsync<FamilyResponse>(stream, JsonSerializerOptions);
                 if (family is null)
                 {
                     continue;
                 }
 
-                options.Add(new FamilyOptionViewModel(family.Id, family.Name));
+                var resolvedFamilyId = family.Id == Guid.Empty ? familyId : family.Id;
+                var resolvedName = string.IsNullOrWhiteSpace(family.Name)
+                    ? resolvedFamilyId.ToString("D")
+                    : family.Name;
+                options.Add(new FamilyOptionViewModel(resolvedFamilyId, resolvedName));
             }
             catch
             {
@@ -453,8 +462,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 case OnboardingWizardViewModel onboarding:
                     await onboarding.LoadCommand.ExecuteAsync(null);
                     break;
-                case ScenarioSimulatorViewModel scenarios:
-                    await scenarios.RunSimulationCommand.ExecuteAsync(null);
+                case ScenarioSimulatorViewModel:
                     break;
             }
         }
@@ -497,6 +505,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private void ClearOperationToasts()
     {
         _operationStatusCenter.ClearTransient();
+    }
+
+    private void DismissOperationToast(Guid toastId)
+    {
+        if (toastId == Guid.Empty)
+        {
+            return;
+        }
+
+        _operationStatusCenter.Dismiss(toastId);
     }
 
     private void OnOnboardingLaunchDashboardRequested()

@@ -26,8 +26,6 @@ public sealed partial class ScenarioSimulatorViewModel : ObservableObject
         RunSimulationCommand = new AsyncRelayCommand(RunSimulationAsync);
         ExportCsvCommand = new AsyncRelayCommand(ExportCsvAsync);
         ResetCommand = new RelayCommand(Reset);
-
-        _ = RunSimulationCommand.ExecuteAsync(null);
     }
 
     public IAsyncRelayCommand RunSimulationCommand { get; }

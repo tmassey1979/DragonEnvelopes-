@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DragonEnvelopes.Desktop.ViewModels;
 using System.Windows.Threading;
@@ -13,6 +14,7 @@ public sealed partial class OperationStatusCenter : ObservableObject, IOperation
 
     public OperationStatusCenter()
     {
+        Toasts.CollectionChanged += OnToastsCollectionChanged;
         _cleanupTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromSeconds(2)
@@ -25,6 +27,7 @@ public sealed partial class OperationStatusCenter : ObservableObject, IOperation
 
     public int ActiveOperationCount => _activeOperations.Count;
     public bool HasActiveOperations => ActiveOperationCount > 0;
+    public bool HasToasts => Toasts.Count > 0;
     public string ActiveOperationSummary => ActiveOperationCount switch
     {
         0 => "Idle",
@@ -42,7 +45,7 @@ public sealed partial class OperationStatusCenter : ObservableObject, IOperation
 
     public void ReportInfo(string message, bool isTransient = true) => AddToast(OperationToastLevel.Info, message, isTransient);
     public void ReportSuccess(string message, bool isTransient = true) => AddToast(OperationToastLevel.Success, message, isTransient);
-    public void ReportError(string message, bool isTransient = false) => AddToast(OperationToastLevel.Error, message, isTransient);
+    public void ReportError(string message, bool isTransient = true) => AddToast(OperationToastLevel.Error, message, isTransient);
 
     public void Dismiss(Guid toastId)
     {
@@ -55,13 +58,7 @@ public sealed partial class OperationStatusCenter : ObservableObject, IOperation
 
     public void ClearTransient()
     {
-        for (var i = Toasts.Count - 1; i >= 0; i--)
-        {
-            if (Toasts[i].IsTransient)
-            {
-                Toasts.RemoveAt(i);
-            }
-        }
+        Toasts.Clear();
     }
 
     private void AddToast(OperationToastLevel level, string message, bool isTransient)
@@ -71,8 +68,21 @@ public sealed partial class OperationStatusCenter : ObservableObject, IOperation
             return;
         }
 
-        Toasts.Insert(0, new OperationToastItemViewModel(level, message.Trim(), isTransient));
-        while (Toasts.Count > 8)
+        var trimmedMessage = message.Trim();
+        if (Toasts.Count > 0)
+        {
+            var latest = Toasts[0];
+            var isDuplicate = latest.Level == level
+                && string.Equals(latest.Message, trimmedMessage, StringComparison.Ordinal)
+                && DateTimeOffset.UtcNow - latest.CreatedAtUtc < TimeSpan.FromSeconds(3);
+            if (isDuplicate)
+            {
+                return;
+            }
+        }
+
+        Toasts.Insert(0, new OperationToastItemViewModel(level, trimmedMessage, isTransient));
+        while (Toasts.Count > 6)
         {
             Toasts.RemoveAt(Toasts.Count - 1);
         }
@@ -104,6 +114,11 @@ public sealed partial class OperationStatusCenter : ObservableObject, IOperation
                 Toasts.RemoveAt(i);
             }
         }
+    }
+
+    private void OnToastsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasToasts));
     }
 
     private sealed class OperationScope : IDisposable

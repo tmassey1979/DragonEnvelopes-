@@ -32,6 +32,13 @@ public partial class LoginWindow : Window
             return;
         }
 
+        await _mainWindowViewModel.RefreshFamilyContextForCurrentSessionAsync();
+        if (_mainWindowViewModel.AvailableFamilies.Count == 0)
+        {
+            LoginControl.SetError("This account has no family membership. Create a family or redeem an invite.");
+            return;
+        }
+
         DialogResult = true;
         Close();
     }

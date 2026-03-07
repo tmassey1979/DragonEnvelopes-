@@ -41,10 +41,10 @@
         </Setter>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="#32507A" />
+                <Setter Property="Background" Value="#E76B6B" />
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Background" Value="#223A5B" />
+                <Setter Property="Background" Value="#C23B3B" />
             </Trigger>
             <Trigger Property="IsKeyboardFocused" Value="True">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
@@ -65,13 +65,13 @@
         <Setter Property="Padding" Value="14,12" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="#202E4A" />
+                <Setter Property="Background" Value="#FCECEC" />
                 <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
             </Trigger>
             <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                <Setter Property="Background" Value="#2A3A61" />
+                <Setter Property="Background" Value="#F8DFDF" />
                 <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
-                <Setter Property="BorderBrush" Value="#4B669E" />
+                <Setter Property="BorderBrush" Value="#E2A5A5" />
             </DataTrigger>
         </Style.Triggers>
     </Style>
@@ -164,11 +164,18 @@
         <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
 
+    <Style TargetType="Label">
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
     <Style TargetType="DataGrid">
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Setter Property="Background" Value="{StaticResource PanelMutedBackgroundBrush}" />
         <Setter Property="RowBackground" Value="{StaticResource PanelMutedBackgroundBrush}" />
-        <Setter Property="AlternatingRowBackground" Value="#151C2D" />
+        <Setter Property="AlternatingRowBackground" Value="#FFFFFF" />
         <Setter Property="GridLinesVisibility" Value="Horizontal" />
         <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource PanelOutlineBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource PanelOutlineBrush}" />
@@ -182,7 +189,7 @@
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="#2A3A61" />
+                <Setter Property="Background" Value="#F8DFDF" />
                 <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
             </Trigger>
         </Style.Triggers>
@@ -190,7 +197,7 @@
 
     <Style TargetType="DataGridColumnHeader">
         <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
-        <Setter Property="Background" Value="#1A2438" />
+        <Setter Property="Background" Value="#EFEFF2" />
         <Setter Property="BorderBrush" Value="{StaticResource PanelOutlineBrush}" />
         <Setter Property="BorderThickness" Value="0,0,1,1" />
         <Setter Property="FontWeight" Value="SemiBold" />
