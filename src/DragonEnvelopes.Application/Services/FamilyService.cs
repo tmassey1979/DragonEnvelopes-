@@ -167,6 +167,77 @@ public sealed class FamilyService(
         return members.Select(MapMember).ToArray();
     }
 
+    public async Task<FamilyMemberDetails> UpdateMemberRoleAsync(
+        Guid familyId,
+        Guid memberId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var family = await familyRepository.GetFamilyByIdAsync(familyId, cancellationToken);
+        if (family is null)
+        {
+            throw new DomainValidationException("Family was not found.");
+        }
+
+        var member = await familyRepository.GetMemberByIdForUpdateAsync(familyId, memberId, cancellationToken);
+        if (member is null)
+        {
+            throw new DomainValidationException("Family member was not found.");
+        }
+
+        if (!Enum.TryParse<MemberRole>(role, ignoreCase: true, out var parsedRole))
+        {
+            throw new DomainValidationException("Member role is invalid.");
+        }
+
+        await EnsureParentConstraintAsync(familyId, member.Role, parsedRole, cancellationToken);
+
+        member.ChangeRole(parsedRole);
+        await familyRepository.SaveChangesAsync(cancellationToken);
+        return MapMember(member);
+    }
+
+    public async Task RemoveMemberAsync(
+        Guid familyId,
+        Guid memberId,
+        CancellationToken cancellationToken = default)
+    {
+        var family = await familyRepository.GetFamilyByIdAsync(familyId, cancellationToken);
+        if (family is null)
+        {
+            throw new DomainValidationException("Family was not found.");
+        }
+
+        var member = await familyRepository.GetMemberByIdForUpdateAsync(familyId, memberId, cancellationToken);
+        if (member is null)
+        {
+            throw new DomainValidationException("Family member was not found.");
+        }
+
+        await EnsureParentConstraintAsync(familyId, member.Role, replacementRole: null, cancellationToken);
+
+        await familyRepository.RemoveMemberAsync(member, cancellationToken);
+        await familyRepository.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task EnsureParentConstraintAsync(
+        Guid familyId,
+        MemberRole currentRole,
+        MemberRole? replacementRole,
+        CancellationToken cancellationToken)
+    {
+        if (currentRole != MemberRole.Parent || replacementRole == MemberRole.Parent)
+        {
+            return;
+        }
+
+        var parentCount = await familyRepository.CountMembersByRoleAsync(familyId, MemberRole.Parent, cancellationToken);
+        if (parentCount <= 1)
+        {
+            throw new DomainValidationException("At least one parent must remain assigned to the family.");
+        }
+    }
+
     private static FamilyDetails Map(Family family, IReadOnlyList<FamilyMember> members)
     {
         return new FamilyDetails(

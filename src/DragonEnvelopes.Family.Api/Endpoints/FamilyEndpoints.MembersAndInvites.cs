@@ -61,6 +61,52 @@ internal static partial class FamilyEndpoints
             .WithName("ListFamilyMembers")
             .WithOpenApi();
 
+        v1.MapPut("/families/{familyId:guid}/members/{memberId:guid}/role", async (
+                Guid familyId,
+                Guid memberId,
+                UpdateFamilyMemberRoleRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IFamilyService familyService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var member = await familyService.UpdateMemberRoleAsync(
+                    familyId,
+                    memberId,
+                    request.Role,
+                    cancellationToken);
+
+                return Results.Ok(EndpointMappers.MapFamilyMemberResponse(member));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
+            .WithName("UpdateFamilyMemberRole")
+            .WithOpenApi();
+
+        v1.MapDelete("/families/{familyId:guid}/members/{memberId:guid}", async (
+                Guid familyId,
+                Guid memberId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IFamilyService familyService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                await familyService.RemoveMemberAsync(familyId, memberId, cancellationToken);
+                return Results.NoContent();
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
+            .WithName("RemoveFamilyMember")
+            .WithOpenApi();
+
         v1.MapPost("/families/{familyId:guid}/invites", async (
                 Guid familyId,
                 CreateFamilyInviteRequest request,

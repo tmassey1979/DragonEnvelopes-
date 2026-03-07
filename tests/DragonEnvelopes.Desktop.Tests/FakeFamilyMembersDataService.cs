@@ -13,6 +13,8 @@ internal sealed class FakeFamilyMembersDataService : IFamilyMembersDataService
     public int CreateInviteCallCount { get; private set; }
     public int CancelInviteCallCount { get; private set; }
     public int ResendInviteCallCount { get; private set; }
+    public int UpdateMemberRoleCallCount { get; private set; }
+    public int RemoveMemberCallCount { get; private set; }
 
     public Task<IReadOnlyList<FamilyMemberItemViewModel>> GetMembersAsync(CancellationToken cancellationToken = default)
     {
@@ -30,6 +32,29 @@ internal sealed class FakeFamilyMembersDataService : IFamilyMembersDataService
         var member = new FamilyMemberItemViewModel(Guid.NewGuid(), keycloakUserId, name, email, role);
         Members.Add(member);
         return Task.FromResult(member);
+    }
+
+    public Task<FamilyMemberItemViewModel> UpdateMemberRoleAsync(
+        Guid memberId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        UpdateMemberRoleCallCount += 1;
+        var existing = Members.FirstOrDefault(member => member.Id == memberId)
+            ?? throw new InvalidOperationException("Member was not found.");
+        var updated = existing with { Role = role };
+        Members.Remove(existing);
+        Members.Add(updated);
+        return Task.FromResult(updated);
+    }
+
+    public Task RemoveMemberAsync(Guid memberId, CancellationToken cancellationToken = default)
+    {
+        RemoveMemberCallCount += 1;
+        var existing = Members.FirstOrDefault(member => member.Id == memberId)
+            ?? throw new InvalidOperationException("Member was not found.");
+        Members.Remove(existing);
+        return Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<FamilyInviteItemViewModel>> GetInvitesAsync(CancellationToken cancellationToken = default)

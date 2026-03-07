@@ -622,6 +622,110 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Update_Family_Member_Role_For_Own_Family()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var addResponse = await client.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/members", new
+        {
+            keycloakUserId = "member-role-change-a",
+            name = "Role Change A",
+            email = "member-role-change-a@test.dev",
+            role = "Adult"
+        });
+        Assert.Equal(HttpStatusCode.Created, addResponse.StatusCode);
+        var added = await addResponse.Content.ReadFromJsonAsync<FamilyMemberResponse>();
+        Assert.NotNull(added);
+
+        var updateResponse = await client.PutAsJsonAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/members/{added!.Id}/role",
+            new UpdateFamilyMemberRoleRequest("Teen"));
+
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        var updated = await updateResponse.Content.ReadFromJsonAsync<FamilyMemberResponse>();
+        Assert.NotNull(updated);
+        Assert.Equal(added.Id, updated!.Id);
+        Assert.Equal("Teen", updated.Role);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Update_FamilyB_Member_Role()
+    {
+        var familyBMemberId = Guid.NewGuid();
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.FamilyMembers.Add(new FamilyMember(
+                familyBMemberId,
+                TestApiFactory.FamilyBId,
+                $"familyb-role-member-{Guid.NewGuid():N}",
+                "Family B Member",
+                EmailAddress.Parse($"familyb-role-member-{Guid.NewGuid():N}@test.dev"),
+                MemberRole.Adult));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/members/{familyBMemberId}/role",
+            new UpdateFamilyMemberRoleRequest("Teen"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserA_Can_Remove_Family_Member_From_Own_Family()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var addResponse = await client.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/members", new
+        {
+            keycloakUserId = "member-remove-a",
+            name = "Remove Member A",
+            email = "member-remove-a@test.dev",
+            role = "Adult"
+        });
+        Assert.Equal(HttpStatusCode.Created, addResponse.StatusCode);
+        var added = await addResponse.Content.ReadFromJsonAsync<FamilyMemberResponse>();
+        Assert.NotNull(added);
+
+        var deleteResponse = await client.DeleteAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/members/{added!.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        var listResponse = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/members");
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+        var members = await listResponse.Content.ReadFromJsonAsync<List<FamilyMemberResponse>>();
+        Assert.NotNull(members);
+        Assert.DoesNotContain(members!, member => member.Id == added.Id);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Remove_Last_Parent_From_Family()
+    {
+        Guid parentMemberId;
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            parentMemberId = await dbContext.FamilyMembers
+                .Where(member => member.FamilyId == TestApiFactory.FamilyAId && member.KeycloakUserId == TestApiFactory.UserAId)
+                .Select(member => member.Id)
+                .SingleAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.DeleteAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/members/{parentMemberId}");
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Invite_Can_Be_Accepted_Anonymously_By_Token()
     {
         using var authorizedClient = _factory.CreateClient();
@@ -871,7 +975,7 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         using var ownerClient = _factory.CreateClient();
         ownerClient.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
 
-        var inviteEmail = "redeemer.idempotent@test.dev";
+        var inviteEmail = $"redeemer.idempotent.{Guid.NewGuid():N}@test.dev";
         var createInviteResponse = await ownerClient.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/invites", new
         {
             email = inviteEmail,

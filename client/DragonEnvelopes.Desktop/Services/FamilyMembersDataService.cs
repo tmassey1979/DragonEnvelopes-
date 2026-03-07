@@ -34,12 +34,7 @@ public sealed class FamilyMembersDataService : IFamilyMembersDataService
 
         return members
             .OrderBy(static member => member.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(static member => new FamilyMemberItemViewModel(
-                member.Id,
-                member.KeycloakUserId,
-                member.Name,
-                member.Email,
-                member.Role))
+            .Select(MapMember)
             .ToArray();
     }
 
@@ -67,12 +62,43 @@ public sealed class FamilyMembersDataService : IFamilyMembersDataService
         var member = await JsonSerializer.DeserializeAsync<FamilyMemberResponse>(stream, SerializerOptions, cancellationToken)
             ?? throw new InvalidOperationException("Add member returned an empty response.");
 
-        return new FamilyMemberItemViewModel(
-            member.Id,
-            member.KeycloakUserId,
-            member.Name,
-            member.Email,
-            member.Role);
+        return MapMember(member);
+    }
+
+    public async Task<FamilyMemberItemViewModel> UpdateMemberRoleAsync(
+        Guid memberId,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var payload = new UpdateFamilyMemberRoleRequest(role);
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"families/{familyId}/members/{memberId}/role")
+        {
+            Content = JsonContent.Create(payload, options: SerializerOptions)
+        };
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Update family member role request failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var member = await JsonSerializer.DeserializeAsync<FamilyMemberResponse>(stream, SerializerOptions, cancellationToken)
+            ?? throw new InvalidOperationException("Update member role returned an empty response.");
+        return MapMember(member);
+    }
+
+    public async Task RemoveMemberAsync(
+        Guid memberId,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"families/{familyId}/members/{memberId}");
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Remove family member request failed with status {(int)response.StatusCode}.");
+        }
     }
 
     public async Task<IReadOnlyList<FamilyInviteItemViewModel>> GetInvitesAsync(CancellationToken cancellationToken = default)
@@ -180,6 +206,16 @@ public sealed class FamilyMembersDataService : IFamilyMembersDataService
             invite.Status,
             invite.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm 'UTC'"),
             invite.ExpiresAtUtc.ToString("yyyy-MM-dd HH:mm 'UTC'"));
+    }
+
+    private static FamilyMemberItemViewModel MapMember(FamilyMemberResponse member)
+    {
+        return new FamilyMemberItemViewModel(
+            member.Id,
+            member.KeycloakUserId,
+            member.Name,
+            member.Email,
+            member.Role);
     }
 
     private Guid RequireFamilyId()

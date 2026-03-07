@@ -15,6 +15,7 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
     {
         _familyMembersDataService = familyMembersDataService;
         DraftRole = Roles[0];
+        SelectedMemberRole = Roles[0];
         DraftInviteRole = Roles[0];
         DraftInviteExpiresInHours = "168";
 
@@ -23,6 +24,8 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
         CreateInviteCommand = new AsyncRelayCommand(CreateInviteAsync);
         CancelInviteCommand = new AsyncRelayCommand(CancelSelectedInviteAsync);
         ResendInviteCommand = new AsyncRelayCommand(ResendSelectedInviteAsync);
+        UpdateSelectedMemberRoleCommand = new AsyncRelayCommand(UpdateSelectedMemberRoleAsync);
+        RemoveSelectedMemberCommand = new AsyncRelayCommand(RemoveSelectedMemberAsync);
         ResetDraftCommand = new RelayCommand(ResetDraft);
 
         _ = LoadCommand.ExecuteAsync(null);
@@ -33,6 +36,8 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
     public IAsyncRelayCommand CreateInviteCommand { get; }
     public IAsyncRelayCommand CancelInviteCommand { get; }
     public IAsyncRelayCommand ResendInviteCommand { get; }
+    public IAsyncRelayCommand UpdateSelectedMemberRoleCommand { get; }
+    public IAsyncRelayCommand RemoveSelectedMemberCommand { get; }
     public IRelayCommand ResetDraftCommand { get; }
     public IReadOnlyList<string> RoleOptions { get; } = Roles;
 
@@ -41,6 +46,9 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
 
     [ObservableProperty]
     private ObservableCollection<FamilyInviteItemViewModel> invites = [];
+
+    [ObservableProperty]
+    private FamilyMemberItemViewModel? selectedMember;
 
     [ObservableProperty]
     private FamilyInviteItemViewModel? selectedInvite;
@@ -56,6 +64,9 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
 
     [ObservableProperty]
     private string draftRole = string.Empty;
+
+    [ObservableProperty]
+    private string selectedMemberRole = string.Empty;
 
     [ObservableProperty]
     private string draftInviteEmail = string.Empty;
@@ -97,6 +108,7 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
         {
             var members = await _familyMembersDataService.GetMembersAsync(cancellationToken);
             Members = new ObservableCollection<FamilyMemberItemViewModel>(members);
+            SelectedMember = Members.FirstOrDefault();
             var invites = await _familyMembersDataService.GetInvitesAsync(cancellationToken);
             Invites = new ObservableCollection<FamilyInviteItemViewModel>(invites);
             SelectedInvite = Invites.FirstOrDefault();
@@ -114,6 +126,11 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
         {
             IsLoading = false;
         }
+    }
+
+    partial void OnSelectedMemberChanged(FamilyMemberItemViewModel? value)
+    {
+        SelectedMemberRole = value?.Role ?? Roles[0];
     }
 
     private async Task AddMemberAsync(CancellationToken cancellationToken)
@@ -239,6 +256,67 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
         }
     }
 
+    private async Task UpdateSelectedMemberRoleAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedMember is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select a member to update.";
+            return;
+        }
+
+        if (!Roles.Contains(SelectedMemberRole, StringComparer.OrdinalIgnoreCase))
+        {
+            HasError = true;
+            ErrorMessage = "Selected role is invalid.";
+            return;
+        }
+
+        HasError = false;
+        ErrorMessage = string.Empty;
+        try
+        {
+            var updatedMember = await _familyMembersDataService.UpdateMemberRoleAsync(
+                SelectedMember.Id,
+                SelectedMemberRole,
+                cancellationToken);
+
+            EditorMessage = $"Updated role for '{updatedMember.Name}' to '{updatedMember.Role}'.";
+            await LoadAsync(cancellationToken);
+            SelectedMember = Members.FirstOrDefault(member => member.Id == updatedMember.Id);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to update family member role: {ex.Message}";
+        }
+    }
+
+    private async Task RemoveSelectedMemberAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedMember is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select a member to remove.";
+            return;
+        }
+
+        HasError = false;
+        ErrorMessage = string.Empty;
+        try
+        {
+            var removedName = SelectedMember.Name;
+            await _familyMembersDataService.RemoveMemberAsync(SelectedMember.Id, cancellationToken);
+            EditorMessage = $"Removed family member '{removedName}'.";
+            await LoadAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to remove family member: {ex.Message}";
+        }
+    }
+
     private async Task CancelSelectedInviteAsync(CancellationToken cancellationToken)
     {
         if (SelectedInvite is null)
@@ -308,6 +386,7 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
         DraftName = string.Empty;
         DraftEmail = string.Empty;
         DraftRole = Roles[0];
+        SelectedMemberRole = SelectedMember?.Role ?? Roles[0];
         DraftInviteEmail = string.Empty;
         DraftInviteRole = Roles[0];
         DraftInviteExpiresInHours = "168";

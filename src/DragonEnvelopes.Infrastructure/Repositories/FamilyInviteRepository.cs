@@ -44,12 +44,16 @@ public sealed class FamilyInviteRepository(DragonEnvelopesDbContext dbContext) :
         string email,
         CancellationToken cancellationToken = default)
     {
+        var normalizedEmail = string.IsNullOrWhiteSpace(email)
+            ? string.Empty
+            : email.Trim().ToUpperInvariant();
+
         return dbContext.FamilyInvites
             .AsNoTracking()
             .AnyAsync(
                 x => x.FamilyId == familyId
                     && x.Status == FamilyInviteStatus.Pending
-                    && EF.Functions.ILike(x.Email, email),
+                    && x.Email.ToUpper() == normalizedEmail,
                 cancellationToken);
     }
 

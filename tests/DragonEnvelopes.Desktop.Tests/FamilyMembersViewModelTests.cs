@@ -6,6 +6,61 @@ namespace DragonEnvelopes.Desktop.Tests;
 public sealed class FamilyMembersViewModelTests
 {
     [Fact]
+    public async Task UpdateSelectedMemberRoleCommand_Updates_Selected_Member()
+    {
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        var member = new FamilyMemberItemViewModel(
+            Guid.NewGuid(),
+            "member-role-update",
+            "Role Update",
+            "role-update@test.dev",
+            "Adult");
+        familyMembersDataService.Members.Add(member);
+
+        var viewModel = new FamilyMembersViewModel(familyMembersDataService);
+        await WaitForIdleAsync(viewModel);
+        viewModel.SelectedMember = viewModel.Members.Single();
+        viewModel.SelectedMemberRole = "Parent";
+
+        await viewModel.UpdateSelectedMemberRoleCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.False(viewModel.HasError);
+        Assert.Equal(1, familyMembersDataService.UpdateMemberRoleCallCount);
+        Assert.Equal("Parent", viewModel.SelectedMember?.Role);
+        Assert.Contains("Updated role", viewModel.EditorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RemoveSelectedMemberCommand_Removes_Selected_Member()
+    {
+        var familyMembersDataService = new FakeFamilyMembersDataService();
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(
+            Guid.NewGuid(),
+            "member-remove-1",
+            "Remove One",
+            "remove-one@test.dev",
+            "Adult"));
+        familyMembersDataService.Members.Add(new FamilyMemberItemViewModel(
+            Guid.NewGuid(),
+            "member-remove-2",
+            "Remove Two",
+            "remove-two@test.dev",
+            "Teen"));
+
+        var viewModel = new FamilyMembersViewModel(familyMembersDataService);
+        await WaitForIdleAsync(viewModel);
+        viewModel.SelectedMember = viewModel.Members.First(member => member.Name == "Remove One");
+
+        await viewModel.RemoveSelectedMemberCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(viewModel);
+
+        Assert.False(viewModel.HasError);
+        Assert.Equal(1, familyMembersDataService.RemoveMemberCallCount);
+        Assert.DoesNotContain(viewModel.Members, member => member.Name == "Remove One");
+    }
+
+    [Fact]
     public async Task ResendSelectedInviteCommand_Resends_Pending_Invite()
     {
         var familyMembersDataService = new FakeFamilyMembersDataService();

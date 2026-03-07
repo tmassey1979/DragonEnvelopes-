@@ -34,5 +34,16 @@ public interface IFamilyService
         string role,
         CancellationToken cancellationToken = default);
 
+    Task<FamilyMemberDetails> UpdateMemberRoleAsync(
+        Guid familyId,
+        Guid memberId,
+        string role,
+        CancellationToken cancellationToken = default);
+
+    Task RemoveMemberAsync(
+        Guid familyId,
+        Guid memberId,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<FamilyMemberDetails>?> ListMembersAsync(Guid familyId, CancellationToken cancellationToken = default);
 }

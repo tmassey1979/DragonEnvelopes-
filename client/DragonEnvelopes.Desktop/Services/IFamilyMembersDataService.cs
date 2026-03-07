@@ -13,6 +13,15 @@ public interface IFamilyMembersDataService
         string role,
         CancellationToken cancellationToken = default);
 
+    Task<FamilyMemberItemViewModel> UpdateMemberRoleAsync(
+        Guid memberId,
+        string role,
+        CancellationToken cancellationToken = default);
+
+    Task RemoveMemberAsync(
+        Guid memberId,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<FamilyInviteItemViewModel>> GetInvitesAsync(CancellationToken cancellationToken = default);
 
     Task<CreateFamilyInviteResultData> CreateInviteAsync(

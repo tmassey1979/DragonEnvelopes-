@@ -105,6 +105,40 @@ public sealed class FamilyApiSmokeTests : IClassFixture<FamilyApiFactory>
     }
 
     [Fact]
+    public async Task Authenticated_User_Can_Update_And_Remove_Family_Member()
+    {
+        var userId = "family-member-manage-user-a";
+        var ownFamilyId = Guid.Parse("d2100000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("d2100000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var addResponse = await client.PostAsJsonAsync($"/api/v1/families/{ownFamilyId}/members", new
+        {
+            keycloakUserId = "family-api-member-a",
+            name = "Family API Member",
+            email = "family-api-member@test.dev",
+            role = "Adult"
+        });
+        Assert.Equal(HttpStatusCode.Created, addResponse.StatusCode);
+        var added = await addResponse.Content.ReadFromJsonAsync<FamilyMemberResponse>();
+        Assert.NotNull(added);
+
+        var updateResponse = await client.PutAsJsonAsync(
+            $"/api/v1/families/{ownFamilyId}/members/{added!.Id}/role",
+            new UpdateFamilyMemberRoleRequest("Teen"));
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        var updated = await updateResponse.Content.ReadFromJsonAsync<FamilyMemberResponse>();
+        Assert.NotNull(updated);
+        Assert.Equal("Teen", updated!.Role);
+
+        var deleteResponse = await client.DeleteAsync($"/api/v1/families/{ownFamilyId}/members/{added.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task Authenticated_User_Can_Read_AuthMe_With_FamilyMembership()
     {
         var userId = "family-auth-user-a";

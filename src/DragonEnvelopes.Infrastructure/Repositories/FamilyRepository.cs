@@ -1,5 +1,6 @@
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Domain.Entities;
+using DragonEnvelopes.Domain.ValueObjects;
 using DragonEnvelopes.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,6 +33,17 @@ public sealed class FamilyRepository(DragonEnvelopesDbContext dbContext) : IFami
             .FirstOrDefaultAsync(x => x.Id == familyId, cancellationToken);
     }
 
+    public Task<FamilyMember?> GetMemberByIdForUpdateAsync(
+        Guid familyId,
+        Guid memberId,
+        CancellationToken cancellationToken = default)
+    {
+        return dbContext.FamilyMembers
+            .FirstOrDefaultAsync(
+                x => x.FamilyId == familyId && x.Id == memberId,
+                cancellationToken);
+    }
+
     public async Task<IReadOnlyList<FamilyMember>> ListMembersAsync(Guid familyId, CancellationToken cancellationToken = default)
     {
         return await dbContext.FamilyMembers
@@ -39,6 +51,18 @@ public sealed class FamilyRepository(DragonEnvelopesDbContext dbContext) : IFami
             .Where(x => x.FamilyId == familyId)
             .OrderBy(x => x.Name)
             .ToArrayAsync(cancellationToken);
+    }
+
+    public Task<int> CountMembersByRoleAsync(
+        Guid familyId,
+        MemberRole role,
+        CancellationToken cancellationToken = default)
+    {
+        return dbContext.FamilyMembers
+            .AsNoTracking()
+            .CountAsync(
+                x => x.FamilyId == familyId && x.Role == role,
+                cancellationToken);
     }
 
     public Task<bool> FamilyNameExistsAsync(string name, CancellationToken cancellationToken = default)
@@ -57,6 +81,12 @@ public sealed class FamilyRepository(DragonEnvelopesDbContext dbContext) : IFami
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task RemoveMemberAsync(FamilyMember member, CancellationToken cancellationToken = default)
+    {
+        dbContext.FamilyMembers.Remove(member);
+        return Task.CompletedTask;
     }
 
     public Task<bool> MemberKeycloakUserIdExistsAsync(

@@ -119,6 +119,19 @@ public sealed class AddFamilyMemberRequestValidator : AbstractValidator<AddFamil
     }
 }
 
+public sealed class UpdateFamilyMemberRoleRequestValidator : AbstractValidator<UpdateFamilyMemberRoleRequest>
+{
+    private static readonly string[] AllowedRoles = ["Parent", "Adult", "Teen", "Child"];
+
+    public UpdateFamilyMemberRoleRequestValidator()
+    {
+        RuleFor(static request => request.Role)
+            .NotEmpty()
+            .Must(static role => AllowedRoles.Contains(role, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"Role must be one of: {string.Join(", ", AllowedRoles)}.");
+    }
+}
+
 public sealed class CreateFamilyInviteRequestValidator : AbstractValidator<CreateFamilyInviteRequest>
 {
     private static readonly string[] AllowedRoles = ["Parent", "Adult", "Teen", "Child"];

@@ -1541,6 +1541,7 @@
                                       IsLoading="{Binding IsLoading}"
                                       IsEmpty="{Binding IsEmpty}">
                     <DataGrid ItemsSource="{Binding Members}"
+                              SelectedItem="{Binding SelectedMember, Mode=TwoWay}"
                               AutoGenerateColumns="False"
                               HeadersVisibility="Column"
                               CanUserAddRows="False"
@@ -1590,6 +1591,30 @@
                                 <Button Content="Reset"
                                         Command="{Binding ResetDraftCommand}" />
                             </StackPanel>
+
+                            <Border Margin="0,12,0,0"
+                                    Padding="10"
+                                    CornerRadius="8"
+                                    Background="{StaticResource PanelMutedBackgroundBrush}"
+                                    BorderBrush="{StaticResource PanelOutlineBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Selected Member Access" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock Margin="0,6,0,0"
+                                               Text="{Binding SelectedMember.Name, StringFormat=Member: {0}}"
+                                               Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock Margin="0,8,0,6" Text="Role" Style="{StaticResource CaptionTextStyle}" />
+                                    <ComboBox ItemsSource="{Binding RoleOptions}"
+                                              SelectedItem="{Binding SelectedMemberRole, Mode=TwoWay}" />
+                                    <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+                                        <Button Margin="0,0,8,0"
+                                                Content="Save Role"
+                                                Command="{Binding UpdateSelectedMemberRoleCommand}" />
+                                        <Button Content="Remove Member"
+                                                Command="{Binding RemoveSelectedMemberCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
 
                             <Border Margin="0,16,0,0"
                                     Padding="10"
