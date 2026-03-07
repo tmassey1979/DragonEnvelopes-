@@ -142,6 +142,35 @@ public sealed class FamilyMembersDataService : IFamilyMembersDataService
         return MapInvite(invite);
     }
 
+    public async Task<CreateFamilyInviteResultData> ResendInviteAsync(
+        Guid inviteId,
+        int expiresInHours,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var payload = new ResendFamilyInviteRequest(expiresInHours);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"families/{familyId}/invites/{inviteId}/resend")
+        {
+            Content = JsonContent.Create(payload, options: SerializerOptions)
+        };
+
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Resend family invite request failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var resent = await JsonSerializer.DeserializeAsync<CreateFamilyInviteResponse>(stream, SerializerOptions, cancellationToken)
+            ?? throw new InvalidOperationException("Resend invite returned an empty response.");
+
+        return new CreateFamilyInviteResultData(
+            MapInvite(resent.Invite),
+            resent.InviteToken);
+    }
+
     private static FamilyInviteItemViewModel MapInvite(FamilyInviteResponse invite)
     {
         return new FamilyInviteItemViewModel(

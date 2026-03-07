@@ -65,6 +65,22 @@ public sealed class FamilyInvite
         AcceptedAtUtc = acceptedAtUtc;
     }
 
+    public void Resend(string tokenHash, DateTimeOffset expiresAtUtc, DateTimeOffset nowUtc)
+    {
+        if (Status != FamilyInviteStatus.Pending)
+        {
+            throw new DomainValidationException("Only pending invites can be resent.");
+        }
+
+        if (expiresAtUtc <= nowUtc)
+        {
+            throw new DomainValidationException("Invite expiry must be in the future.");
+        }
+
+        TokenHash = NormalizeRequired(tokenHash, "Token hash");
+        ExpiresAtUtc = expiresAtUtc;
+    }
+
     public void Expire(DateTimeOffset nowUtc)
     {
         if (Status != FamilyInviteStatus.Pending || nowUtc < ExpiresAtUtc)

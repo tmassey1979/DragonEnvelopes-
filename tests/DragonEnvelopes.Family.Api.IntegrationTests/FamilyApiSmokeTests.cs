@@ -1,6 +1,8 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Family.Api.CrossCutting.Auth;
 using DragonEnvelopes.Domain.Entities;
 using DragonEnvelopes.Domain.ValueObjects;
@@ -62,6 +64,43 @@ public sealed class FamilyApiSmokeTests : IClassFixture<FamilyApiFactory>
 
         Assert.Equal(HttpStatusCode.OK, ownResponse.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Can_Create_And_Resend_Invite_For_Own_Family()
+    {
+        var userId = "family-invite-user-a";
+        var ownFamilyId = Guid.Parse("d2000000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("d2000000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var createResponse = await client.PostAsJsonAsync($"/api/v1/families/{ownFamilyId}/invites", new
+        {
+            email = "family-api-resent@test.dev",
+            role = "Adult",
+            expiresInHours = 24
+        });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<CreateFamilyInviteResponse>();
+        Assert.NotNull(created);
+
+        var resendResponse = await client.PostAsJsonAsync(
+            $"/api/v1/families/{ownFamilyId}/invites/{created!.Invite.Id}/resend",
+            new
+            {
+                expiresInHours = 96
+            });
+
+        Assert.Equal(HttpStatusCode.OK, resendResponse.StatusCode);
+        var resent = await resendResponse.Content.ReadFromJsonAsync<CreateFamilyInviteResponse>();
+        Assert.NotNull(resent);
+        Assert.Equal(created.Invite.Id, resent!.Invite.Id);
+        Assert.NotEqual(created.InviteToken, resent.InviteToken);
+        Assert.True(resent.Invite.ExpiresAtUtc > created.Invite.ExpiresAtUtc);
     }
 
     private async Task SeedFamilyMembershipAsync(string userId, Guid ownFamilyId, Guid otherFamilyId)

@@ -24,4 +24,9 @@ public interface IFamilyMembersDataService
     Task<FamilyInviteItemViewModel> CancelInviteAsync(
         Guid inviteId,
         CancellationToken cancellationToken = default);
+
+    Task<CreateFamilyInviteResultData> ResendInviteAsync(
+        Guid inviteId,
+        int expiresInHours,
+        CancellationToken cancellationToken = default);
 }

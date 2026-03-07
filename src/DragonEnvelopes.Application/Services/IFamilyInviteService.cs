@@ -19,6 +19,11 @@ public interface IFamilyInviteService
         Guid inviteId,
         CancellationToken cancellationToken = default);
 
+    Task<CreateFamilyInviteResult> ResendAsync(
+        Guid inviteId,
+        int expiresInHours,
+        CancellationToken cancellationToken = default);
+
     Task<FamilyInviteDetails> AcceptAsync(
         string inviteToken,
         CancellationToken cancellationToken = default);

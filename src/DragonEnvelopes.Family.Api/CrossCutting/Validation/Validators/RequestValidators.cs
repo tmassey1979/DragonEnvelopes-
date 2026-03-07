@@ -139,6 +139,15 @@ public sealed class CreateFamilyInviteRequestValidator : AbstractValidator<Creat
     }
 }
 
+public sealed class ResendFamilyInviteRequestValidator : AbstractValidator<ResendFamilyInviteRequest>
+{
+    public ResendFamilyInviteRequestValidator()
+    {
+        RuleFor(static request => request.ExpiresInHours)
+            .InclusiveBetween(1, 24 * 30);
+    }
+}
+
 public sealed class AcceptFamilyInviteRequestValidator : AbstractValidator<AcceptFamilyInviteRequest>
 {
     public AcceptFamilyInviteRequestValidator()

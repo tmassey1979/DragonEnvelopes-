@@ -21,5 +21,5 @@ Use this checklist at the start and end of every task.
 ## Session Run Log
 - Active task: `none (ready for next issue)`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#226` Ledger API parity: add budgets and reporting endpoints.
+- Previous completed task: `#229` Family invites: resend pending invite from API and desktop.
 - Last updated: `2026-03-06`.

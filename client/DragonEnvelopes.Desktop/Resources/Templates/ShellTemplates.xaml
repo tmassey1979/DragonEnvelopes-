@@ -1580,6 +1580,9 @@
                                         <Button Margin="0,0,8,0"
                                                 Content="Create Invite"
                                                 Command="{Binding CreateInviteCommand}" />
+                                        <Button Margin="0,0,8,0"
+                                                Content="Resend Selected"
+                                                Command="{Binding ResendInviteCommand}" />
                                         <Button Content="Cancel Selected"
                                                 Command="{Binding CancelInviteCommand}" />
                                     </StackPanel>

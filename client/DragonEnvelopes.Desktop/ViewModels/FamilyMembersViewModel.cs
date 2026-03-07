@@ -22,6 +22,7 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
         AddMemberCommand = new AsyncRelayCommand(AddMemberAsync);
         CreateInviteCommand = new AsyncRelayCommand(CreateInviteAsync);
         CancelInviteCommand = new AsyncRelayCommand(CancelSelectedInviteAsync);
+        ResendInviteCommand = new AsyncRelayCommand(ResendSelectedInviteAsync);
         ResetDraftCommand = new RelayCommand(ResetDraft);
 
         _ = LoadCommand.ExecuteAsync(null);
@@ -31,6 +32,7 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
     public IAsyncRelayCommand AddMemberCommand { get; }
     public IAsyncRelayCommand CreateInviteCommand { get; }
     public IAsyncRelayCommand CancelInviteCommand { get; }
+    public IAsyncRelayCommand ResendInviteCommand { get; }
     public IRelayCommand ResetDraftCommand { get; }
     public IReadOnlyList<string> RoleOptions { get; } = Roles;
 
@@ -258,6 +260,45 @@ public sealed partial class FamilyMembersViewModel : ObservableObject
         {
             HasError = true;
             ErrorMessage = $"Unable to cancel invite: {ex.Message}";
+        }
+    }
+
+    private async Task ResendSelectedInviteAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedInvite is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select an invite to resend.";
+            return;
+        }
+
+        if (!SelectedInvite.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase))
+        {
+            HasError = true;
+            ErrorMessage = "Only pending invites can be resent.";
+            return;
+        }
+
+        if (!int.TryParse(DraftInviteExpiresInHours, out var expiresInHours) || expiresInHours < 1 || expiresInHours > 720)
+        {
+            HasError = true;
+            ErrorMessage = "Invite expiration must be between 1 and 720 hours.";
+            return;
+        }
+
+        HasError = false;
+        ErrorMessage = string.Empty;
+        try
+        {
+            var resent = await _familyMembersDataService.ResendInviteAsync(SelectedInvite.Id, expiresInHours, cancellationToken);
+            InviteMessage = $"Invite resent for '{resent.Invite.Email}'.";
+            LastInviteToken = resent.InviteToken;
+            await LoadAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to resend invite: {ex.Message}";
         }
     }
 

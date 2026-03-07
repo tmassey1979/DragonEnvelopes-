@@ -130,6 +130,33 @@ internal static partial class FamilyEndpoints
             .WithName("CancelFamilyInvite")
             .WithOpenApi();
 
+        v1.MapPost("/families/{familyId:guid}/invites/{inviteId:guid}/resend", async (
+                Guid familyId,
+                Guid inviteId,
+                ResendFamilyInviteRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IFamilyInviteService familyInviteService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var result = await familyInviteService.ResendAsync(
+                    inviteId,
+                    request.ExpiresInHours,
+                    cancellationToken);
+
+                return Results.Ok(new CreateFamilyInviteResponse(
+                    EndpointMappers.MapFamilyInviteResponse(result.Invite),
+                    result.InviteToken));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("ResendFamilyInvite")
+            .WithOpenApi();
+
         v1.MapPost("/families/invites/accept", async (
                 AcceptFamilyInviteRequest request,
                 IFamilyInviteService familyInviteService,

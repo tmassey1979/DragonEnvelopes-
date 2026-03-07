@@ -12,6 +12,7 @@ internal sealed class FakeFamilyMembersDataService : IFamilyMembersDataService
     public int GetInvitesCallCount { get; private set; }
     public int CreateInviteCallCount { get; private set; }
     public int CancelInviteCallCount { get; private set; }
+    public int ResendInviteCallCount { get; private set; }
 
     public Task<IReadOnlyList<FamilyMemberItemViewModel>> GetMembersAsync(CancellationToken cancellationToken = default)
     {
@@ -70,5 +71,25 @@ internal sealed class FakeFamilyMembersDataService : IFamilyMembersDataService
             existing.ExpiresAtUtc);
         Invites.Add(cancelled);
         return Task.FromResult(cancelled);
+    }
+
+    public Task<CreateFamilyInviteResultData> ResendInviteAsync(
+        Guid inviteId,
+        int expiresInHours,
+        CancellationToken cancellationToken = default)
+    {
+        ResendInviteCallCount += 1;
+        var existing = Invites.FirstOrDefault(invite => invite.Id == inviteId)
+            ?? throw new InvalidOperationException("Invite was not found.");
+        var resent = new FamilyInviteItemViewModel(
+            existing.Id,
+            existing.Email,
+            existing.Role,
+            "Pending",
+            existing.CreatedAtUtc,
+            DateTimeOffset.UtcNow.AddHours(expiresInHours).ToString("yyyy-MM-dd HH:mm 'UTC'"));
+        Invites.Remove(existing);
+        Invites.Add(resent);
+        return Task.FromResult(new CreateFamilyInviteResultData(resent, "resend-test-invite-token"));
     }
 }

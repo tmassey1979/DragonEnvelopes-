@@ -107,6 +107,47 @@ public sealed class FamilyInviteService(
         return Map(invite);
     }
 
+    public async Task<CreateFamilyInviteResult> ResendAsync(
+        Guid inviteId,
+        int expiresInHours,
+        CancellationToken cancellationToken = default)
+    {
+        var invite = await familyInviteRepository.GetByIdForUpdateAsync(inviteId, cancellationToken)
+            ?? throw new DomainValidationException("Invite was not found.");
+
+        var now = clock.UtcNow;
+        invite.Expire(now);
+        if (invite.Status != FamilyInviteStatus.Pending)
+        {
+            throw new DomainValidationException("Only pending invites can be resent.");
+        }
+
+        var inviteToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+        invite.Resend(
+            ComputeTokenHash(inviteToken),
+            now.AddHours(Math.Clamp(expiresInHours, 1, 24 * 30)),
+            now);
+
+        await familyInviteRepository.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await familyInviteSender.SendInviteAsync(
+                invite.FamilyId,
+                invite.Email,
+                invite.Role,
+                inviteToken,
+                invite.ExpiresAtUtc,
+                cancellationToken);
+        }
+        catch
+        {
+            // Invite persistence should succeed even when outbound email fails.
+        }
+
+        return new CreateFamilyInviteResult(Map(invite), inviteToken);
+    }
+
     public async Task<FamilyInviteDetails> AcceptAsync(
         string inviteToken,
         CancellationToken cancellationToken = default)

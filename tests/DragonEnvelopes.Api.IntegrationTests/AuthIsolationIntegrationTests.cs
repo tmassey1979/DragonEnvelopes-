@@ -287,6 +287,67 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task UserA_Can_Resend_Pending_Invite()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var createResponse = await client.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/invites", new
+        {
+            email = "resend@test.dev",
+            role = "Adult",
+            expiresInHours = 24
+        });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<CreateFamilyInviteResponse>();
+        Assert.NotNull(created);
+
+        var resendResponse = await client.PostAsJsonAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/invites/{created!.Invite.Id}/resend",
+            new
+            {
+                expiresInHours = 96
+            });
+
+        Assert.Equal(HttpStatusCode.OK, resendResponse.StatusCode);
+        var resent = await resendResponse.Content.ReadFromJsonAsync<CreateFamilyInviteResponse>();
+        Assert.NotNull(resent);
+        Assert.Equal(created.Invite.Id, resent!.Invite.Id);
+        Assert.Equal("Pending", resent.Invite.Status);
+        Assert.NotEqual(created.InviteToken, resent.InviteToken);
+        Assert.True(resent.Invite.ExpiresAtUtc > created.Invite.ExpiresAtUtc);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Resend_Invite_For_FamilyB()
+    {
+        using var ownerClient = _factory.CreateClient();
+        ownerClient.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserBId);
+        var createResponse = await ownerClient.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/invites", new
+        {
+            email = "resend-blocked@test.dev",
+            role = "Adult",
+            expiresInHours = 24
+        });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<CreateFamilyInviteResponse>();
+        Assert.NotNull(created);
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsJsonAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/invites/{created!.Invite.Id}/resend",
+            new
+            {
+                expiresInHours = 96
+            });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserA_Can_Get_And_Update_Own_Family_Profile()
     {
         var familyId = Guid.NewGuid();
