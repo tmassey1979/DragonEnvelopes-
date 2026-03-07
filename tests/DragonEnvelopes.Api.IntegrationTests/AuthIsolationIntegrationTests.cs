@@ -1873,15 +1873,40 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
             evt => evt.Source == "StripeWebhook" && evt.EventType == "webhook.family_a");
         Assert.Contains(
             payload.Events,
+            evt => evt.Source == "PlaidWebhook" && evt.EventType == "TRANSACTIONS.SYNC_UPDATES_AVAILABLE");
+        Assert.Contains(
+            payload.Events,
             evt => evt.Source == "NotificationDispatch"
                    && evt.Status == "Failed"
                    && evt.NotificationDispatchEventId.HasValue);
         Assert.DoesNotContain(
             payload.Events,
             evt => evt.EventType == "webhook.family_b_marker");
+        Assert.DoesNotContain(
+            payload.Events,
+            evt => evt.EventType == "BALANCE.DEFAULT_UPDATE");
         Assert.False(string.IsNullOrWhiteSpace(payload.TraceId));
         Assert.True(response.Headers.TryGetValues("X-Trace-Id", out var traceHeaderValues));
         Assert.False(string.IsNullOrWhiteSpace(traceHeaderValues!.FirstOrDefault()));
+    }
+
+    [Fact]
+    public async Task UserA_Can_Filter_Own_Provider_Activity_Timeline_By_Plaid_Source()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/financial/provider-activity/timeline?take=20&source=PlaidWebhook");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<ProviderActivityTimelineResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(TestApiFactory.FamilyAId, payload!.FamilyId);
+        Assert.NotEmpty(payload.Events);
+        Assert.All(payload.Events, timelineEvent => Assert.Equal("PlaidWebhook", timelineEvent.Source));
+        Assert.Contains(payload.Events, timelineEvent => timelineEvent.EventType == "TRANSACTIONS.SYNC_UPDATES_AVAILABLE");
+        Assert.DoesNotContain(payload.Events, timelineEvent => timelineEvent.EventType == "BALANCE.DEFAULT_UPDATE");
     }
 
     [Fact]
@@ -2481,6 +2506,15 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.Equal(1, syncService.SyncFamilyCallCount);
         Assert.Equal(familyId, syncService.LastFamilyId);
         Assert.Equal(0, balanceService.RefreshFamilyCallCount);
+
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var dbContext = verificationScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var persistedEvent = await dbContext.PlaidWebhookEvents
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.ItemId == itemId && x.FamilyId == familyId && x.ProcessingStatus == "Processed");
+        Assert.NotNull(persistedEvent);
+        Assert.Equal("TRANSACTIONS", persistedEvent!.WebhookType);
+        Assert.Equal("SYNC_UPDATES_AVAILABLE", persistedEvent.WebhookCode);
     }
 
     [Fact]
@@ -2522,6 +2556,15 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.Equal(1, syncService.SyncFamilyCallCount);
         Assert.Equal(familyId, syncService.LastFamilyId);
         Assert.Equal(0, balanceService.RefreshFamilyCallCount);
+
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var dbContext = verificationScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var persistedEvent = await dbContext.PlaidWebhookEvents
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.ItemId == itemId && x.FamilyId == familyId && x.ProcessingStatus == "Failed");
+        Assert.NotNull(persistedEvent);
+        Assert.Equal("TRANSACTIONS", persistedEvent!.WebhookType);
+        Assert.Equal("SYNC_UPDATES_AVAILABLE", persistedEvent.WebhookCode);
     }
 
     private static async Task SeedPlaidWebhookProfileAsync(IServiceProvider services, Guid familyId, string itemId)
@@ -2561,6 +2604,8 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
     public static readonly Guid NotificationEventBId = Guid.Parse("31000000-0000-0000-0000-000000000002");
     public static readonly Guid StripeWebhookRecordAId = Guid.Parse("41000000-0000-0000-0000-000000000001");
     public static readonly Guid StripeWebhookRecordBId = Guid.Parse("41000000-0000-0000-0000-000000000002");
+    public static readonly Guid PlaidWebhookRecordAId = Guid.Parse("42000000-0000-0000-0000-000000000001");
+    public static readonly Guid PlaidWebhookRecordBId = Guid.Parse("42000000-0000-0000-0000-000000000002");
     public static readonly Guid PlaidLinkAId = Guid.Parse("21000000-0000-0000-0000-000000000001");
     public static readonly Guid PlaidLinkBId = Guid.Parse("21000000-0000-0000-0000-000000000002");
     public static readonly Guid TransactionAId = Guid.Parse("11111111-2222-3333-4444-555555555555");
@@ -2701,6 +2746,30 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
                 "{\"family\":\"B\"}",
                 now.AddMinutes(-16),
                 now.AddMinutes(-15)));
+
+        dbContext.PlaidWebhookEvents.AddRange(
+            new PlaidWebhookEvent(
+                PlaidWebhookRecordAId,
+                "TRANSACTIONS",
+                "SYNC_UPDATES_AVAILABLE",
+                "item_seed_family_a",
+                FamilyAId,
+                "Processed",
+                errorMessage: null,
+                "{\"family\":\"A\",\"source\":\"plaid\"}",
+                now.AddMinutes(-14),
+                now.AddMinutes(-13)),
+            new PlaidWebhookEvent(
+                PlaidWebhookRecordBId,
+                "BALANCE",
+                "DEFAULT_UPDATE",
+                "item_seed_family_b",
+                FamilyBId,
+                "Failed",
+                errorMessage: "family_b_plaid_failure",
+                "{\"family\":\"B\",\"source\":\"plaid\"}",
+                now.AddMinutes(-12),
+                now.AddMinutes(-11)));
 
         dbContext.PlaidAccountLinks.AddRange(
             new PlaidAccountLink(

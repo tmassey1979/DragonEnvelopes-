@@ -142,6 +142,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     [
         "All Sources",
         "Stripe Webhooks",
+        "Plaid Webhooks",
         "Notification Dispatch"
     ];
 
@@ -1516,6 +1517,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         return SelectedProviderTimelineSourceFilter switch
         {
             "Stripe Webhooks" => "StripeWebhook",
+            "Plaid Webhooks" => "PlaidWebhook",
             "Notification Dispatch" => "NotificationDispatch",
             _ => null
         };

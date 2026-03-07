@@ -121,13 +121,16 @@ internal static partial class FinancialIntegrationEndpoints
                     : source.Trim();
                 if (!string.IsNullOrWhiteSpace(normalizedSource)
                     && !normalizedSource.Equals("StripeWebhook", StringComparison.OrdinalIgnoreCase)
+                    && !normalizedSource.Equals("PlaidWebhook", StringComparison.OrdinalIgnoreCase)
                     && !normalizedSource.Equals("NotificationDispatch", StringComparison.OrdinalIgnoreCase))
                 {
-                    return Results.BadRequest("source must be StripeWebhook or NotificationDispatch.");
+                    return Results.BadRequest("source must be StripeWebhook, PlaidWebhook, or NotificationDispatch.");
                 }
 
                 var includeWebhooks = string.IsNullOrWhiteSpace(normalizedSource)
                     || normalizedSource.Equals("StripeWebhook", StringComparison.OrdinalIgnoreCase);
+                var includePlaidWebhooks = string.IsNullOrWhiteSpace(normalizedSource)
+                    || normalizedSource.Equals("PlaidWebhook", StringComparison.OrdinalIgnoreCase);
                 var includeNotifications = string.IsNullOrWhiteSpace(normalizedSource)
                     || normalizedSource.Equals("NotificationDispatch", StringComparison.OrdinalIgnoreCase);
                 var normalizedStatus = string.IsNullOrWhiteSpace(status)
@@ -162,6 +165,37 @@ internal static partial class FinancialIntegrationEndpoints
                         .ToArrayAsync(cancellationToken);
                 }
 
+                ProviderTimelineEventResponse[] plaidWebhooks = [];
+                if (includePlaidWebhooks)
+                {
+                    var plaidWebhookQuery = dbContext.PlaidWebhookEvents
+                        .AsNoTracking()
+                        .Where(x => x.FamilyId == familyId);
+
+                    if (!string.IsNullOrWhiteSpace(normalizedStatus))
+                    {
+                        plaidWebhookQuery = plaidWebhookQuery
+                            .Where(x => x.ProcessingStatus != null && x.ProcessingStatus.ToLower() == normalizedStatusLower);
+                    }
+
+                    plaidWebhooks = await plaidWebhookQuery
+                        .OrderByDescending(x => x.ProcessedAtUtc)
+                        .Take(normalizedTake)
+                        .Select(static webhook => new ProviderTimelineEventResponse(
+                            "PlaidWebhook",
+                            string.IsNullOrWhiteSpace(webhook.WebhookCode)
+                                ? webhook.WebhookType
+                                : $"{webhook.WebhookType}.{webhook.WebhookCode}",
+                            webhook.ProcessingStatus,
+                            webhook.ProcessedAtUtc,
+                            string.IsNullOrWhiteSpace(webhook.WebhookCode)
+                                ? $"Plaid webhook {webhook.WebhookType} -> {webhook.ProcessingStatus}."
+                                : $"Plaid webhook {webhook.WebhookType}.{webhook.WebhookCode} -> {webhook.ProcessingStatus}.",
+                            webhook.ErrorMessage,
+                            null))
+                        .ToArrayAsync(cancellationToken);
+                }
+
                 ProviderTimelineEventResponse[] notifications = [];
                 if (includeNotifications)
                 {
@@ -190,6 +224,7 @@ internal static partial class FinancialIntegrationEndpoints
                 }
 
                 var timeline = webhooks
+                    .Concat(plaidWebhooks)
                     .Concat(notifications)
                     .OrderByDescending(static item => item.OccurredAtUtc)
                     .Select(item => item with { Detail = TrimActivityError(item.Detail) })

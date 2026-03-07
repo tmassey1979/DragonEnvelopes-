@@ -4,6 +4,7 @@ using System.Text.Json;
 using DragonEnvelopes.Api.CrossCutting.Auth;
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Financial;
+using DragonEnvelopes.Domain.Entities;
 using DragonEnvelopes.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -54,6 +55,7 @@ internal static partial class FinancialIntegrationEndpoints
                 IPlaidBalanceReconciliationService plaidBalanceReconciliationService,
                 CancellationToken cancellationToken) =>
             {
+                var receivedAtUtc = DateTimeOffset.UtcNow;
                 string payload;
                 using (var reader = new StreamReader(httpRequest.Body))
                 {
@@ -86,19 +88,52 @@ internal static partial class FinancialIntegrationEndpoints
                     var itemId = document.RootElement.TryGetProperty("item_id", out var itemIdElement)
                         ? itemIdElement.GetString()
                         : null;
+                    var normalizedWebhookType = string.IsNullOrWhiteSpace(webhookType)
+                        ? "Unknown"
+                        : webhookType.Trim();
+                    var normalizedWebhookCode = string.IsNullOrWhiteSpace(webhookCode)
+                        ? null
+                        : webhookCode.Trim();
+                    var normalizedItemId = string.IsNullOrWhiteSpace(itemId)
+                        ? null
+                        : itemId.Trim();
 
-                    if (string.IsNullOrWhiteSpace(itemId))
+                    async Task<IResult> PersistAndReturnAsync(string outcome, Guid? familyId, string? message)
                     {
+                        var webhookEvent = new PlaidWebhookEvent(
+                            Guid.NewGuid(),
+                            normalizedWebhookType,
+                            normalizedWebhookCode,
+                            normalizedItemId,
+                            familyId,
+                            outcome,
+                            outcome.Equals("Failed", StringComparison.OrdinalIgnoreCase)
+                                ? TrimActivityError(message)
+                                : null,
+                            payload,
+                            receivedAtUtc,
+                            DateTimeOffset.UtcNow);
+
+                        dbContext.PlaidWebhookEvents.Add(webhookEvent);
+                        await dbContext.SaveChangesAsync(cancellationToken);
+
                         return Results.Ok(new PlaidWebhookProcessResponse(
-                            Outcome: "Ignored",
+                            Outcome: outcome,
                             WebhookType: webhookType,
                             WebhookCode: webhookCode,
-                            ItemId: null,
-                            FamilyId: null,
-                            Message: "Payload does not include item_id."));
+                            ItemId: normalizedItemId,
+                            FamilyId: familyId,
+                            Message: message));
                     }
 
-                    var normalizedItemId = itemId.Trim();
+                    if (string.IsNullOrWhiteSpace(normalizedItemId))
+                    {
+                        return await PersistAndReturnAsync(
+                            outcome: "Ignored",
+                            familyId: null,
+                            message: "Payload does not include item_id.");
+                    }
+
                     var familyId = await dbContext.FamilyFinancialProfiles
                         .AsNoTracking()
                         .Where(profile => profile.PlaidItemId == normalizedItemId)
@@ -107,13 +142,10 @@ internal static partial class FinancialIntegrationEndpoints
 
                     if (!familyId.HasValue)
                     {
-                        return Results.Ok(new PlaidWebhookProcessResponse(
-                            Outcome: "Ignored",
-                            WebhookType: webhookType,
-                            WebhookCode: webhookCode,
-                            ItemId: normalizedItemId,
-                            FamilyId: null,
-                            Message: "No family financial profile matched item_id."));
+                        return await PersistAndReturnAsync(
+                            outcome: "Ignored",
+                            familyId: null,
+                            message: "No family financial profile matched item_id.");
                     }
 
                     try
@@ -121,45 +153,33 @@ internal static partial class FinancialIntegrationEndpoints
                         if (webhookType != null && webhookType.Equals("TRANSACTIONS", StringComparison.OrdinalIgnoreCase))
                         {
                             var sync = await plaidTransactionSyncService.SyncFamilyAsync(familyId.Value, cancellationToken);
-                            return Results.Ok(new PlaidWebhookProcessResponse(
-                                Outcome: "Processed",
-                                WebhookType: webhookType,
-                                WebhookCode: webhookCode,
-                                ItemId: normalizedItemId,
-                                FamilyId: familyId.Value,
-                                Message: $"Plaid sync processed: pulled {sync.PulledCount}, inserted {sync.InsertedCount}, deduped {sync.DedupedCount}, unmapped {sync.UnmappedCount}."));
+                            return await PersistAndReturnAsync(
+                                outcome: "Processed",
+                                familyId: familyId.Value,
+                                message: $"Plaid sync processed: pulled {sync.PulledCount}, inserted {sync.InsertedCount}, deduped {sync.DedupedCount}, unmapped {sync.UnmappedCount}.");
                         }
 
                         if (webhookType != null && webhookType.Equals("BALANCE", StringComparison.OrdinalIgnoreCase))
                         {
                             var refresh = await plaidBalanceReconciliationService.RefreshFamilyBalancesAsync(familyId.Value, cancellationToken);
-                            return Results.Ok(new PlaidWebhookProcessResponse(
-                                Outcome: "Processed",
-                                WebhookType: webhookType,
-                                WebhookCode: webhookCode,
-                                ItemId: normalizedItemId,
-                                FamilyId: familyId.Value,
-                                Message: $"Plaid balance refresh processed: refreshed {refresh.RefreshedCount}, drifted {refresh.DriftedCount}, absolute drift {refresh.TotalAbsoluteDrift:0.00}."));
+                            return await PersistAndReturnAsync(
+                                outcome: "Processed",
+                                familyId: familyId.Value,
+                                message: $"Plaid balance refresh processed: refreshed {refresh.RefreshedCount}, drifted {refresh.DriftedCount}, absolute drift {refresh.TotalAbsoluteDrift:0.00}.");
                         }
                     }
                     catch (Exception ex)
                     {
-                        return Results.Ok(new PlaidWebhookProcessResponse(
-                            Outcome: "Failed",
-                            WebhookType: webhookType,
-                            WebhookCode: webhookCode,
-                            ItemId: normalizedItemId,
-                            FamilyId: familyId.Value,
-                            Message: TrimActivityError(ex.Message) ?? "Plaid webhook processing failed."));
+                        return await PersistAndReturnAsync(
+                            outcome: "Failed",
+                            familyId: familyId.Value,
+                            message: TrimActivityError(ex.Message) ?? "Plaid webhook processing failed.");
                     }
 
-                    return Results.Ok(new PlaidWebhookProcessResponse(
-                        Outcome: "Ignored",
-                        WebhookType: webhookType,
-                        WebhookCode: webhookCode,
-                        ItemId: normalizedItemId,
-                        FamilyId: familyId.Value,
-                        Message: "Webhook type is not configured for automated processing."));
+                    return await PersistAndReturnAsync(
+                        outcome: "Ignored",
+                        familyId: familyId.Value,
+                        message: "Webhook type is not configured for automated processing.");
                 }
             })
             .AllowAnonymous()
