@@ -105,6 +105,70 @@ services:
     networks:
       - dragonenvelopes_net
 
+  family-api:
+    container_name: dragonenvelopes-family-api
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: src/DragonEnvelopes.Family.Api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${APP_DB_NAME:-dragonenvelopes_app};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      Authentication__Authority: http://keycloak:8080/realms/${KEYCLOAK_REALM:-dragonenvelopes}
+      Authentication__PublicAuthority: http://localhost:${KEYCLOAK_PORT:-18080}/realms/${KEYCLOAK_REALM:-dragonenvelopes}
+      Authentication__Audience: ${KEYCLOAK_CLIENT_ID:-dragonenvelopes-api}
+      Keycloak__ServerUrl: http://keycloak:8080
+      Keycloak__Realm: ${KEYCLOAK_REALM:-dragonenvelopes}
+      Keycloak__AdminRealm: ${KEYCLOAK_ADMIN_REALM:-master}
+      Keycloak__AdminClientId: ${KEYCLOAK_ADMIN_CLIENT_ID:-admin-cli}
+      Keycloak__AdminUsername: ${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      Keycloak__AdminPassword: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:-admin}
+    ports:
+      - "${FAMILY_API_PORT:-18089}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - dragonenvelopes_net
+
+  ledger-api:
+    container_name: dragonenvelopes-ledger-api
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: src/DragonEnvelopes.Ledger.Api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${APP_DB_NAME:-dragonenvelopes_app};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      Authentication__Authority: http://keycloak:8080/realms/${KEYCLOAK_REALM:-dragonenvelopes}
+      Authentication__PublicAuthority: http://localhost:${KEYCLOAK_PORT:-18080}/realms/${KEYCLOAK_REALM:-dragonenvelopes}
+      Authentication__Audience: ${KEYCLOAK_CLIENT_ID:-dragonenvelopes-api}
+    ports:
+      - "${LEDGER_API_PORT:-18090}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - dragonenvelopes_net
+
   loki:
     image: grafana/loki:3.0.0
     container_name: dragonenvelopes-loki

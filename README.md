@@ -41,6 +41,12 @@ docker compose up -d --build
 docker compose ps
 ```
 
+Start the split service profile (in addition to default services) when you want Family/Ledger API containers:
+
+```powershell
+docker compose --profile microservices up -d --build
+```
+
 ### Environment Variables
 
 `docker-compose.yml` and API startup rely on these variables from `.env`:
@@ -54,6 +60,8 @@ docker compose ps
 - `PGADMIN_PORT`: Host port mapped to pgAdmin container `80`.
 - `KEYCLOAK_PORT`: Host port mapped to Keycloak container `8080`.
 - `API_PORT`: Host port mapped to API container `8080`.
+- `FAMILY_API_PORT`: Host port mapped to Family API container `8080` (microservices profile).
+- `LEDGER_API_PORT`: Host port mapped to Ledger API container `8080` (microservices profile).
 - `PGADMIN_DEFAULT_EMAIL`: pgAdmin login email.
 - `PGADMIN_DEFAULT_PASSWORD`: pgAdmin login password.
 - `KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME`: Keycloak bootstrap admin username.
@@ -79,6 +87,8 @@ docker compose ps
 Default local endpoints:
 
 - API: `http://localhost:18088`
+- Family API: `http://localhost:18089` (microservices profile)
+- Ledger API: `http://localhost:18090` (microservices profile)
 - Keycloak: `http://localhost:18080`
 - pgAdmin: `http://localhost:5050`
 - Postgres: `localhost:5433`
@@ -98,6 +108,8 @@ API health endpoints:
 
 - Liveness: `http://localhost:18088/health/live`
 - Readiness: `http://localhost:18088/health/ready`
+- Family API readiness: `http://localhost:18089/health/ready` (microservices profile)
+- Ledger API readiness: `http://localhost:18090/health/ready` (microservices profile)
 
 ### Observability Profile (Grafana + Loki + Promtail)
 

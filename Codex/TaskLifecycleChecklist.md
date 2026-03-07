@@ -21,5 +21,5 @@ Use this checklist at the start and end of every task.
 ## Session Run Log
 - Active task: `TBD`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#203` CI/CD: publish Family and Ledger API Docker images to GHCR.
+- Previous completed task: `#204` Dev Infra: add Family/Ledger API services to Docker Compose profile.
 - Last updated: `2026-03-06`.
