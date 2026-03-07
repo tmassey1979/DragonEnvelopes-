@@ -59,6 +59,30 @@ jobs:
           name: dragonenvelopes-desktop-msi
           path: installer/**/bin/**/DragonEnvelopes.Desktop.Setup.msi
 
+  linux-service-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore API services
+        run: |
+          dotnet restore src/DragonEnvelopes.Api/DragonEnvelopes.Api.csproj
+          dotnet restore src/DragonEnvelopes.Family.Api/DragonEnvelopes.Family.Api.csproj
+          dotnet restore src/DragonEnvelopes.Ledger.Api/DragonEnvelopes.Ledger.Api.csproj
+
+      - name: Build API services
+        run: |
+          dotnet build src/DragonEnvelopes.Api/DragonEnvelopes.Api.csproj --configuration Release --no-restore
+          dotnet build src/DragonEnvelopes.Family.Api/DragonEnvelopes.Family.Api.csproj --configuration Release --no-restore
+          dotnet build src/DragonEnvelopes.Ledger.Api/DragonEnvelopes.Ledger.Api.csproj --configuration Release --no-restore
+
   docker-smoke-build:
     runs-on: ubuntu-latest
     strategy:
