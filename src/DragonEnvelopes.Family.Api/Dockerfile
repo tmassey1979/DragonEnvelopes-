@@ -6,6 +6,7 @@ COPY src/DragonEnvelopes.Domain/DragonEnvelopes.Domain.csproj src/DragonEnvelope
 COPY src/DragonEnvelopes.Application/DragonEnvelopes.Application.csproj src/DragonEnvelopes.Application/
 COPY src/DragonEnvelopes.Infrastructure/DragonEnvelopes.Infrastructure.csproj src/DragonEnvelopes.Infrastructure/
 COPY src/DragonEnvelopes.Contracts/DragonEnvelopes.Contracts.csproj src/DragonEnvelopes.Contracts/
+COPY src/DragonEnvelopes.ProviderClients/DragonEnvelopes.ProviderClients.csproj src/DragonEnvelopes.ProviderClients/
 COPY src/DragonEnvelopes.Family.Api/DragonEnvelopes.Family.Api.csproj src/DragonEnvelopes.Family.Api/
 
 RUN dotnet restore src/DragonEnvelopes.Family.Api/DragonEnvelopes.Family.Api.csproj

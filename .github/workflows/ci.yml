@@ -58,3 +58,26 @@ jobs:
         with:
           name: dragonenvelopes-desktop-msi
           path: installer/**/bin/**/DragonEnvelopes.Desktop.Setup.msi
+
+  docker-smoke-build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: api
+            dockerfile: src/DragonEnvelopes.Api/Dockerfile
+          - name: family-api
+            dockerfile: src/DragonEnvelopes.Family.Api/Dockerfile
+          - name: ledger-api
+            dockerfile: src/DragonEnvelopes.Ledger.Api/Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Smoke build Dockerfile
+        run: docker build --file ${{ matrix.service.dockerfile }} --tag dragonenvelopes-ci-${{ matrix.service.name }}:${{ github.sha }} .
