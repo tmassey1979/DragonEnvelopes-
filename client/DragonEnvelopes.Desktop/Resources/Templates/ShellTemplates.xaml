@@ -2559,7 +2559,7 @@
             <StackPanel Grid.Row="0">
                 <TextBlock Text="Settings" Style="{StaticResource DisplayTextStyle}" />
                 <TextBlock Margin="0,8,0,0"
-                           Text="Session controls, profile placeholders, and runtime metadata."
+                           Text="Session controls, family settings, and runtime metadata."
                            Style="{StaticResource BodyTextStyle}" />
             </StackPanel>
 
@@ -2696,6 +2696,12 @@
                                    Text="{Binding BackendHealthStatus, StringFormat=Backend Health: {0}}"
                                    Style="{StaticResource CaptionTextStyle}" />
                         <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding FamilyApiHealthStatus, StringFormat=Family API Health: {0}}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding LedgerApiHealthStatus, StringFormat=Ledger API Health: {0}}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,6,0,0"
                                    Text="{Binding BackendVersion, StringFormat=Backend Version: {0}}"
                                    Style="{StaticResource CaptionTextStyle}" />
                         <TextBlock Margin="0,6,0,0"
@@ -2706,6 +2712,12 @@
                                    Style="{StaticResource CaptionTextStyle}" />
                         <TextBlock Margin="0,6,0,0"
                                    Text="{Binding BackendStatusMessage}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding FamilyApiStatusMessage}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding LedgerApiStatusMessage}"
                                    Style="{StaticResource CaptionTextStyle}" />
                     </StackPanel>
                 </controls:CardControl>

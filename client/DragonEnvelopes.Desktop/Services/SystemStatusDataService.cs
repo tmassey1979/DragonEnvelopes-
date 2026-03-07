@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Text.Json;
 using DragonEnvelopes.Contracts.Runtime;
 using DragonEnvelopes.Desktop.Api;
@@ -7,11 +8,20 @@ namespace DragonEnvelopes.Desktop.Services;
 public sealed class SystemStatusDataService : ISystemStatusDataService
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private static readonly TimeSpan ExternalProbeTimeout = TimeSpan.FromSeconds(2);
     private readonly IBackendApiClient _apiClient;
+    private readonly string _familyApiHealthUrl;
+    private readonly string _ledgerApiHealthUrl;
 
     public SystemStatusDataService(IBackendApiClient apiClient)
     {
         _apiClient = apiClient;
+        _familyApiHealthUrl = ResolveHealthUrl(
+            "DRAGONENVELOPES_FAMILY_API_HEALTH_URL",
+            "http://localhost:18089/health/ready");
+        _ledgerApiHealthUrl = ResolveHealthUrl(
+            "DRAGONENVELOPES_LEDGER_API_HEALTH_URL",
+            "http://localhost:18090/health/ready");
     }
 
     public async Task<SystemRuntimeStatusData> GetRuntimeStatusAsync(CancellationToken cancellationToken = default)
@@ -36,6 +46,9 @@ public sealed class SystemStatusDataService : ISystemStatusDataService
         var version = await JsonSerializer.DeserializeAsync<ApiVersionResponse>(versionStream, SerializerOptions, cancellationToken)
             ?? throw new InvalidOperationException("System version response payload was invalid.");
 
+        var familyProbe = await ProbeExternalServiceHealthAsync("Family API", _familyApiHealthUrl, cancellationToken);
+        var ledgerProbe = await ProbeExternalServiceHealthAsync("Ledger API", _ledgerApiHealthUrl, cancellationToken);
+
         var checkedAt = health.UtcTime > version.UtcTime
             ? health.UtcTime
             : version.UtcTime;
@@ -44,6 +57,56 @@ public sealed class SystemStatusDataService : ISystemStatusDataService
             health.Status,
             version.Version,
             version.Environment,
-            checkedAt);
+            checkedAt,
+            familyProbe.Status,
+            ledgerProbe.Status,
+            familyProbe.Message,
+            ledgerProbe.Message);
     }
+
+    private async Task<ServiceProbeResult> ProbeExternalServiceHealthAsync(
+        string serviceName,
+        string healthUrl,
+        CancellationToken cancellationToken)
+    {
+        using var client = new HttpClient
+        {
+            Timeout = ExternalProbeTimeout
+        };
+
+        try
+        {
+            using var response = await client.GetAsync(healthUrl, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return new ServiceProbeResult("Healthy", $"{serviceName} reachable ({healthUrl}).");
+            }
+
+            return new ServiceProbeResult(
+                "Unavailable",
+                $"{serviceName} returned status {(int)response.StatusCode} ({healthUrl}).");
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new ServiceProbeResult("Unavailable", $"{serviceName} timed out ({healthUrl}).");
+        }
+        catch (HttpRequestException ex)
+        {
+            return new ServiceProbeResult("Unavailable", $"{serviceName} probe failed: {ex.Message}");
+        }
+        catch (UriFormatException ex)
+        {
+            return new ServiceProbeResult("Unavailable", $"{serviceName} health URL is invalid: {ex.Message}");
+        }
+    }
+
+    private static string ResolveHealthUrl(string environmentVariable, string fallback)
+    {
+        var configured = Environment.GetEnvironmentVariable(environmentVariable);
+        return string.IsNullOrWhiteSpace(configured)
+            ? fallback
+            : configured.Trim();
+    }
+
+    private readonly record struct ServiceProbeResult(string Status, string Message);
 }

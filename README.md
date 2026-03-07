@@ -240,6 +240,9 @@ Troubleshooting:
   - Leaves non-idempotent requests as non-retried for safety.
 - Optional API base URL override:
   - `DRAGONENVELOPES_API_BASE_URL` (default `http://localhost:18088/api/v1/`)
+- Optional split-service health probe overrides used by desktop Settings:
+  - `DRAGONENVELOPES_FAMILY_API_HEALTH_URL` (default `http://localhost:18089/health/ready`)
+  - `DRAGONENVELOPES_LEDGER_API_HEALTH_URL` (default `http://localhost:18090/health/ready`)
 
 ## Desktop Installer (MSI)
 

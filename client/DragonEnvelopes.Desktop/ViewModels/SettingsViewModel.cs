@@ -91,6 +91,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     private string backendStatusMessage = "Backend status not loaded.";
 
     [ObservableProperty]
+    private string familyApiHealthStatus = "Unknown";
+
+    [ObservableProperty]
+    private string ledgerApiHealthStatus = "Unknown";
+
+    [ObservableProperty]
+    private string familyApiStatusMessage = "Family API status not loaded.";
+
+    [ObservableProperty]
+    private string ledgerApiStatusMessage = "Ledger API status not loaded.";
+
+    [ObservableProperty]
     private bool hasSettingsError;
 
     [ObservableProperty]
@@ -157,12 +169,20 @@ public sealed partial class SettingsViewModel : ObservableObject
             BackendEnvironment = status.Environment;
             BackendCheckedAt = status.CheckedAtUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'");
             BackendStatusMessage = "Backend reachable.";
+            FamilyApiHealthStatus = status.FamilyApiHealthStatus;
+            LedgerApiHealthStatus = status.LedgerApiHealthStatus;
+            FamilyApiStatusMessage = status.FamilyApiStatusMessage;
+            LedgerApiStatusMessage = status.LedgerApiStatusMessage;
         }
         catch (Exception ex)
         {
             BackendHealthStatus = "Unavailable";
             BackendStatusMessage = $"Backend status check failed: {ex.Message}";
             BackendCheckedAt = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd HH:mm:ss 'UTC'");
+            FamilyApiHealthStatus = "Unavailable";
+            LedgerApiHealthStatus = "Unavailable";
+            FamilyApiStatusMessage = "Family API status unavailable because primary runtime status check failed.";
+            LedgerApiStatusMessage = "Ledger API status unavailable because primary runtime status check failed.";
         }
     }
 
