@@ -24,6 +24,7 @@ public sealed partial class TransactionsViewModel : ObservableObject
         AddSplitRowCommand = new RelayCommand(AddSplitRow);
         RemoveSplitRowCommand = new RelayCommand<TransactionSplitDraftViewModel?>(RemoveSplitRow);
         BeginEditSelectedTransactionCommand = new RelayCommand(BeginEditSelectedTransaction);
+        DeleteSelectedTransactionCommand = new AsyncRelayCommand(DeleteSelectedTransactionAsync);
         CancelEditCommand = new RelayCommand(CancelEdit);
         SubmitTransactionCommand = new AsyncRelayCommand(SubmitTransactionAsync);
         ResetEditorCommand = new RelayCommand(ResetEditor);
@@ -36,6 +37,7 @@ public sealed partial class TransactionsViewModel : ObservableObject
     public IRelayCommand AddSplitRowCommand { get; }
     public IRelayCommand<TransactionSplitDraftViewModel?> RemoveSplitRowCommand { get; }
     public IRelayCommand BeginEditSelectedTransactionCommand { get; }
+    public IAsyncRelayCommand DeleteSelectedTransactionCommand { get; }
     public IRelayCommand CancelEditCommand { get; }
     public IAsyncRelayCommand SubmitTransactionCommand { get; }
     public IRelayCommand ResetEditorCommand { get; }
@@ -385,6 +387,40 @@ public sealed partial class TransactionsViewModel : ObservableObject
         ExitEditMode();
         ResetEditor();
         EditorStatusMessage = "Edit canceled.";
+    }
+
+    private async Task DeleteSelectedTransactionAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (SelectedTransaction is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select a transaction to delete.";
+            return;
+        }
+
+        var transactionId = SelectedTransaction.Id;
+        try
+        {
+            await _transactionsDataService.DeleteTransactionAsync(transactionId, cancellationToken);
+
+            if (IsEditMode)
+            {
+                ExitEditMode();
+                ResetEditor();
+            }
+
+            await LoadTransactionsAsync(cancellationToken);
+            SelectedTransaction = null;
+            EditorStatusMessage = "Transaction deleted.";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to delete transaction: {ex.Message}";
+        }
     }
 
     private void ExitEditMode()

@@ -32,4 +32,8 @@ public interface ITransactionsDataService
         Guid? envelopeId,
         IReadOnlyList<TransactionSplitDraftViewModel>? splits,
         CancellationToken cancellationToken = default);
+
+    Task DeleteTransactionAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default);
 }

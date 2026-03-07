@@ -187,6 +187,18 @@ public sealed class TransactionsDataService : ITransactionsDataService
         }
     }
 
+    public async Task DeleteTransactionAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"transactions/{transactionId}");
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Delete transaction failed with status {(int)response.StatusCode}.");
+        }
+    }
+
     private Guid RequireFamilyId()
     {
         if (!_familyContext.FamilyId.HasValue)

@@ -70,6 +70,29 @@ public sealed class TransactionsViewModelTests
         Assert.Equal(expectedAmount, update.Splits[0].Amount);
     }
 
+    [Fact]
+    public async Task DeleteSelected_WhenEditing_CallsDeleteAndResetsEditorMode()
+    {
+        var accountId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+        var envelopeId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var transactionId = Guid.Parse("30000000-0000-0000-0000-000000000001");
+        var dataService = new FakeTransactionsDataService(accountId, envelopeId, transactionId);
+        var viewModel = new TransactionsViewModel(dataService);
+        await viewModel.LoadAccountsCommand.ExecuteAsync(null);
+
+        viewModel.SelectedTransaction = viewModel.Transactions.Single();
+        viewModel.BeginEditSelectedTransactionCommand.Execute(null);
+        Assert.True(viewModel.IsEditMode);
+
+        await viewModel.DeleteSelectedTransactionCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.HasError);
+        Assert.False(viewModel.IsEditMode);
+        Assert.Equal("Transaction deleted.", viewModel.EditorStatusMessage);
+        Assert.Single(dataService.DeleteCalls);
+        Assert.Equal(transactionId, dataService.DeleteCalls[0]);
+    }
+
     private sealed class FakeTransactionsDataService : ITransactionsDataService
     {
         private readonly Guid _accountId;
@@ -84,6 +107,7 @@ public sealed class TransactionsViewModelTests
         }
 
         public List<UpdateCall> UpdateCalls { get; } = [];
+        public List<Guid> DeleteCalls { get; } = [];
 
         public Task<IReadOnlyList<AccountListItemViewModel>> GetAccountsAsync(CancellationToken cancellationToken = default)
         {
@@ -159,6 +183,14 @@ public sealed class TransactionsViewModelTests
                         split.Category,
                         split.Notes))
                     .ToArray()));
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteTransactionAsync(
+            Guid transactionId,
+            CancellationToken cancellationToken = default)
+        {
+            DeleteCalls.Add(transactionId);
             return Task.CompletedTask;
         }
     }
