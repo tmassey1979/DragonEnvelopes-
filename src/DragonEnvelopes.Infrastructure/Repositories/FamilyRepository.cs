@@ -43,9 +43,15 @@ public sealed class FamilyRepository(DragonEnvelopesDbContext dbContext) : IFami
 
     public Task<bool> FamilyNameExistsAsync(string name, CancellationToken cancellationToken = default)
     {
+        var normalizedName = string.IsNullOrWhiteSpace(name)
+            ? string.Empty
+            : name.Trim().ToUpperInvariant();
+
         return dbContext.Families
             .AsNoTracking()
-            .AnyAsync(x => EF.Functions.ILike(x.Name, name), cancellationToken);
+            .AnyAsync(
+                x => x.Name.ToUpper() == normalizedName,
+                cancellationToken);
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -58,11 +64,15 @@ public sealed class FamilyRepository(DragonEnvelopesDbContext dbContext) : IFami
         string keycloakUserId,
         CancellationToken cancellationToken = default)
     {
+        var normalizedKeycloakUserId = string.IsNullOrWhiteSpace(keycloakUserId)
+            ? string.Empty
+            : keycloakUserId.Trim().ToUpperInvariant();
+
         return dbContext.FamilyMembers
             .AsNoTracking()
             .AnyAsync(
                 x => x.FamilyId == familyId
-                    && EF.Functions.ILike(x.KeycloakUserId, keycloakUserId),
+                    && x.KeycloakUserId.ToUpper() == normalizedKeycloakUserId,
                 cancellationToken);
     }
 }

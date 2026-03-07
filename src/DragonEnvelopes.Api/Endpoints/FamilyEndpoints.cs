@@ -189,9 +189,16 @@ internal static class FamilyEndpoints
         v1.MapPost("/families/{familyId:guid}/members", async (
                 Guid familyId,
                 AddFamilyMemberRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
                 IFamilyService familyService,
                 CancellationToken cancellationToken) =>
             {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
                 var member = await familyService.AddMemberAsync(
                     familyId,
                     request.KeycloakUserId,
@@ -204,7 +211,7 @@ internal static class FamilyEndpoints
                     $"/api/v1/families/{familyId}/members/{member.Id}",
                     EndpointMappers.MapFamilyMemberResponse(member));
             })
-            .AllowAnonymous()
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
             .WithName("AddFamilyMember")
             .WithOpenApi();
 

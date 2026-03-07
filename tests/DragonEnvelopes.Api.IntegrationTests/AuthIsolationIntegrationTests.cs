@@ -348,6 +348,63 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task Unauthorized_Request_Cannot_Add_Family_Member()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/members", new
+        {
+            keycloakUserId = "new-member-user",
+            name = "New Member",
+            email = "new-member@test.dev",
+            role = "Adult"
+        });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserA_Can_Add_Family_Member_To_Own_Family()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var email = $"added-member-{Guid.NewGuid():N}@test.dev";
+        var response = await client.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/members", new
+        {
+            keycloakUserId = "new-member-user-a",
+            name = "Added Member A",
+            email,
+            role = "Adult"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<FamilyMemberResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(TestApiFactory.FamilyAId, payload!.FamilyId);
+        Assert.Equal("new-member-user-a", payload.KeycloakUserId);
+        Assert.Equal("Adult", payload.Role);
+        Assert.Equal(email, payload.Email);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Add_Family_Member_To_FamilyB()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/members", new
+        {
+            keycloakUserId = "new-member-user-b",
+            name = "Added Member B",
+            email = "added-member-b@test.dev",
+            role = "Adult"
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Invite_Can_Be_Accepted_Anonymously_By_Token()
     {
         using var authorizedClient = _factory.CreateClient();
