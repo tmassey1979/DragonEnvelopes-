@@ -1875,6 +1875,10 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
             evt => evt.Source == "StripeWebhook" && evt.EventType == "webhook.family_a");
         Assert.Contains(
             payload.Events,
+            evt => evt.Source == "StripeWebhook"
+                   && evt.StripeWebhookEventId == TestApiFactory.StripeWebhookRecordAId);
+        Assert.Contains(
+            payload.Events,
             evt => evt.Source == "PlaidWebhook" && evt.EventType == "TRANSACTIONS.SYNC_UPDATES_AVAILABLE");
         Assert.Contains(
             payload.Events,
@@ -2091,6 +2095,46 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
 
         var response = await client.PostAsync(
             $"/api/v1/families/{TestApiFactory.FamilyBId}/financial/provider-activity/timeline/notifications/{TestApiFactory.NotificationEventBId}/replay",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserA_Can_Replay_Own_Failed_Stripe_Webhook_Event_From_Timeline()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/financial/provider-activity/timeline/stripe-webhooks/{TestApiFactory.StripeWebhookRecordAFailedId}/replay",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<ReplayStripeWebhookEventResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(TestApiFactory.StripeWebhookRecordAFailedId, payload!.Id);
+        Assert.Equal("Replayed", payload.Status);
+        Assert.Equal("Ignored", payload.Outcome);
+        Assert.Null(payload.ErrorMessage);
+
+        await using var verificationScope = _factory.Services.CreateAsyncScope();
+        var dbContext = verificationScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var persisted = await dbContext.StripeWebhookEvents
+            .AsNoTracking()
+            .SingleAsync(x => x.Id == TestApiFactory.StripeWebhookRecordAFailedId);
+        Assert.Equal("Replayed", persisted.ProcessingStatus);
+        Assert.Null(persisted.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Replay_FamilyB_Stripe_Webhook_Event_From_Timeline()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/financial/provider-activity/timeline/stripe-webhooks/{TestApiFactory.StripeWebhookRecordBId}/replay",
             content: null);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -2801,6 +2845,7 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
     public static readonly Guid NotificationEventBId = Guid.Parse("31000000-0000-0000-0000-000000000002");
     public static readonly Guid StripeWebhookRecordAId = Guid.Parse("41000000-0000-0000-0000-000000000001");
     public static readonly Guid StripeWebhookRecordBId = Guid.Parse("41000000-0000-0000-0000-000000000002");
+    public static readonly Guid StripeWebhookRecordAFailedId = Guid.Parse("41000000-0000-0000-0000-000000000003");
     public static readonly Guid PlaidWebhookRecordAId = Guid.Parse("42000000-0000-0000-0000-000000000001");
     public static readonly Guid PlaidWebhookRecordBId = Guid.Parse("42000000-0000-0000-0000-000000000002");
     public static readonly Guid PlaidLinkAId = Guid.Parse("21000000-0000-0000-0000-000000000001");
@@ -2954,7 +2999,19 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
                 errorMessage: "family_b_marker_error",
                 "{\"family\":\"B\"}",
                 now.AddMinutes(-16),
-                now.AddMinutes(-15)));
+                now.AddMinutes(-15)),
+            new StripeWebhookEvent(
+                StripeWebhookRecordAFailedId,
+                "evt_stripe_family_a_failed",
+                "issuing_authorization.request",
+                FamilyAId,
+                EnvelopeAId,
+                cardId: null,
+                "Failed",
+                errorMessage: "Simulated Stripe processing failure",
+                "{\"id\":\"evt_stripe_family_a_failed\",\"type\":\"issuing_authorization.request\",\"data\":{\"object\":{\"amount\":100}}}",
+                now.AddMinutes(-20),
+                now.AddMinutes(-19)));
 
         dbContext.PlaidWebhookEvents.AddRange(
             new PlaidWebhookEvent(

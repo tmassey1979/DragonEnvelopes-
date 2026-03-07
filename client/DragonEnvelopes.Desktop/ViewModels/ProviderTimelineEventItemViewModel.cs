@@ -7,10 +7,16 @@ public sealed record ProviderTimelineEventItemViewModel(
     string OccurredAt,
     string Summary,
     string Detail,
+    Guid? StripeWebhookEventId,
     Guid? NotificationDispatchEventId,
-    bool CanReplayNotification)
+    bool CanReplayNotification,
+    bool CanReplayStripeWebhook)
 {
+    public string StripeWebhookEventIdDisplay => StripeWebhookEventId?.ToString("D") ?? "-";
+
     public string NotificationDispatchEventIdDisplay => NotificationDispatchEventId?.ToString("D") ?? "-";
 
-    public string ReplayEligibility => CanReplayNotification ? "Replayable" : "-";
+    public bool CanReplayAny => CanReplayNotification || CanReplayStripeWebhook;
+
+    public string ReplayEligibility => CanReplayAny ? "Replayable" : "-";
 }

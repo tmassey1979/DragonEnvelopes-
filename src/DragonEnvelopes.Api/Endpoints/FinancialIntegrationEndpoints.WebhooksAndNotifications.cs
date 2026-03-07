@@ -399,6 +399,43 @@ internal static partial class FinancialIntegrationEndpoints
             .WithName("ReplayTimelineNotificationDispatchEvent")
             .WithOpenApi();
 
+        v1.MapPost("/families/{familyId:guid}/financial/provider-activity/timeline/stripe-webhooks/{eventId:guid}/replay", async (
+                Guid familyId,
+                Guid eventId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IStripeWebhookService stripeWebhookService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var exists = await dbContext.StripeWebhookEvents
+                    .AsNoTracking()
+                    .AnyAsync(x => x.Id == eventId && x.FamilyId == familyId, cancellationToken);
+                if (!exists)
+                {
+                    return Results.NotFound();
+                }
+
+                var replayed = await stripeWebhookService.ReplayFailedEventAsync(
+                    familyId,
+                    eventId,
+                    cancellationToken);
+                return Results.Ok(new ReplayStripeWebhookEventResponse(
+                    replayed.Id,
+                    replayed.FamilyId,
+                    replayed.Status,
+                    replayed.Outcome,
+                    replayed.ProcessedAtUtc,
+                    replayed.ErrorMessage));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
+            .WithName("ReplayTimelineStripeWebhookEvent")
+            .WithOpenApi();
+
         v1.MapGet("/families/{familyId:guid}/financial/status", async (
                 Guid familyId,
                 ClaimsPrincipal user,

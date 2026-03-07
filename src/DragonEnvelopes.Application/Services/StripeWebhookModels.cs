@@ -31,3 +31,11 @@ public sealed record StripeWebhookProcessResult(
     public static StripeWebhookProcessResult Failed(string eventId, string eventType, string message) =>
         new("Failed", eventId, eventType, message);
 }
+
+public sealed record StripeWebhookReplayResult(
+    Guid Id,
+    Guid? FamilyId,
+    string Status,
+    string Outcome,
+    DateTimeOffset ProcessedAtUtc,
+    string? ErrorMessage);

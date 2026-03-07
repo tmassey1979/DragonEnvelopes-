@@ -120,6 +120,7 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
                     OccurredAtUtc: now.AddMinutes(-2),
                     Summary: "Stripe webhook issuing_authorization.request -> Processed.",
                     Detail: null,
+                    StripeWebhookEventId: Guid.Parse("00000000-0000-0000-0000-000000000070"),
                     NotificationDispatchEventId: null),
                 new ProviderTimelineEventResponse(
                     Source: "NotificationDispatch",
@@ -128,6 +129,7 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
                     OccurredAtUtc: now.AddMinutes(-1),
                     Summary: "Spend notification via InApp -> Failed.",
                     Detail: "Simulated delivery failure",
+                    StripeWebhookEventId: null,
                     NotificationDispatchEventId: Guid.Parse("00000000-0000-0000-0000-000000000060"))
             ],
             TraceId: "trace-test-002");
@@ -234,6 +236,15 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
 
     public PlaidWebhookProcessResponse PlaidWebhookProcessResponse { get; set; }
 
+    public ReplayStripeWebhookEventResponse ReplayStripeWebhookEventResponse { get; set; } =
+        new(
+            Guid.Parse("00000000-0000-0000-0000-000000000070"),
+            Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            "Replayed",
+            "Processed",
+            DateTimeOffset.UtcNow,
+            null);
+
     public IReadOnlyList<FailedNotificationDispatchEventResponse> FailedNotificationDispatchEvents { get; private set; }
 
     public IReadOnlyList<PlaidAccountLinkResponse> PlaidLinks { get; private set; }
@@ -251,6 +262,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
     public int DeletePlaidAccountLinkCallCount { get; private set; }
 
     public int RetryFailedNotificationDispatchEventCallCount { get; private set; }
+
+    public int ReplayStripeWebhookEventCallCount { get; private set; }
 
     public int ProcessStripeWebhookCallCount { get; private set; }
 
@@ -389,6 +402,33 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
                 .ToArray()
         };
         return replay;
+    }
+
+    public Task<ReplayStripeWebhookEventResponse> ReplayTimelineStripeWebhookEventAsync(
+        Guid eventId,
+        CancellationToken cancellationToken = default)
+    {
+        ReplayStripeWebhookEventCallCount += 1;
+        var replayedAtUtc = DateTimeOffset.UtcNow;
+        ProviderActivityTimelineResponse = ProviderActivityTimelineResponse with
+        {
+            Events = ProviderActivityTimelineResponse.Events
+                .Select(evt => evt.StripeWebhookEventId == eventId
+                    ? evt with
+                    {
+                        Status = "Replayed",
+                        Summary = $"Stripe webhook {evt.EventType} replayed -> Processed.",
+                        Detail = null
+                    }
+                    : evt)
+                .ToArray()
+        };
+        ReplayStripeWebhookEventResponse = ReplayStripeWebhookEventResponse with
+        {
+            Id = eventId,
+            ProcessedAtUtc = replayedAtUtc
+        };
+        return Task.FromResult(ReplayStripeWebhookEventResponse);
     }
 
     public Task<StripeWebhookProcessResponse> ProcessStripeWebhookAsync(

@@ -66,6 +66,7 @@ public sealed record ProviderTimelineEventResponse(
     DateTimeOffset OccurredAtUtc,
     string Summary,
     string? Detail,
+    Guid? StripeWebhookEventId,
     Guid? NotificationDispatchEventId);
 
 public sealed record ProviderActivityTimelineResponse(
@@ -223,6 +224,14 @@ public sealed record RetryNotificationDispatchEventResponse(
     int AttemptCount,
     DateTimeOffset? LastAttemptAtUtc,
     DateTimeOffset? SentAtUtc,
+    string? ErrorMessage);
+
+public sealed record ReplayStripeWebhookEventResponse(
+    Guid Id,
+    Guid? FamilyId,
+    string Status,
+    string Outcome,
+    DateTimeOffset ProcessedAtUtc,
     string? ErrorMessage);
 
 public sealed record CreatePlaidAccountLinkRequest(

@@ -127,6 +127,19 @@ public sealed class FinancialIntegrationDataService : IFinancialIntegrationDataS
             cancellationToken);
     }
 
+    public Task<ReplayStripeWebhookEventResponse> ReplayTimelineStripeWebhookEventAsync(
+        Guid eventId,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        return SendAsync<ReplayStripeWebhookEventResponse>(
+            HttpMethod.Post,
+            $"families/{familyId}/financial/provider-activity/timeline/stripe-webhooks/{eventId}/replay",
+            payload: null,
+            "Replaying timeline Stripe webhook event",
+            cancellationToken);
+    }
+
     public async Task<StripeWebhookProcessResponse> ProcessStripeWebhookAsync(
         string payload,
         string? stripeSignature,

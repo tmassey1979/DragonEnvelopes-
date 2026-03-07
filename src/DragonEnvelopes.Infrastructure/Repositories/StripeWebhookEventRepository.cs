@@ -14,6 +14,12 @@ public sealed class StripeWebhookEventRepository(DragonEnvelopesDbContext dbCont
             .FirstOrDefaultAsync(x => x.EventId == eventId, cancellationToken);
     }
 
+    public Task<StripeWebhookEvent?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return dbContext.StripeWebhookEvents
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+    }
+
     public async Task AddAsync(StripeWebhookEvent webhookEvent, CancellationToken cancellationToken = default)
     {
         await dbContext.StripeWebhookEvents.AddAsync(webhookEvent, cancellationToken);

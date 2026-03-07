@@ -161,6 +161,7 @@ internal static partial class FinancialIntegrationEndpoints
                             webhook.ProcessedAtUtc,
                             $"Stripe webhook {webhook.EventType} -> {webhook.ProcessingStatus}.",
                             webhook.ErrorMessage,
+                            webhook.Id,
                             null))
                         .ToArrayAsync(cancellationToken);
                 }
@@ -192,6 +193,7 @@ internal static partial class FinancialIntegrationEndpoints
                                 ? $"Plaid webhook {webhook.WebhookType} -> {webhook.ProcessingStatus}."
                                 : $"Plaid webhook {webhook.WebhookType}.{webhook.WebhookCode} -> {webhook.ProcessingStatus}.",
                             webhook.ErrorMessage,
+                            null,
                             null))
                         .ToArrayAsync(cancellationToken);
                 }
@@ -219,6 +221,7 @@ internal static partial class FinancialIntegrationEndpoints
                             notification.LastAttemptAtUtc ?? notification.CreatedAtUtc,
                             $"Spend notification via {notification.Channel} -> {notification.Status}.",
                             notification.ErrorMessage,
+                            null,
                             notification.Id))
                         .ToArrayAsync(cancellationToken);
                 }

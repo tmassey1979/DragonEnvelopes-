@@ -5,14 +5,14 @@ public sealed class StripeWebhookEvent
     public Guid Id { get; }
     public string EventId { get; }
     public string EventType { get; }
-    public Guid? FamilyId { get; }
-    public Guid? EnvelopeId { get; }
-    public Guid? CardId { get; }
-    public string ProcessingStatus { get; }
-    public string? ErrorMessage { get; }
+    public Guid? FamilyId { get; private set; }
+    public Guid? EnvelopeId { get; private set; }
+    public Guid? CardId { get; private set; }
+    public string ProcessingStatus { get; private set; }
+    public string? ErrorMessage { get; private set; }
     public string PayloadJson { get; }
     public DateTimeOffset ReceivedAtUtc { get; }
-    public DateTimeOffset ProcessedAtUtc { get; }
+    public DateTimeOffset ProcessedAtUtc { get; private set; }
 
     public StripeWebhookEvent(
         Guid id,
@@ -47,6 +47,27 @@ public sealed class StripeWebhookEvent
         ErrorMessage = NormalizeNullable(errorMessage);
         PayloadJson = NormalizeRequired(payloadJson, "Payload json");
         ReceivedAtUtc = receivedAtUtc;
+        ProcessedAtUtc = processedAtUtc;
+    }
+
+    public void MarkReplayResult(
+        string processingStatus,
+        string? errorMessage,
+        Guid? familyId,
+        Guid? envelopeId,
+        Guid? cardId,
+        DateTimeOffset processedAtUtc)
+    {
+        if (processedAtUtc < ReceivedAtUtc)
+        {
+            throw new DomainValidationException("Processed time cannot be before received time.");
+        }
+
+        ProcessingStatus = NormalizeRequired(processingStatus, "Processing status");
+        ErrorMessage = NormalizeNullable(errorMessage);
+        FamilyId = familyId ?? FamilyId;
+        EnvelopeId = envelopeId ?? EnvelopeId;
+        CardId = cardId ?? CardId;
         ProcessedAtUtc = processedAtUtc;
     }
 

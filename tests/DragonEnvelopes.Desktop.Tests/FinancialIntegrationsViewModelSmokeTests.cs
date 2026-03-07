@@ -359,6 +359,46 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
                    && evt.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task ReplaySelectedTimelineNotificationDispatchEventCommand_ReplaysSelectedFailedStripeWebhookEvent()
+    {
+        var harness = CreateHarness();
+        await EnsureLoadedAsync(harness.ViewModel);
+
+        var failedStripeEvent = harness.FinancialDataService.ProviderActivityTimelineResponse.Events
+            .First(static evt => evt.Source.Equals("StripeWebhook", StringComparison.OrdinalIgnoreCase)) with
+        {
+            Status = "Failed",
+            Summary = "Stripe webhook issuing_authorization.request -> Failed.",
+            Detail = "Simulated webhook failure"
+        };
+        harness.FinancialDataService.ProviderActivityTimelineResponse = harness.FinancialDataService.ProviderActivityTimelineResponse with
+        {
+            Events = harness.FinancialDataService.ProviderActivityTimelineResponse.Events
+                .Select(evt => evt.Source.Equals("StripeWebhook", StringComparison.OrdinalIgnoreCase) ? failedStripeEvent : evt)
+                .ToArray()
+        };
+
+        await harness.ViewModel.RefreshProviderTimelineCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(harness.ViewModel);
+
+        var replayableStripeEvent = Assert.Single(
+            harness.ViewModel.ProviderTimelineEvents.Where(static evt => evt.CanReplayStripeWebhook));
+        harness.ViewModel.SelectedProviderTimelineEvent = replayableStripeEvent;
+
+        await harness.ViewModel.ReplaySelectedTimelineNotificationDispatchEventCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(harness.ViewModel);
+
+        Assert.False(harness.ViewModel.HasError);
+        Assert.Contains("Stripe replay result: Replayed / Processed", harness.ViewModel.NotificationRetrySummary);
+        Assert.Equal("Timeline Stripe webhook replay completed successfully.", harness.ViewModel.StatusMessage);
+        Assert.Equal(1, harness.FinancialDataService.ReplayStripeWebhookEventCallCount);
+        Assert.DoesNotContain(
+            harness.ViewModel.ProviderTimelineEvents,
+            evt => evt.StripeWebhookEventId == replayableStripeEvent.StripeWebhookEventId
+                   && evt.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static TestHarness CreateHarness()
     {
         var familyId = Guid.Parse("00000000-0000-0000-0000-000000000001");

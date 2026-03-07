@@ -6,4 +6,9 @@ public interface IStripeWebhookService
         string payload,
         string? stripeSignatureHeader,
         CancellationToken cancellationToken = default);
+
+    Task<StripeWebhookReplayResult> ReplayFailedEventAsync(
+        Guid familyId,
+        Guid webhookEventId,
+        CancellationToken cancellationToken = default);
 }

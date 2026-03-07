@@ -2602,6 +2602,7 @@
                                     <DataGridTextColumn Header="Occurred" Binding="{Binding OccurredAt}" Width="130" />
                                     <DataGridTextColumn Header="Replay" Binding="{Binding ReplayEligibility}" Width="90" />
                                     <DataGridTextColumn Header="Summary" Binding="{Binding Summary}" Width="*" />
+                                    <DataGridTextColumn Header="Stripe Event Id" Binding="{Binding StripeWebhookEventIdDisplay}" Width="250" />
                                     <DataGridTextColumn Header="Notification Event Id" Binding="{Binding NotificationDispatchEventIdDisplay}" Width="250" />
                                     <DataGridTextColumn Header="Detail" Binding="{Binding Detail}" Width="220" />
                                 </DataGrid.Columns>

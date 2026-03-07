@@ -410,7 +410,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public bool HasEnvelopeSelection => SelectedEnvelope is not null;
     public bool HasCardSelection => SelectedCard is not null;
     public bool HasFailedNotificationSelection => SelectedFailedNotificationDispatchEvent is not null;
-    public bool CanReplaySelectedProviderTimelineEvent => SelectedProviderTimelineEvent?.CanReplayNotification == true;
+    public bool CanReplaySelectedProviderTimelineEvent => SelectedProviderTimelineEvent?.CanReplayAny == true;
     public bool SelectedCardIsPhysical => SelectedCard?.IsPhysical == true;
     public string PlaidItemIdentifierDisplay => GetMaskedIdentifierDisplay(PlaidItemIdentifier);
     public string StripeCustomerIdentifierDisplay => GetMaskedIdentifierDisplay(StripeCustomerIdentifier);
@@ -637,39 +637,77 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
 
     private async Task ReplaySelectedTimelineNotificationDispatchEventAsync(CancellationToken cancellationToken)
     {
-        if (SelectedProviderTimelineEvent is null || !SelectedProviderTimelineEvent.CanReplayNotification)
+        if (SelectedProviderTimelineEvent is null || !SelectedProviderTimelineEvent.CanReplayAny)
         {
-            SetValidationError("Select a replayable failed notification dispatch event in timeline.");
+            SetValidationError("Select a replayable failed timeline event.");
             return;
         }
 
-        if (!SelectedProviderTimelineEvent.NotificationDispatchEventId.HasValue)
+        if (SelectedProviderTimelineEvent.CanReplayNotification)
         {
-            SetValidationError("Selected timeline event is missing notification event id.");
+            if (!SelectedProviderTimelineEvent.NotificationDispatchEventId.HasValue)
+            {
+                SetValidationError("Selected timeline event is missing notification event id.");
+                return;
+            }
+
+            await RunOperationAsync("Replaying selected timeline notification event...", async ct =>
+            {
+                var replay = await _financialIntegrationDataService.ReplayTimelineNotificationDispatchEventAsync(
+                    SelectedProviderTimelineEvent.NotificationDispatchEventId.Value,
+                    ct);
+                var attemptedAt = replay.LastAttemptAtUtc.HasValue
+                    ? FormatDate(replay.LastAttemptAtUtc.Value)
+                    : "-";
+                var error = string.IsNullOrWhiteSpace(replay.ErrorMessage)
+                    ? "-"
+                    : replay.ErrorMessage;
+                var replaySummary = $"Timeline replay result: {replay.Status} (attempt {replay.AttemptCount}) at {attemptedAt}. Last error: {error}.";
+
+                await LoadProviderActivityHealthCoreAsync(ct);
+                await LoadProviderTimelineCoreAsync(ct);
+                await LoadFailedNotificationDispatchEventsCoreAsync(ct);
+                NotificationRetrySummary = replaySummary;
+                StatusMessage = replay.Status.Equals("Sent", StringComparison.OrdinalIgnoreCase)
+                    ? "Timeline notification replay completed successfully."
+                    : "Timeline notification replay completed with failure status.";
+            }, cancellationToken);
             return;
         }
 
-        await RunOperationAsync("Replaying selected timeline notification event...", async ct =>
+        if (SelectedProviderTimelineEvent.CanReplayStripeWebhook)
         {
-            var replay = await _financialIntegrationDataService.ReplayTimelineNotificationDispatchEventAsync(
-                SelectedProviderTimelineEvent.NotificationDispatchEventId.Value,
-                ct);
-            var attemptedAt = replay.LastAttemptAtUtc.HasValue
-                ? FormatDate(replay.LastAttemptAtUtc.Value)
-                : "-";
-            var error = string.IsNullOrWhiteSpace(replay.ErrorMessage)
-                ? "-"
-                : replay.ErrorMessage;
-            var replaySummary = $"Timeline replay result: {replay.Status} (attempt {replay.AttemptCount}) at {attemptedAt}. Last error: {error}.";
+            if (!SelectedProviderTimelineEvent.StripeWebhookEventId.HasValue)
+            {
+                SetValidationError("Selected timeline event is missing Stripe webhook event id.");
+                return;
+            }
 
-            await LoadProviderActivityHealthCoreAsync(ct);
-            await LoadProviderTimelineCoreAsync(ct);
-            await LoadFailedNotificationDispatchEventsCoreAsync(ct);
-            NotificationRetrySummary = replaySummary;
-            StatusMessage = replay.Status.Equals("Sent", StringComparison.OrdinalIgnoreCase)
-                ? "Timeline notification replay completed successfully."
-                : "Timeline notification replay completed with failure status.";
-        }, cancellationToken);
+            await RunOperationAsync("Replaying selected timeline Stripe webhook event...", async ct =>
+            {
+                var replay = await _financialIntegrationDataService.ReplayTimelineStripeWebhookEventAsync(
+                    SelectedProviderTimelineEvent.StripeWebhookEventId.Value,
+                    ct);
+                var replayError = string.IsNullOrWhiteSpace(replay.ErrorMessage)
+                    ? "-"
+                    : replay.ErrorMessage;
+                var replaySummary = $"Stripe replay result: {replay.Status} / {replay.Outcome} at {FormatDate(replay.ProcessedAtUtc)}. Error: {replayError}.";
+
+                await LoadProviderActivityHealthCoreAsync(ct);
+                await LoadProviderTimelineCoreAsync(ct);
+                await LoadFailedNotificationDispatchEventsCoreAsync(ct);
+                NotificationRetrySummary = replaySummary;
+                StatusMessage = replay.Status.Equals("Replayed", StringComparison.OrdinalIgnoreCase)
+                    ? "Timeline Stripe webhook replay completed successfully."
+                    : "Timeline Stripe webhook replay completed with replay-failed status.";
+            }, cancellationToken);
+            return;
+        }
+
+        var source = string.IsNullOrWhiteSpace(SelectedProviderTimelineEvent.Source)
+            ? "Unknown"
+            : SelectedProviderTimelineEvent.Source;
+        SetValidationError($"Timeline source '{source}' is not replayable.");
     }
 
     private async Task SimulateStripeWebhookAsync(CancellationToken cancellationToken)
@@ -1440,7 +1478,8 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             sourceFilter: sourceFilter,
             statusFilter: statusFilter,
             cancellationToken: cancellationToken);
-        var previousSelectedEventId = SelectedProviderTimelineEvent?.NotificationDispatchEventId;
+        var previousSelectedNotificationEventId = SelectedProviderTimelineEvent?.NotificationDispatchEventId;
+        var previousSelectedStripeWebhookEventId = SelectedProviderTimelineEvent?.StripeWebhookEventId;
 
         ProviderTimelineEvents = new ObservableCollection<ProviderTimelineEventItemViewModel>(
             timeline.Events.Select(eventItem => new ProviderTimelineEventItemViewModel(
@@ -1450,14 +1489,21 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
                 FormatDate(eventItem.OccurredAtUtc),
                 eventItem.Summary,
                 string.IsNullOrWhiteSpace(eventItem.Detail) ? "-" : eventItem.Detail,
+                eventItem.StripeWebhookEventId,
                 eventItem.NotificationDispatchEventId,
                 eventItem.Source.Equals("NotificationDispatch", StringComparison.OrdinalIgnoreCase)
                     && eventItem.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase)
-                    && eventItem.NotificationDispatchEventId.HasValue)));
+                    && eventItem.NotificationDispatchEventId.HasValue,
+                eventItem.Source.Equals("StripeWebhook", StringComparison.OrdinalIgnoreCase)
+                    && (eventItem.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase)
+                        || eventItem.Status.Equals("ReplayFailed", StringComparison.OrdinalIgnoreCase))
+                    && eventItem.StripeWebhookEventId.HasValue)));
 
-        SelectedProviderTimelineEvent = previousSelectedEventId.HasValue
-            ? ProviderTimelineEvents.FirstOrDefault(evt => evt.NotificationDispatchEventId == previousSelectedEventId.Value)
-            : ProviderTimelineEvents.FirstOrDefault(evt => evt.CanReplayNotification);
+        SelectedProviderTimelineEvent = previousSelectedNotificationEventId.HasValue
+            ? ProviderTimelineEvents.FirstOrDefault(evt => evt.NotificationDispatchEventId == previousSelectedNotificationEventId.Value)
+            : previousSelectedStripeWebhookEventId.HasValue
+                ? ProviderTimelineEvents.FirstOrDefault(evt => evt.StripeWebhookEventId == previousSelectedStripeWebhookEventId.Value)
+                : ProviderTimelineEvents.FirstOrDefault(evt => evt.CanReplayAny);
 
         var sourceSummary = SelectedProviderTimelineSourceFilter;
         var statusSummary = statusFilter ?? "Any Status";

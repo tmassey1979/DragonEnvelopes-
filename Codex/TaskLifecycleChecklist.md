@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `TBD (select next open phase 2B issue after #253 closeout)`.
+- Active task: `TBD (select next open phase 2B issue after #254 closeout)`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#253` Plaid webhooks: idempotency and duplicate suppression.
+- Previous completed task: `#254` Stripe webhooks: failed-event replay API and desktop action.
 - Last updated: `2026-03-07`.

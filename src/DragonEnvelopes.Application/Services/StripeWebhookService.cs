@@ -116,6 +116,90 @@ public sealed class StripeWebhookService(
         return result with { EventId = eventId, EventType = eventType };
     }
 
+    public async Task<StripeWebhookReplayResult> ReplayFailedEventAsync(
+        Guid familyId,
+        Guid webhookEventId,
+        CancellationToken cancellationToken = default)
+    {
+        if (familyId == Guid.Empty)
+        {
+            throw new DomainValidationException("Family id is required.");
+        }
+
+        if (webhookEventId == Guid.Empty)
+        {
+            throw new DomainValidationException("Webhook event id is required.");
+        }
+
+        var webhookEvent = await stripeWebhookEventRepository.GetByIdForUpdateAsync(webhookEventId, cancellationToken)
+            ?? throw new DomainValidationException("Stripe webhook event was not found.");
+        if (!webhookEvent.FamilyId.HasValue || webhookEvent.FamilyId.Value != familyId)
+        {
+            throw new DomainValidationException("Stripe webhook event was not found.");
+        }
+
+        if (!webhookEvent.ProcessingStatus.Equals("Failed", StringComparison.OrdinalIgnoreCase)
+            && !webhookEvent.ProcessingStatus.Equals("ReplayFailed", StringComparison.OrdinalIgnoreCase))
+        {
+            return new StripeWebhookReplayResult(
+                webhookEvent.Id,
+                webhookEvent.FamilyId,
+                webhookEvent.ProcessingStatus,
+                "Skipped",
+                webhookEvent.ProcessedAtUtc,
+                webhookEvent.ErrorMessage);
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(webhookEvent.PayloadJson);
+            var processed = await ProcessEventCoreAsync(
+                webhookEvent.EventId,
+                webhookEvent.EventType,
+                document.RootElement,
+                cancellationToken);
+            webhookEvent.MarkReplayResult(
+                processingStatus: "Replayed",
+                errorMessage: null,
+                familyId: processed.FamilyId,
+                envelopeId: processed.EnvelopeId,
+                cardId: processed.CardId,
+                processedAtUtc: clock.UtcNow);
+            await stripeWebhookEventRepository.SaveChangesAsync(cancellationToken);
+            return new StripeWebhookReplayResult(
+                webhookEvent.Id,
+                webhookEvent.FamilyId,
+                webhookEvent.ProcessingStatus,
+                processed.Result.Outcome,
+                webhookEvent.ProcessedAtUtc,
+                webhookEvent.ErrorMessage);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Stripe webhook replay failed. FamilyId={FamilyId}, WebhookEventId={WebhookEventId}, StripeEventId={StripeEventId}",
+                familyId,
+                webhookEventId,
+                webhookEvent.EventId);
+            webhookEvent.MarkReplayResult(
+                processingStatus: "ReplayFailed",
+                errorMessage: ex.Message,
+                familyId: webhookEvent.FamilyId,
+                envelopeId: webhookEvent.EnvelopeId,
+                cardId: webhookEvent.CardId,
+                processedAtUtc: clock.UtcNow);
+            await stripeWebhookEventRepository.SaveChangesAsync(cancellationToken);
+            return new StripeWebhookReplayResult(
+                webhookEvent.Id,
+                webhookEvent.FamilyId,
+                webhookEvent.ProcessingStatus,
+                "ReplayFailed",
+                webhookEvent.ProcessedAtUtc,
+                webhookEvent.ErrorMessage);
+        }
+    }
+
     private async Task<(StripeWebhookProcessResult Result, Guid? FamilyId, Guid? EnvelopeId, Guid? CardId)> ProcessEventCoreAsync(
         string eventId,
         string eventType,
