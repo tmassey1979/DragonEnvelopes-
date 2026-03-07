@@ -27,7 +27,7 @@ public sealed class ReportingService(
             cancellationToken);
 
         return rows
-            .Where(static row => row.Amount < 0m)
+            .Where(static row => row.Amount < 0m && !row.TransferId.HasValue)
             .GroupBy(static row => $"{row.OccurredAt:yyyy-MM}")
             .Select(static group => new MonthlySpendReportPointDetails(
                 group.Key,
@@ -49,7 +49,7 @@ public sealed class ReportingService(
             cancellationToken);
 
         return rows
-            .Where(static row => row.Amount < 0m)
+            .Where(static row => row.Amount < 0m && !row.TransferId.HasValue)
             .GroupBy(static row => string.IsNullOrWhiteSpace(row.Category) ? "Uncategorized" : row.Category!.Trim())
             .Select(static group => new CategoryBreakdownReportItemDetails(
                 group.Key,

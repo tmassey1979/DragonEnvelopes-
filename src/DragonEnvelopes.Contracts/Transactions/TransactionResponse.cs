@@ -10,5 +10,8 @@ public sealed record TransactionResponse(
     string? Category,
     Guid? EnvelopeId,
     IReadOnlyList<TransactionSplitResponse> Splits,
+    Guid? TransferId = null,
+    Guid? TransferCounterpartyEnvelopeId = null,
+    string? TransferDirection = null,
     DateTimeOffset? DeletedAtUtc = null,
     string? DeletedByUserId = null);

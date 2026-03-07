@@ -224,6 +224,36 @@ public sealed class TransactionsDataService : ITransactionsDataService
         }
     }
 
+    public async Task CreateEnvelopeTransferAsync(
+        Guid accountId,
+        Guid fromEnvelopeId,
+        Guid toEnvelopeId,
+        decimal amount,
+        DateTimeOffset occurredAt,
+        string? notes,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var payload = new CreateEnvelopeTransferRequest(
+            familyId,
+            accountId,
+            fromEnvelopeId,
+            toEnvelopeId,
+            amount,
+            occurredAt,
+            string.IsNullOrWhiteSpace(notes) ? null : notes.Trim());
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "transactions/envelope-transfers")
+        {
+            Content = JsonContent.Create(payload, options: SerializerOptions)
+        };
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Envelope transfer failed with status {(int)response.StatusCode}.");
+        }
+    }
+
     private Guid RequireFamilyId()
     {
         if (!_familyContext.FamilyId.HasValue)
@@ -257,6 +287,13 @@ public sealed class TransactionsDataService : ITransactionsDataService
                     split.Notes))
                 .ToArray(),
             transaction.DeletedAtUtc,
-            transaction.DeletedByUserId);
+            transaction.DeletedByUserId,
+            transaction.TransferId,
+            transaction.TransferCounterpartyEnvelopeId,
+            transaction.TransferDirection,
+            transaction.TransferCounterpartyEnvelopeId.HasValue
+                && envelopeLookup.TryGetValue(transaction.TransferCounterpartyEnvelopeId.Value, out var counterpartyEnvelopeName)
+                ? counterpartyEnvelopeName
+                : null);
     }
 }

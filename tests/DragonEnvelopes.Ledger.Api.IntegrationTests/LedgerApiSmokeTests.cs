@@ -292,6 +292,75 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
         Assert.True(secondApplyPayload!.AlreadyApplied);
     }
 
+    [Fact]
+    public async Task Authenticated_User_Can_Create_EnvelopeTransfer_With_Linked_Legs_And_Atomic_BalanceUpdate()
+    {
+        var userId = "ledger-user-transfer-a";
+        var ownFamilyId = Guid.Parse("e6000000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e6000000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        var seeded = await SeedFamilyMembershipAndTransferDataAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/transactions/envelope-transfers",
+            new CreateEnvelopeTransferRequest(
+                ownFamilyId,
+                seeded.OwnAccountId,
+                seeded.FromEnvelopeId,
+                seeded.ToEnvelopeId,
+                25m,
+                DateTimeOffset.UtcNow,
+                "rebalance"));
+        var payload = await response.Content.ReadFromJsonAsync<EnvelopeTransferResponse>();
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.NotNull(payload);
+        Assert.Equal(25m, payload!.Amount);
+
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var fromEnvelope = await dbContext.Envelopes.AsNoTracking().FirstAsync(x => x.Id == seeded.FromEnvelopeId);
+        var toEnvelope = await dbContext.Envelopes.AsNoTracking().FirstAsync(x => x.Id == seeded.ToEnvelopeId);
+        var transferLegs = await dbContext.Transactions
+            .AsNoTracking()
+            .Where(x => x.TransferId == payload.TransferId)
+            .OrderBy(x => x.Amount.Amount)
+            .ToArrayAsync();
+
+        Assert.Equal(55m, fromEnvelope.CurrentBalance.Amount);
+        Assert.Equal(45m, toEnvelope.CurrentBalance.Amount);
+        Assert.Equal(2, transferLegs.Length);
+        Assert.Contains(transferLegs, leg => leg.TransferDirection == "Debit" && leg.Amount.Amount == -25m);
+        Assert.Contains(transferLegs, leg => leg.TransferDirection == "Credit" && leg.Amount.Amount == 25m);
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Cannot_Create_EnvelopeTransfer_For_Other_Family()
+    {
+        var userId = "ledger-user-transfer-b";
+        var ownFamilyId = Guid.Parse("e7000000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e7000000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        var seeded = await SeedFamilyMembershipAndTransferDataAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/transactions/envelope-transfers",
+            new CreateEnvelopeTransferRequest(
+                otherFamilyId,
+                seeded.OtherAccountId,
+                seeded.OtherFromEnvelopeId,
+                seeded.OtherToEnvelopeId,
+                20m,
+                DateTimeOffset.UtcNow,
+                null));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
     private async Task SeedFamilyMembershipAndAccountAsync(string userId, Guid ownFamilyId, Guid otherFamilyId)
     {
         using var scope = _factory.Services.CreateScope();
@@ -538,6 +607,61 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
                 rolloverCap: null));
 
         await dbContext.SaveChangesAsync();
+    }
+
+    private async Task<(
+        Guid OwnAccountId,
+        Guid FromEnvelopeId,
+        Guid ToEnvelopeId,
+        Guid OtherAccountId,
+        Guid OtherFromEnvelopeId,
+        Guid OtherToEnvelopeId)> SeedFamilyMembershipAndTransferDataAsync(
+        string userId,
+        Guid ownFamilyId,
+        Guid otherFamilyId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+
+        dbContext.TransactionSplits.RemoveRange(dbContext.TransactionSplits);
+        dbContext.Transactions.RemoveRange(dbContext.Transactions);
+        dbContext.Envelopes.RemoveRange(dbContext.Envelopes);
+        dbContext.Accounts.RemoveRange(dbContext.Accounts);
+        dbContext.FamilyMembers.RemoveRange(dbContext.FamilyMembers);
+        dbContext.Families.RemoveRange(dbContext.Families);
+
+        var now = DateTimeOffset.UtcNow;
+        var ownAccountId = Guid.NewGuid();
+        var fromEnvelopeId = Guid.NewGuid();
+        var toEnvelopeId = Guid.NewGuid();
+        var otherAccountId = Guid.NewGuid();
+        var otherFromEnvelopeId = Guid.NewGuid();
+        var otherToEnvelopeId = Guid.NewGuid();
+
+        dbContext.Families.AddRange(
+            new Family(ownFamilyId, "Authorized Ledger Family", now),
+            new Family(otherFamilyId, "Forbidden Ledger Family", now));
+
+        dbContext.FamilyMembers.Add(new FamilyMember(
+            Guid.NewGuid(),
+            ownFamilyId,
+            userId,
+            "Ledger Parent User",
+            EmailAddress.Parse("ledger.parent@test.local"),
+            MemberRole.Parent));
+
+        dbContext.Accounts.AddRange(
+            new Account(ownAccountId, ownFamilyId, "Own Checking", AccountType.Checking, Money.FromDecimal(500m)),
+            new Account(otherAccountId, otherFamilyId, "Other Checking", AccountType.Checking, Money.FromDecimal(500m)));
+
+        dbContext.Envelopes.AddRange(
+            new Envelope(fromEnvelopeId, ownFamilyId, "Groceries", Money.FromDecimal(300m), Money.FromDecimal(80m)),
+            new Envelope(toEnvelopeId, ownFamilyId, "Fuel", Money.FromDecimal(150m), Money.FromDecimal(20m)),
+            new Envelope(otherFromEnvelopeId, otherFamilyId, "Other Source", Money.FromDecimal(100m), Money.FromDecimal(80m)),
+            new Envelope(otherToEnvelopeId, otherFamilyId, "Other Target", Money.FromDecimal(100m), Money.FromDecimal(10m)));
+
+        await dbContext.SaveChangesAsync();
+        return (ownAccountId, fromEnvelopeId, toEnvelopeId, otherAccountId, otherFromEnvelopeId, otherToEnvelopeId);
     }
 }
 

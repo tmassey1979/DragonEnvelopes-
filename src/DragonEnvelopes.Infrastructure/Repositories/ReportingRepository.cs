@@ -43,7 +43,8 @@ public sealed class ReportingRepository(DragonEnvelopesDbContext dbContext) : IR
             .Select(x => new TransactionReportRow(
                 x.transaction.Amount.Amount,
                 x.transaction.Category,
-                x.transaction.OccurredAt))
+                x.transaction.OccurredAt,
+                x.transaction.TransferId))
             .ToArrayAsync(cancellationToken);
     }
 }

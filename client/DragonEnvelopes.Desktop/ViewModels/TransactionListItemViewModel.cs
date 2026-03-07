@@ -14,7 +14,11 @@ public sealed class TransactionListItemViewModel
         string envelope,
         IReadOnlyList<TransactionSplitSnapshotViewModel> splits,
         DateTimeOffset? deletedAtUtc = null,
-        string? deletedByUserId = null)
+        string? deletedByUserId = null,
+        Guid? transferId = null,
+        Guid? transferCounterpartyEnvelopeId = null,
+        string? transferDirection = null,
+        string? transferCounterpartyEnvelopeName = null)
     {
         Id = id;
         AccountId = accountId;
@@ -24,6 +28,10 @@ public sealed class TransactionListItemViewModel
         Amount = amount;
         Category = category;
         EnvelopeId = envelopeId;
+        TransferId = transferId;
+        TransferCounterpartyEnvelopeId = transferCounterpartyEnvelopeId;
+        TransferDirection = transferDirection;
+        TransferCounterpartyEnvelopeName = transferCounterpartyEnvelopeName;
         Envelope = envelope;
         Splits = splits;
         DeletedAtUtc = deletedAtUtc;
@@ -38,19 +46,31 @@ public sealed class TransactionListItemViewModel
     public decimal Amount { get; }
     public string? Category { get; }
     public Guid? EnvelopeId { get; }
+    public Guid? TransferId { get; }
+    public Guid? TransferCounterpartyEnvelopeId { get; }
+    public string? TransferDirection { get; }
+    public string? TransferCounterpartyEnvelopeName { get; }
     public string Envelope { get; }
     public IReadOnlyList<TransactionSplitSnapshotViewModel> Splits { get; }
     public DateTimeOffset? DeletedAtUtc { get; }
     public string? DeletedByUserId { get; }
     public bool HasSplits => Splits.Count > 0;
+    public bool IsTransfer => TransferId.HasValue;
     public bool IsDeleted => DeletedAtUtc.HasValue;
 
     public string OccurredDateDisplay => OccurredAt.ToString("yyyy-MM-dd");
     public string DeletedAtDateDisplay => DeletedAtUtc?.ToString("yyyy-MM-dd") ?? "-";
     public string AmountDisplay => Amount.ToString("$#,##0.00");
     public string CategoryDisplay => string.IsNullOrWhiteSpace(Category) ? "Uncategorized" : Category!;
+    public string TransferDisplay => !IsTransfer
+        ? "-"
+        : string.Equals(TransferDirection, "Debit", StringComparison.OrdinalIgnoreCase)
+            ? $"Out -> {TransferCounterpartyEnvelopeName ?? "Unknown"}"
+            : $"In <- {TransferCounterpartyEnvelopeName ?? "Unknown"}";
     public string AllocationDisplay => HasSplits
         ? $"Split ({Splits.Count})"
+        : IsTransfer
+            ? TransferDisplay
         : string.IsNullOrWhiteSpace(Envelope) || string.Equals(Envelope, "-", StringComparison.Ordinal)
             ? "Unassigned"
             : Envelope;

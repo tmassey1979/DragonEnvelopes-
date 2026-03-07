@@ -44,6 +44,16 @@ public sealed class TransactionConfiguration : IEntityTypeConfiguration<Transact
         builder.Property(x => x.EnvelopeId)
             .IsRequired(false);
 
+        builder.Property(x => x.TransferId)
+            .IsRequired(false);
+
+        builder.Property(x => x.TransferCounterpartyEnvelopeId)
+            .IsRequired(false);
+
+        builder.Property(x => x.TransferDirection)
+            .HasMaxLength(16)
+            .IsRequired(false);
+
         builder.Property(x => x.DeletedAtUtc)
             .IsRequired(false);
 
@@ -52,6 +62,7 @@ public sealed class TransactionConfiguration : IEntityTypeConfiguration<Transact
             .IsRequired(false);
 
         builder.HasIndex(x => x.DeletedAtUtc);
+        builder.HasIndex(x => x.TransferId);
 
         builder.Ignore(x => x.Splits);
 
@@ -63,6 +74,11 @@ public sealed class TransactionConfiguration : IEntityTypeConfiguration<Transact
         builder.HasOne<Envelope>()
             .WithMany()
             .HasForeignKey(x => x.EnvelopeId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne<Envelope>()
+            .WithMany()
+            .HasForeignKey(x => x.TransferCounterpartyEnvelopeId)
             .OnDelete(DeleteBehavior.SetNull);
     }
 }

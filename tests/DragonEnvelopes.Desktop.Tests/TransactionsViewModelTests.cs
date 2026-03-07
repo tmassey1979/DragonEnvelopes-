@@ -239,6 +239,39 @@ public sealed class TransactionsViewModelTests
         Assert.Contains("yyyy-MM-dd", viewModel.DateFilterErrorMessage);
     }
 
+    [Fact]
+    public async Task SubmitEnvelopeTransferCommand_CreatesTransferAndReloads()
+    {
+        var accountId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+        var fromEnvelopeId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var toEnvelopeId = Guid.Parse("20000000-0000-0000-0000-000000000002");
+        var dataService = new FakeTransactionsDataService(accountId, fromEnvelopeId, Guid.NewGuid())
+        {
+            EnvelopeOptions =
+            [
+                new EnvelopeOptionViewModel(fromEnvelopeId, "Groceries"),
+                new EnvelopeOptionViewModel(toEnvelopeId, "Fuel")
+            ]
+        };
+        var viewModel = new TransactionsViewModel(dataService);
+        await viewModel.LoadAccountsCommand.ExecuteAsync(null);
+
+        viewModel.TransferFromEnvelopeId = fromEnvelopeId;
+        viewModel.TransferToEnvelopeId = toEnvelopeId;
+        viewModel.TransferAmount = 25m;
+        viewModel.TransferNotes = "Rebalance";
+
+        await viewModel.SubmitEnvelopeTransferCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.HasError);
+        Assert.Equal("Envelope transfer created.", viewModel.TransferStatusMessage);
+        Assert.Single(dataService.TransferCalls);
+        Assert.Equal(accountId, dataService.TransferCalls[0].AccountId);
+        Assert.Equal(fromEnvelopeId, dataService.TransferCalls[0].FromEnvelopeId);
+        Assert.Equal(toEnvelopeId, dataService.TransferCalls[0].ToEnvelopeId);
+        Assert.Equal(25m, dataService.TransferCalls[0].Amount);
+    }
+
     private sealed class FakeTransactionsDataService : ITransactionsDataService
     {
         private readonly Guid _accountId;
@@ -264,14 +297,20 @@ public sealed class TransactionsViewModelTests
                     "Groceries",
                     [])
             ];
+            EnvelopeOptions =
+            [
+                new EnvelopeOptionViewModel(_envelopeId, "Groceries")
+            ];
         }
 
         public List<UpdateCall> UpdateCalls { get; } = [];
         public List<Guid> DeleteCalls { get; } = [];
         public List<Guid> RestoreCalls { get; } = [];
+        public List<TransferCall> TransferCalls { get; } = [];
         public List<int> DeletedDaysRequests { get; } = [];
         public IReadOnlyList<TransactionListItemViewModel> Transactions { get; set; }
         public IReadOnlyList<TransactionListItemViewModel> DeletedTransactions { get; set; } = [];
+        public IReadOnlyList<EnvelopeOptionViewModel> EnvelopeOptions { get; set; }
 
         public Task<IReadOnlyList<AccountListItemViewModel>> GetAccountsAsync(CancellationToken cancellationToken = default)
         {
@@ -283,10 +322,7 @@ public sealed class TransactionsViewModelTests
 
         public Task<IReadOnlyList<EnvelopeOptionViewModel>> GetEnvelopesAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<EnvelopeOptionViewModel>>(
-            [
-                new EnvelopeOptionViewModel(_envelopeId, "Groceries")
-            ]);
+            return Task.FromResult(EnvelopeOptions);
         }
 
         public Task<IReadOnlyList<TransactionListItemViewModel>> GetTransactionsAsync(
@@ -404,6 +440,19 @@ public sealed class TransactionsViewModelTests
 
             return Task.CompletedTask;
         }
+
+        public Task CreateEnvelopeTransferAsync(
+            Guid accountId,
+            Guid fromEnvelopeId,
+            Guid toEnvelopeId,
+            decimal amount,
+            DateTimeOffset occurredAt,
+            string? notes,
+            CancellationToken cancellationToken = default)
+        {
+            TransferCalls.Add(new TransferCall(accountId, fromEnvelopeId, toEnvelopeId, amount, occurredAt, notes));
+            return Task.CompletedTask;
+        }
     }
 
     private sealed record UpdateCall(
@@ -420,4 +469,12 @@ public sealed class TransactionsViewModelTests
         decimal Amount,
         string Category,
         string Notes);
+
+    private sealed record TransferCall(
+        Guid AccountId,
+        Guid FromEnvelopeId,
+        Guid ToEnvelopeId,
+        decimal Amount,
+        DateTimeOffset OccurredAt,
+        string? Notes);
 }

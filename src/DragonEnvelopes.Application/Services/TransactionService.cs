@@ -205,6 +205,11 @@ public sealed class TransactionService(
             throw new DomainValidationException("Deleted transactions cannot be updated.");
         }
 
+        if (transaction.IsTransfer)
+        {
+            throw new DomainValidationException("Transfer transactions cannot be edited.");
+        }
+
         if (replaceAllocation)
         {
             if (envelopeId.HasValue && splits is { Count: > 0 })
@@ -265,6 +270,11 @@ public sealed class TransactionService(
             throw new DomainValidationException("Transaction was not found.");
         }
 
+        if (transaction.IsTransfer)
+        {
+            throw new DomainValidationException("Transfer transactions cannot be deleted.");
+        }
+
         var existingSplits = await transactionRepository.ListTransactionSplitsByTransactionIdAsync(transactionId, cancellationToken);
 
         if (existingSplits.Count > 0)
@@ -308,6 +318,11 @@ public sealed class TransactionService(
         if (!transaction.DeletedAtUtc.HasValue)
         {
             throw new DomainValidationException("Transaction is not deleted.");
+        }
+
+        if (transaction.IsTransfer)
+        {
+            throw new DomainValidationException("Transfer transactions cannot be restored.");
         }
 
         var existingSplits = await transactionRepository.ListTransactionSplitsByTransactionIdAsync(transactionId, cancellationToken);
@@ -468,6 +483,9 @@ public sealed class TransactionService(
             transaction.OccurredAt,
             transaction.Category,
             transaction.EnvelopeId,
+            transaction.TransferId,
+            transaction.TransferCounterpartyEnvelopeId,
+            transaction.TransferDirection,
             splitEntries.Select(static split => new TransactionSplitDetails(
                     split.Id,
                     split.TransactionId,

@@ -18,4 +18,5 @@ public interface IReportingRepository
 public sealed record TransactionReportRow(
     decimal Amount,
     string? Category,
-    DateTimeOffset OccurredAt);
+    DateTimeOffset OccurredAt,
+    Guid? TransferId = null);

@@ -30,6 +30,7 @@ public sealed partial class TransactionsViewModel : ObservableObject
         RestoreSelectedDeletedTransactionCommand = new AsyncRelayCommand(RestoreSelectedDeletedTransactionAsync);
         CancelEditCommand = new RelayCommand(CancelEdit);
         SubmitTransactionCommand = new AsyncRelayCommand(SubmitTransactionAsync);
+        SubmitEnvelopeTransferCommand = new AsyncRelayCommand(SubmitEnvelopeTransferAsync);
         ResetEditorCommand = new RelayCommand(ResetEditor);
         _ = LoadAccountsCommand.ExecuteAsync(null);
     }
@@ -44,6 +45,7 @@ public sealed partial class TransactionsViewModel : ObservableObject
     public IAsyncRelayCommand RestoreSelectedDeletedTransactionCommand { get; }
     public IRelayCommand CancelEditCommand { get; }
     public IAsyncRelayCommand SubmitTransactionCommand { get; }
+    public IAsyncRelayCommand SubmitEnvelopeTransferCommand { get; }
     public IRelayCommand ResetEditorCommand { get; }
 
     [ObservableProperty]
@@ -134,6 +136,21 @@ public sealed partial class TransactionsViewModel : ObservableObject
     private string editorStatusMessage = "Create a transaction, optionally with splits.";
 
     [ObservableProperty]
+    private Guid? transferFromEnvelopeId;
+
+    [ObservableProperty]
+    private Guid? transferToEnvelopeId;
+
+    [ObservableProperty]
+    private decimal transferAmount;
+
+    [ObservableProperty]
+    private string transferNotes = string.Empty;
+
+    [ObservableProperty]
+    private string transferStatusMessage = "Initiate envelope-to-envelope transfers.";
+
+    [ObservableProperty]
     private string dateFilterErrorMessage = string.Empty;
 
     [ObservableProperty]
@@ -163,6 +180,8 @@ public sealed partial class TransactionsViewModel : ObservableObject
             var envelopeItems = await _transactionsDataService.GetEnvelopesAsync(cancellationToken);
             Envelopes = new ObservableCollection<EnvelopeOptionViewModel>(envelopeItems);
             DraftEnvelopeId = Envelopes.FirstOrDefault()?.Id;
+            TransferFromEnvelopeId = Envelopes.FirstOrDefault()?.Id;
+            TransferToEnvelopeId = Envelopes.Skip(1).FirstOrDefault()?.Id ?? Envelopes.FirstOrDefault()?.Id;
 
             await LoadTransactionsAsync(cancellationToken);
         }
@@ -656,6 +675,62 @@ public sealed partial class TransactionsViewModel : ObservableObject
             ErrorMessage = IsEditMode
                 ? $"Unable to update transaction: {ex.Message}"
                 : $"Unable to create transaction: {ex.Message}";
+        }
+    }
+
+    private async Task SubmitEnvelopeTransferAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (SelectedAccount is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select an account before creating an envelope transfer.";
+            return;
+        }
+
+        if (!TransferFromEnvelopeId.HasValue || !TransferToEnvelopeId.HasValue)
+        {
+            HasError = true;
+            ErrorMessage = "Select both source and destination envelopes.";
+            return;
+        }
+
+        if (TransferFromEnvelopeId.Value == TransferToEnvelopeId.Value)
+        {
+            HasError = true;
+            ErrorMessage = "Source and destination envelopes must be different.";
+            return;
+        }
+
+        if (TransferAmount <= 0m)
+        {
+            HasError = true;
+            ErrorMessage = "Transfer amount must be greater than zero.";
+            return;
+        }
+
+        try
+        {
+            await _transactionsDataService.CreateEnvelopeTransferAsync(
+                SelectedAccount.Id,
+                TransferFromEnvelopeId.Value,
+                TransferToEnvelopeId.Value,
+                TransferAmount,
+                DateTimeOffset.UtcNow,
+                TransferNotes,
+                cancellationToken);
+
+            TransferStatusMessage = "Envelope transfer created.";
+            TransferAmount = 0m;
+            TransferNotes = string.Empty;
+            await LoadTransactionsAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to create envelope transfer: {ex.Message}";
         }
     }
 

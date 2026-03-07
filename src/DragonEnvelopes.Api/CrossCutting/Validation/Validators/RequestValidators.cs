@@ -620,6 +620,34 @@ public sealed class CreateTransactionRequestValidator : AbstractValidator<Create
     }
 }
 
+public sealed class CreateEnvelopeTransferRequestValidator : AbstractValidator<CreateEnvelopeTransferRequest>
+{
+    public CreateEnvelopeTransferRequestValidator()
+    {
+        RuleFor(static request => request.FamilyId)
+            .NotEmpty();
+
+        RuleFor(static request => request.AccountId)
+            .NotEmpty();
+
+        RuleFor(static request => request.FromEnvelopeId)
+            .NotEmpty();
+
+        RuleFor(static request => request.ToEnvelopeId)
+            .NotEmpty();
+
+        RuleFor(static request => request.Amount)
+            .GreaterThan(0m);
+
+        RuleFor(static request => request)
+            .Must(static request => request.FromEnvelopeId != request.ToEnvelopeId)
+            .WithMessage("FromEnvelopeId and ToEnvelopeId must be different.");
+
+        RuleFor(static request => request.Notes)
+            .MaximumLength(256);
+    }
+}
+
 public sealed class TransactionSplitRequestValidator : AbstractValidator<TransactionSplitRequest>
 {
     public TransactionSplitRequestValidator()

@@ -454,6 +454,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
             new CapabilityMatrixItemViewModel("Ledger", "Accounts create/list", "Available", "Accounts workspace is fully wired."),
             new CapabilityMatrixItemViewModel("Ledger", "Transactions create/edit/delete/restore", "Available", "Transactions workspace supports active + deleted restore flows."),
+            new CapabilityMatrixItemViewModel("Ledger", "Envelope transfer workflow", "Available", "Transactions workspace supports linked envelope-to-envelope transfer posting."),
             new CapabilityMatrixItemViewModel("Ledger", "Automation rule CRUD", "Available", "Automation workspace supports rule lifecycle and toggles."),
             new CapabilityMatrixItemViewModel("Ledger", "Recurring bills and projection", "Available", "Recurring workspace supports CRUD/projection/auto-post."),
             new CapabilityMatrixItemViewModel("Ledger", "CSV imports preview/commit", "Available", "Imports workspace supports preview + commit + status."),

@@ -740,6 +740,7 @@
                                 <DataGridTextColumn Header="Merchant" Binding="{Binding Merchant}" Width="180" />
                                 <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*" />
                                 <DataGridTextColumn Header="Allocation" Binding="{Binding AllocationDisplay}" Width="140" />
+                                <DataGridTextColumn Header="Transfer" Binding="{Binding TransferDisplay}" Width="150" />
                                 <DataGridTextColumn Header="Category" Binding="{Binding CategoryDisplay}" Width="140" />
                                 <DataGridTextColumn Header="Amount" Binding="{Binding AmountDisplay}" Width="110" />
                             </DataGrid.Columns>
@@ -998,6 +999,57 @@
                                 <Button Content="Reset"
                                         Command="{Binding ResetEditorCommand}" />
                             </StackPanel>
+
+                            <Border Margin="0,18,0,0"
+                                    Padding="10"
+                                    CornerRadius="8"
+                                    Background="{StaticResource PanelMutedBackgroundBrush}"
+                                    BorderBrush="{StaticResource PanelOutlineBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Envelope Transfer"
+                                               Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               Text="{Binding TransferStatusMessage}"
+                                               Style="{StaticResource CaptionTextStyle}" />
+
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox Grid.Column="0"
+                                                  ItemsSource="{Binding Envelopes}"
+                                                  SelectedValue="{Binding TransferFromEnvelopeId, Mode=TwoWay}"
+                                                  SelectedValuePath="Id"
+                                                  DisplayMemberPath="Name" />
+                                        <ComboBox Grid.Column="2"
+                                                  ItemsSource="{Binding Envelopes}"
+                                                  SelectedValue="{Binding TransferToEnvelopeId, Mode=TwoWay}"
+                                                  SelectedValuePath="Id"
+                                                  DisplayMemberPath="Name" />
+                                    </Grid>
+
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBox Grid.Column="0"
+                                                 Text="{Binding TransferAmount, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBox Grid.Column="2"
+                                                 Text="{Binding TransferNotes, UpdateSourceTrigger=PropertyChanged}" />
+                                        <Button Grid.Column="4"
+                                                Content="Transfer"
+                                                Command="{Binding SubmitEnvelopeTransferCommand}" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
                 </controls:CardControl>

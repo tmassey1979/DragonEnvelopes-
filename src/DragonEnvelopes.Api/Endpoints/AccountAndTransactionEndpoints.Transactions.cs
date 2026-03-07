@@ -52,6 +52,36 @@ internal static partial class AccountAndTransactionEndpoints
             .WithName("CreateTransaction")
             .WithOpenApi();
 
+        v1.MapPost("/transactions/envelope-transfers", async (
+                CreateEnvelopeTransferRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopeTransferService envelopeTransferService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, request.FamilyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var transfer = await envelopeTransferService.CreateAsync(
+                    request.FamilyId,
+                    request.AccountId,
+                    request.FromEnvelopeId,
+                    request.ToEnvelopeId,
+                    request.Amount,
+                    request.OccurredAt,
+                    request.Notes,
+                    cancellationToken);
+
+                return Results.Created(
+                    $"/api/v1/transactions/envelope-transfers/{transfer.TransferId}",
+                    EndpointMappers.MapEnvelopeTransferResponse(transfer));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
+            .WithName("CreateEnvelopeTransfer")
+            .WithOpenApi();
+
         v1.MapPut("/transactions/{transactionId:guid}", async (
                 Guid transactionId,
                 UpdateTransactionRequest request,

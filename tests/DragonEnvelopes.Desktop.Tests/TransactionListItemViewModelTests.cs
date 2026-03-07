@@ -34,6 +34,30 @@ public sealed class TransactionListItemViewModelTests
         Assert.Equal("Unassigned", viewModel.AllocationDisplay);
     }
 
+    [Fact]
+    public void AllocationDisplay_TransferDebit_ReturnsTransferOutSummary()
+    {
+        var transferId = Guid.NewGuid();
+        var viewModel = new TransactionListItemViewModel(
+            id: Guid.NewGuid(),
+            accountId: Guid.NewGuid(),
+            occurredAt: DateTimeOffset.UtcNow,
+            merchant: "Envelope Transfer",
+            description: "Envelope transfer",
+            amount: -25m,
+            category: "Envelope Transfer",
+            envelopeId: Guid.NewGuid(),
+            envelope: "Groceries",
+            splits: [],
+            transferId: transferId,
+            transferCounterpartyEnvelopeId: Guid.NewGuid(),
+            transferDirection: "Debit",
+            transferCounterpartyEnvelopeName: "Fuel");
+
+        Assert.Equal("Out -> Fuel", viewModel.AllocationDisplay);
+        Assert.True(viewModel.IsTransfer);
+    }
+
     private static TransactionListItemViewModel CreateItem(
         string envelope,
         IReadOnlyList<TransactionSplitSnapshotViewModel> splits)

@@ -44,4 +44,13 @@ public interface ITransactionsDataService
     Task RestoreTransactionAsync(
         Guid transactionId,
         CancellationToken cancellationToken = default);
+
+    Task CreateEnvelopeTransferAsync(
+        Guid accountId,
+        Guid fromEnvelopeId,
+        Guid toEnvelopeId,
+        decimal amount,
+        DateTimeOffset occurredAt,
+        string? notes,
+        CancellationToken cancellationToken = default);
 }

@@ -104,8 +104,26 @@ internal static class EndpointMappers
                     split.Category,
                     split.Notes))
                 .ToArray(),
+            transaction.TransferId,
+            transaction.TransferCounterpartyEnvelopeId,
+            transaction.TransferDirection,
             transaction.DeletedAtUtc,
             transaction.DeletedByUserId);
+    }
+
+    public static EnvelopeTransferResponse MapEnvelopeTransferResponse(EnvelopeTransferDetails transfer)
+    {
+        return new EnvelopeTransferResponse(
+            transfer.TransferId,
+            transfer.FamilyId,
+            transfer.AccountId,
+            transfer.FromEnvelopeId,
+            transfer.ToEnvelopeId,
+            transfer.Amount,
+            transfer.OccurredAt,
+            transfer.Notes,
+            transfer.DebitTransactionId,
+            transfer.CreditTransactionId);
     }
 
     public static EnvelopeResponse MapEnvelopeResponse(EnvelopeDetails envelope)

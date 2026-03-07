@@ -9,6 +9,9 @@ public sealed record TransactionDetails(
     DateTimeOffset OccurredAt,
     string? Category,
     Guid? EnvelopeId,
+    Guid? TransferId,
+    Guid? TransferCounterpartyEnvelopeId,
+    string? TransferDirection,
     IReadOnlyList<TransactionSplitDetails> Splits,
     DateTimeOffset? DeletedAtUtc = null,
     string? DeletedByUserId = null);

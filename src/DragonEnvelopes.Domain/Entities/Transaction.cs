@@ -14,9 +14,13 @@ public sealed class Transaction
     public DateTimeOffset OccurredAt { get; }
     public string? Category { get; private set; }
     public Guid? EnvelopeId { get; private set; }
+    public Guid? TransferId { get; }
+    public Guid? TransferCounterpartyEnvelopeId { get; }
+    public string? TransferDirection { get; }
     public DateTimeOffset? DeletedAtUtc { get; private set; }
     public string? DeletedByUserId { get; private set; }
     public IReadOnlyCollection<TransactionSplit> Splits => _splits.AsReadOnly();
+    public bool IsTransfer => TransferId.HasValue;
 
     public Transaction(
         Guid id,
@@ -26,7 +30,10 @@ public sealed class Transaction
         string merchant,
         DateTimeOffset occurredAt,
         string? category = null,
-        Guid? envelopeId = null)
+        Guid? envelopeId = null,
+        Guid? transferId = null,
+        Guid? transferCounterpartyEnvelopeId = null,
+        string? transferDirection = null)
     {
         if (id == Guid.Empty)
         {
@@ -51,6 +58,10 @@ public sealed class Transaction
         OccurredAt = occurredAt;
         Category = NormalizeOptional(category);
         EnvelopeId = envelopeId;
+        TransferId = transferId;
+        TransferCounterpartyEnvelopeId = transferCounterpartyEnvelopeId;
+        TransferDirection = NormalizeOptional(transferDirection);
+        ValidateTransferMetadata(EnvelopeId, TransferId, TransferCounterpartyEnvelopeId, TransferDirection);
         DeletedAtUtc = null;
         DeletedByUserId = null;
 
@@ -157,5 +168,49 @@ public sealed class Transaction
     private static string? NormalizeOptional(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static void ValidateTransferMetadata(
+        Guid? envelopeId,
+        Guid? transferId,
+        Guid? transferCounterpartyEnvelopeId,
+        string? transferDirection)
+    {
+        if (!transferId.HasValue)
+        {
+            if (transferCounterpartyEnvelopeId.HasValue || !string.IsNullOrWhiteSpace(transferDirection))
+            {
+                throw new DomainValidationException("Transfer metadata is invalid.");
+            }
+
+            return;
+        }
+
+        if (!envelopeId.HasValue)
+        {
+            throw new DomainValidationException("Transfer transactions must reference an envelope.");
+        }
+
+        if (!transferCounterpartyEnvelopeId.HasValue)
+        {
+            throw new DomainValidationException("Transfer counterparty envelope id is required.");
+        }
+
+        if (transferCounterpartyEnvelopeId.Value == envelopeId.Value)
+        {
+            throw new DomainValidationException("Transfer counterparty envelope id must differ from envelope id.");
+        }
+
+        if (string.IsNullOrWhiteSpace(transferDirection))
+        {
+            throw new DomainValidationException("Transfer direction is required.");
+        }
+
+        var normalizedDirection = transferDirection.Trim();
+        if (!string.Equals(normalizedDirection, "Debit", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(normalizedDirection, "Credit", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new DomainValidationException("Transfer direction is invalid.");
+        }
     }
 }
