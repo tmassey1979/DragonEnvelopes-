@@ -21,5 +21,5 @@ Use this checklist at the start and end of every task.
 ## Session Run Log
 - Active task: `none (ready for next issue)`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#223` Desktop transactions: add delete selected action with grid refresh.
+- Previous completed task: `#224` Transactions UI: add date range filters for account activity.
 - Last updated: `2026-03-06`.

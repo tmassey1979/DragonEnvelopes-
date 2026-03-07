@@ -93,6 +93,76 @@ public sealed class TransactionsViewModelTests
         Assert.Equal(transactionId, dataService.DeleteCalls[0]);
     }
 
+    [Fact]
+    public async Task DateRangeFilter_IncludesBoundaryDates()
+    {
+        var accountId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+        var envelopeId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var dataService = new FakeTransactionsDataService(accountId, envelopeId, Guid.NewGuid())
+        {
+            Transactions =
+            [
+                new TransactionListItemViewModel(
+                    Guid.NewGuid(),
+                    accountId,
+                    new DateTimeOffset(new DateTime(2026, 3, 1), TimeSpan.Zero),
+                    "M1",
+                    "D1",
+                    -10m,
+                    "Dining",
+                    envelopeId,
+                    "Groceries",
+                    []),
+                new TransactionListItemViewModel(
+                    Guid.NewGuid(),
+                    accountId,
+                    new DateTimeOffset(new DateTime(2026, 3, 5), TimeSpan.Zero),
+                    "M2",
+                    "D2",
+                    -20m,
+                    "Dining",
+                    envelopeId,
+                    "Groceries",
+                    []),
+                new TransactionListItemViewModel(
+                    Guid.NewGuid(),
+                    accountId,
+                    new DateTimeOffset(new DateTime(2026, 3, 10), TimeSpan.Zero),
+                    "M3",
+                    "D3",
+                    -30m,
+                    "Dining",
+                    envelopeId,
+                    "Groceries",
+                    [])
+            ]
+        };
+        var viewModel = new TransactionsViewModel(dataService);
+        await viewModel.LoadAccountsCommand.ExecuteAsync(null);
+
+        viewModel.FromDateFilter = "2026-03-05";
+        viewModel.ToDateFilter = "2026-03-10";
+
+        Assert.Equal(string.Empty, viewModel.DateFilterErrorMessage);
+        Assert.Equal(2, viewModel.Transactions.Count);
+        Assert.Contains(viewModel.Transactions, tx => tx.OccurredDateDisplay == "2026-03-05");
+        Assert.Contains(viewModel.Transactions, tx => tx.OccurredDateDisplay == "2026-03-10");
+    }
+
+    [Fact]
+    public async Task DateRangeFilter_InvalidInput_ShowsValidationMessage()
+    {
+        var accountId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+        var envelopeId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var dataService = new FakeTransactionsDataService(accountId, envelopeId, Guid.NewGuid());
+        var viewModel = new TransactionsViewModel(dataService);
+        await viewModel.LoadAccountsCommand.ExecuteAsync(null);
+
+        viewModel.FromDateFilter = "03/05/2026";
+
+        Assert.Contains("yyyy-MM-dd", viewModel.DateFilterErrorMessage);
+    }
+
     private sealed class FakeTransactionsDataService : ITransactionsDataService
     {
         private readonly Guid _accountId;
@@ -104,10 +174,25 @@ public sealed class TransactionsViewModelTests
             _accountId = accountId;
             _envelopeId = envelopeId;
             _transactionId = transactionId;
+            Transactions =
+            [
+                new TransactionListItemViewModel(
+                    _transactionId,
+                    _accountId,
+                    new DateTimeOffset(new DateTime(2026, 3, 1), TimeSpan.Zero),
+                    "Original Merchant",
+                    "Original Description",
+                    -42.50m,
+                    "Dining",
+                    _envelopeId,
+                    "Groceries",
+                    [])
+            ];
         }
 
         public List<UpdateCall> UpdateCalls { get; } = [];
         public List<Guid> DeleteCalls { get; } = [];
+        public IReadOnlyList<TransactionListItemViewModel> Transactions { get; set; }
 
         public Task<IReadOnlyList<AccountListItemViewModel>> GetAccountsAsync(CancellationToken cancellationToken = default)
         {
@@ -130,20 +215,7 @@ public sealed class TransactionsViewModelTests
             CancellationToken cancellationToken = default)
         {
             Assert.Equal(_accountId, accountId);
-            return Task.FromResult<IReadOnlyList<TransactionListItemViewModel>>(
-            [
-                new TransactionListItemViewModel(
-                    _transactionId,
-                    _accountId,
-                    new DateTimeOffset(new DateTime(2026, 3, 1), TimeSpan.Zero),
-                    "Original Merchant",
-                    "Original Description",
-                    -42.50m,
-                    "Dining",
-                    _envelopeId,
-                    "Groceries",
-                    [])
-            ]);
+            return Task.FromResult(Transactions);
         }
 
         public Task CreateTransactionAsync(

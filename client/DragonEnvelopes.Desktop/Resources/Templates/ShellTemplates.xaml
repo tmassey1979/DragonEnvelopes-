@@ -624,26 +624,59 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <StackPanel Grid.Row="0" Orientation="Horizontal">
-                            <Button Margin="0,0,8,0"
-                                    Content="Sort Date"
-                                    Command="{Binding SortByCommand}"
-                                    CommandParameter="Date" />
-                            <Button Margin="0,0,8,0"
-                                    Content="Sort Merchant"
-                                    Command="{Binding SortByCommand}"
-                                    CommandParameter="Merchant" />
-                            <Button Margin="0,0,8,0"
-                                    Content="Sort Amount"
-                                    Command="{Binding SortByCommand}"
-                                    CommandParameter="Amount" />
-                            <Button Margin="0,0,8,0"
-                                    Content="Sort Category"
-                                    Command="{Binding SortByCommand}"
-                                    CommandParameter="Category" />
-                            <CheckBox VerticalAlignment="Center"
-                                      Content="Include Uncategorized"
-                                      IsChecked="{Binding IncludeUncategorized}" />
+                        <StackPanel Grid.Row="0">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Margin="0,0,8,0"
+                                        Content="Sort Date"
+                                        Command="{Binding SortByCommand}"
+                                        CommandParameter="Date" />
+                                <Button Margin="0,0,8,0"
+                                        Content="Sort Merchant"
+                                        Command="{Binding SortByCommand}"
+                                        CommandParameter="Merchant" />
+                                <Button Margin="0,0,8,0"
+                                        Content="Sort Amount"
+                                        Command="{Binding SortByCommand}"
+                                        CommandParameter="Amount" />
+                                <Button Margin="0,0,8,0"
+                                        Content="Sort Category"
+                                        Command="{Binding SortByCommand}"
+                                        CommandParameter="Category" />
+                                <CheckBox VerticalAlignment="Center"
+                                          Content="Include Uncategorized"
+                                          IsChecked="{Binding IncludeUncategorized}" />
+                                <TextBlock Margin="14,0,6,0"
+                                           VerticalAlignment="Center"
+                                           Text="From"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Width="100"
+                                         Margin="0,0,8,0"
+                                         Text="{Binding FromDateFilter, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Margin="0,0,6,0"
+                                           VerticalAlignment="Center"
+                                           Text="To"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Width="100"
+                                         Text="{Binding ToDateFilter, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+
+                            <TextBlock Margin="0,6,0,0"
+                                       Foreground="#EE4444"
+                                       Text="{Binding DateFilterErrorMessage}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DateFilterErrorMessage}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding DateFilterErrorMessage}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
 
                         <DataGrid Grid.Row="1"

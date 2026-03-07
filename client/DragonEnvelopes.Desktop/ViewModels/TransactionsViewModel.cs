@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DragonEnvelopes.Desktop.Services;
@@ -79,6 +80,12 @@ public sealed partial class TransactionsViewModel : ObservableObject
     private string categoryFilter = string.Empty;
 
     [ObservableProperty]
+    private string fromDateFilter = string.Empty;
+
+    [ObservableProperty]
+    private string toDateFilter = string.Empty;
+
+    [ObservableProperty]
     private bool includeUncategorized = true;
 
     [ObservableProperty]
@@ -113,6 +120,9 @@ public sealed partial class TransactionsViewModel : ObservableObject
 
     [ObservableProperty]
     private string editorStatusMessage = "Create a transaction, optionally with splits.";
+
+    [ObservableProperty]
+    private string dateFilterErrorMessage = string.Empty;
 
     [ObservableProperty]
     private bool isEditMode;
@@ -206,6 +216,8 @@ public sealed partial class TransactionsViewModel : ObservableObject
 
     partial void OnMerchantFilterChanged(string value) => ApplyFiltersAndSort();
     partial void OnCategoryFilterChanged(string value) => ApplyFiltersAndSort();
+    partial void OnFromDateFilterChanged(string value) => ApplyFiltersAndSort();
+    partial void OnToDateFilterChanged(string value) => ApplyFiltersAndSort();
     partial void OnIncludeUncategorizedChanged(bool value) => ApplyFiltersAndSort();
     partial void OnDraftAmountChanged(decimal value) => RecalculateSplitTotal();
 
@@ -248,6 +260,25 @@ public sealed partial class TransactionsViewModel : ObservableObject
     private void ApplyFiltersAndSort()
     {
         IEnumerable<TransactionListItemViewModel> query = _allTransactions;
+        var hasFrom = TryParseFilterDate(FromDateFilter, "From", out var fromDate, out var fromError);
+        var hasTo = TryParseFilterDate(ToDateFilter, "To", out var toDate, out var toError);
+
+        if (!hasFrom)
+        {
+            DateFilterErrorMessage = fromError ?? "From date filter is invalid.";
+        }
+        else if (!hasTo)
+        {
+            DateFilterErrorMessage = toError ?? "To date filter is invalid.";
+        }
+        else if (fromDate.HasValue && toDate.HasValue && fromDate.Value > toDate.Value)
+        {
+            DateFilterErrorMessage = "From date must be on or before To date.";
+        }
+        else
+        {
+            DateFilterErrorMessage = string.Empty;
+        }
 
         if (!string.IsNullOrWhiteSpace(MerchantFilter))
         {
@@ -267,6 +298,19 @@ public sealed partial class TransactionsViewModel : ObservableObject
             query = query.Where(item => !string.Equals(item.CategoryDisplay, "Uncategorized", StringComparison.OrdinalIgnoreCase));
         }
 
+        if (DateFilterErrorMessage.Length == 0)
+        {
+            if (fromDate.HasValue)
+            {
+                query = query.Where(item => DateOnly.FromDateTime(item.OccurredAt.UtcDateTime.Date) >= fromDate.Value);
+            }
+
+            if (toDate.HasValue)
+            {
+                query = query.Where(item => DateOnly.FromDateTime(item.OccurredAt.UtcDateTime.Date) <= toDate.Value);
+            }
+        }
+
         query = (_sortBy, _sortAscending) switch
         {
             ("Merchant", true) => query.OrderBy(item => item.Merchant, StringComparer.OrdinalIgnoreCase),
@@ -281,6 +325,34 @@ public sealed partial class TransactionsViewModel : ObservableObject
 
         Transactions = new ObservableCollection<TransactionListItemViewModel>(query);
         IsEmpty = Transactions.Count == 0;
+    }
+
+    private static bool TryParseFilterDate(
+        string value,
+        string label,
+        out DateOnly? parsedDate,
+        out string? error)
+    {
+        parsedDate = null;
+        error = null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        if (!DateOnly.TryParseExact(
+                value.Trim(),
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsed))
+        {
+            error = $"{label} date must use yyyy-MM-dd format.";
+            return false;
+        }
+
+        parsedDate = parsed;
+        return true;
     }
 
     private void AddSplitRow()
