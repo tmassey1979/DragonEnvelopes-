@@ -21,5 +21,5 @@ Use this checklist at the start and end of every task.
 ## Session Run Log
 - Active task: `none (ready for next issue)`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#231` Family member management: update role and remove member.
+- Previous completed task: `#235` Desktop capability matrix: backend endpoint coverage visibility.
 - Last updated: `2026-03-06`.

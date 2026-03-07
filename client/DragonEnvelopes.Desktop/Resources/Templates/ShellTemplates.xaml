@@ -2889,6 +2889,33 @@
                         <TextBlock Margin="0,6,0,0"
                                    Text="{Binding LedgerApiStatusMessage}"
                                    Style="{StaticResource CaptionTextStyle}" />
+
+                        <TextBlock Margin="0,14,0,0"
+                                   Text="Capability Matrix"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding CapabilitySummary}"
+                                   Style="{StaticResource CaptionTextStyle}" />
+
+                        <DataGrid Margin="0,8,0,0"
+                                  Height="210"
+                                  ItemsSource="{Binding CapabilityMatrix}"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  IsReadOnly="True"
+                                  RowHeight="30"
+                                  GridLinesVisibility="Horizontal"
+                                  Background="{StaticResource PanelMutedBackgroundBrush}"
+                                  BorderBrush="{StaticResource PanelOutlineBrush}"
+                                  BorderThickness="1">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Domain" Binding="{Binding Domain}" Width="90" />
+                                <DataGridTextColumn Header="Capability" Binding="{Binding Capability}" Width="*" />
+                                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="95" />
+                                <DataGridTextColumn Header="Notes" Binding="{Binding Notes}" Width="280" />
+                            </DataGrid.Columns>
+                        </DataGrid>
                     </StackPanel>
                 </controls:CardControl>
             </Grid>

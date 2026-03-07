@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DragonEnvelopes.Desktop.Auth;
@@ -135,12 +136,19 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string budgetPreferencesSummary = "Budget preferences not loaded.";
 
+    [ObservableProperty]
+    private ObservableCollection<CapabilityMatrixItemViewModel> capabilityMatrix = [];
+
+    [ObservableProperty]
+    private string capabilitySummary = "Capability matrix not loaded.";
+
     private async Task LoadStatusAsync()
     {
         ClearSettingsError();
         await LoadSessionStateAsync();
         await LoadBackendStatusAsync();
         await LoadFamilySettingsAsync();
+        LoadCapabilityMatrix();
     }
 
     private async Task LoadSessionStateAsync()
@@ -323,6 +331,43 @@ public sealed partial class SettingsViewModel : ObservableObject
         HasSettingsError = true;
         SettingsErrorMessage = message;
         SettingsStatusMessage = message;
+    }
+
+    private void LoadCapabilityMatrix()
+    {
+        var items = BuildCapabilityManifest();
+        CapabilityMatrix = new ObservableCollection<CapabilityMatrixItemViewModel>(items);
+
+        var availableCount = items.Count(item => item.Status.Equals("Available", StringComparison.OrdinalIgnoreCase));
+        var partialCount = items.Count(item => item.Status.Equals("Partial", StringComparison.OrdinalIgnoreCase));
+        var notWiredCount = items.Count(item => item.Status.Equals("Not Wired", StringComparison.OrdinalIgnoreCase));
+        CapabilitySummary = $"Capabilities: {availableCount} available, {partialCount} partial, {notWiredCount} not wired.";
+    }
+
+    private static IReadOnlyList<CapabilityMatrixItemViewModel> BuildCapabilityManifest()
+    {
+        return
+        [
+            new CapabilityMatrixItemViewModel("Family", "Family profile and budget preferences", "Available", "Settings profile and budget workflows are wired."),
+            new CapabilityMatrixItemViewModel("Family", "Member add/list/update/remove", "Available", "Family workspace supports role update and member removal."),
+            new CapabilityMatrixItemViewModel("Family", "Invites create/resend/cancel/redeem", "Available", "Family workspace + invite onboarding windows are wired."),
+            new CapabilityMatrixItemViewModel("Family", "Invite event timeline", "Not Wired", "Lifecycle timeline API/UI not implemented yet."),
+
+            new CapabilityMatrixItemViewModel("Ledger", "Accounts create/list", "Available", "Accounts workspace is fully wired."),
+            new CapabilityMatrixItemViewModel("Ledger", "Transactions create/edit/delete/restore", "Available", "Transactions workspace supports active + deleted restore flows."),
+            new CapabilityMatrixItemViewModel("Ledger", "Automation rule CRUD", "Available", "Automation workspace supports rule lifecycle and toggles."),
+            new CapabilityMatrixItemViewModel("Ledger", "Recurring bills and projection", "Available", "Recurring workspace supports CRUD/projection/auto-post."),
+            new CapabilityMatrixItemViewModel("Ledger", "CSV imports preview/commit", "Available", "Imports workspace supports preview + commit + status."),
+            new CapabilityMatrixItemViewModel("Ledger", "Report queries", "Available", "Reports workspace is wired for current report endpoints."),
+
+            new CapabilityMatrixItemViewModel("Financial", "Plaid link/sync/reconciliation", "Available", "Integrations workspace supports Plaid connect + refresh."),
+            new CapabilityMatrixItemViewModel("Financial", "Stripe account and card lifecycle", "Available", "Integrations workspace supports setup, issuance, controls."),
+            new CapabilityMatrixItemViewModel("Financial", "Provider timeline + notification replay", "Available", "Integrations workspace supports timeline and replay actions."),
+            new CapabilityMatrixItemViewModel("Financial", "Webhook endpoint operations", "Partial", "Operational visibility is wired; direct webhook simulation UI is not."),
+
+            new CapabilityMatrixItemViewModel("System", "Health/version/session diagnostics", "Available", "Settings includes health/version/session summaries."),
+            new CapabilityMatrixItemViewModel("System", "Per-route role command gating matrix", "Partial", "Parent-only route gating exists; full command audit pending.")
+        ];
     }
 
     private static string EnsureOption(string? value, IReadOnlyList<string> options, string fallback)

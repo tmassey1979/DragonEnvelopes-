@@ -29,6 +29,25 @@ public sealed class SettingsViewModelTests
         Assert.Contains("reachable", viewModel.FamilyApiStatusMessage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("timed out", viewModel.LedgerApiStatusMessage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("settings-user", viewModel.SessionStatus, StringComparison.OrdinalIgnoreCase);
+        Assert.NotEmpty(viewModel.CapabilityMatrix);
+        Assert.Contains(viewModel.CapabilityMatrix, item => item.Status == "Available");
+        Assert.Contains("available", viewModel.CapabilitySummary, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ReloadStatusCommand_PopulatesCapabilityMatrixWithExpectedDomains()
+    {
+        var viewModel = new SettingsViewModel(
+            new FakeAuthService(),
+            new FakeSystemStatusDataService(),
+            new FakeFamilySettingsDataService());
+
+        await viewModel.ReloadStatusCommand.ExecuteAsync(null);
+
+        Assert.Contains(viewModel.CapabilityMatrix, item => item.Domain == "Family");
+        Assert.Contains(viewModel.CapabilityMatrix, item => item.Domain == "Ledger");
+        Assert.Contains(viewModel.CapabilityMatrix, item => item.Domain == "Financial");
+        Assert.Contains(viewModel.CapabilityMatrix, item => item.Domain == "System");
     }
 
     [Fact]
