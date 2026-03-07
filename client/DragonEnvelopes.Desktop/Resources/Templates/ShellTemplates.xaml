@@ -4470,4 +4470,189 @@
             </Grid>
         </Grid>
     </DataTemplate>
+
+    <DataTemplate DataType="{x:Type viewModels:ScenarioSimulatorViewModel}">
+        <Grid Margin="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Scenario Simulator" Style="{StaticResource DisplayTextStyle}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Text="Run what-if income/expense projections with runway estimates."
+                               Style="{StaticResource BodyTextStyle}" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Margin="0,0,8,0"
+                        VerticalAlignment="Center"
+                        Content="Run"
+                        Command="{Binding RunSimulationCommand}" />
+                <Button Grid.Column="2"
+                        Margin="0,0,8,0"
+                        VerticalAlignment="Center"
+                        Content="Export CSV"
+                        Command="{Binding ExportCsvCommand}" />
+                <Button Grid.Column="3"
+                        VerticalAlignment="Center"
+                        Content="Reset"
+                        Command="{Binding ResetCommand}" />
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Padding="12"
+                    CornerRadius="10"
+                    Background="#4B311B"
+                    BorderBrush="#A35D2F"
+                    BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource CaptionTextStyle}" Foreground="#FFD2A8" />
+            </Border>
+
+            <controls:CardControl Grid.Row="2"
+                                  Margin="0,12,0,0"
+                                  Header="Projection Workspace"
+                                  Subheader="Configure assumptions and review forecast chart + table"
+                                  EmptyMessage="{Binding NoDataMessage}"
+                                  IsLoading="{Binding IsLoading}"
+                                  IsEmpty="{Binding IsEmpty}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Margin="0,0,0,6" Text="Monthly Income" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Text="{Binding DraftMonthlyIncome, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Margin="0,0,0,6" Text="Fixed Expenses" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Text="{Binding DraftFixedExpenses, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Margin="0,0,0,6" Text="Discretionary Cut %" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Text="{Binding DraftDiscretionaryCutPercent, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="6">
+                                <TextBlock Margin="0,0,0,6" Text="Month Horizon" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBox Text="{Binding DraftMonthHorizon, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Margin="0,12,0,0"
+                                Padding="12"
+                                CornerRadius="10"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="{Binding SimulationSummary}" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding RunwaySummary}"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding ExportSummary}"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,12,0,0"
+                                Padding="12"
+                                CornerRadius="10"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Projected Balance Chart" Style="{StaticResource CaptionTextStyle}" />
+                                <ItemsControl Margin="0,8,0,0"
+                                              ItemsSource="{Binding MonthPoints}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type viewModels:ScenarioSimulationMonthPointViewModel}">
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="70" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="120" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding Month}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                                <ProgressBar Grid.Column="1"
+                                                             Margin="10,0,10,0"
+                                                             Height="12"
+                                                             Minimum="0"
+                                                             Maximum="{Binding DataContext.ChartMaximum, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                             Value="{Binding ChartValue}" />
+                                                <TextBlock Grid.Column="2"
+                                                           HorizontalAlignment="Right"
+                                                           Text="{Binding ProjectedBalance}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,12,0,0"
+                                Padding="12"
+                                CornerRadius="10"
+                                Background="{StaticResource PanelMutedBackgroundBrush}"
+                                BorderBrush="{StaticResource PanelOutlineBrush}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Month-by-Month Table" Style="{StaticResource CaptionTextStyle}" />
+                                <ListView Margin="0,8,0,0"
+                                          ItemsSource="{Binding MonthPoints}"
+                                          BorderThickness="0"
+                                          Background="Transparent">
+                                    <ListView.View>
+                                        <GridView>
+                                            <GridViewColumn Header="#" Width="50" DisplayMemberBinding="{Binding MonthIndex}" />
+                                            <GridViewColumn Header="Month" Width="90" DisplayMemberBinding="{Binding Month}" />
+                                            <GridViewColumn Header="Income" Width="110" DisplayMemberBinding="{Binding Income}" />
+                                            <GridViewColumn Header="Expenses" Width="110" DisplayMemberBinding="{Binding Expenses}" />
+                                            <GridViewColumn Header="Projected Balance" Width="150" DisplayMemberBinding="{Binding ProjectedBalance}" />
+                                        </GridView>
+                                    </ListView.View>
+                                </ListView>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </controls:CardControl>
+        </Grid>
+    </DataTemplate>
 </ResourceDictionary>

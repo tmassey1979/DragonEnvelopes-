@@ -97,6 +97,26 @@ public sealed class RouteRegistryClientRoutingTests
             path => path.StartsWith($"families/{familyId}/financial/status", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task ScenarioRoute_Uses_Ledger_Client()
+    {
+        var familyId = Guid.Parse("70000000-0000-0000-0000-000000000005");
+        var familyClient = new TrackingBackendApiClient();
+        var ledgerClient = new TrackingBackendApiClient();
+        var financialClient = new TrackingBackendApiClient();
+        var familyContext = new TestFamilyContext(familyId);
+        var registry = new RouteRegistry(familyClient, ledgerClient, financialClient, new TestAuthService(), familyContext);
+
+        var found = registry.TryGetRoute("/scenarios", out var route);
+        Assert.True(found);
+
+        var viewModel = Assert.IsType<ScenarioSimulatorViewModel>(route.Content);
+        await viewModel.RunSimulationCommand.ExecuteAsync(null);
+
+        Assert.Contains(ledgerClient.SendRequests, path => path.Contains("scenarios/simulate", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(familyClient.SendRequests, path => path.Contains("scenarios/simulate", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static async Task WaitForIdleAsync(object viewModel, int timeoutMilliseconds = 6000)
     {
         var isLoadingProperty = viewModel.GetType().GetProperty("IsLoading");

@@ -453,6 +453,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 case OnboardingWizardViewModel onboarding:
                     await onboarding.LoadCommand.ExecuteAsync(null);
                     break;
+                case ScenarioSimulatorViewModel scenarios:
+                    await scenarios.RunSimulationCommand.ExecuteAsync(null);
+                    break;
             }
         }
     }

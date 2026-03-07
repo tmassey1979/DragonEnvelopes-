@@ -93,6 +93,14 @@ public sealed class RouteRegistry : IRouteRegistry
                 TopBarSubtitle: "CSV transaction import workflow",
                 Content: new ImportsViewModel(new ImportsDataService(ledgerApiClient, familyContext))),
             new RouteDefinition(
+                Key: "/scenarios",
+                Label: "Scenarios",
+                Glyph: "\uE9D2",
+                TopBarSubtitle: "What-if runway simulation",
+                Content: new ScenarioSimulatorViewModel(
+                    new ScenarioSimulationDataService(ledgerApiClient, familyContext),
+                    new ScenarioSimulationCsvExporter())),
+            new RouteDefinition(
                 Key: "/onboarding",
                 Label: "Onboarding",
                 Glyph: "\uE8FD",
