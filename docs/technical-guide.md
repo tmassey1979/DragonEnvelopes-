@@ -22,6 +22,9 @@ Service boundary intent:
 - `DragonEnvelopes.Ledger.Api`: accounts, transactions, envelopes, budgets, and reporting.
 - `DragonEnvelopes.Api`: gateway-style surface and cross-cutting financial integrations.
 
+Target topology and cutover contracts:
+- `docs/adr/0002-service-topology-v2-and-cutover-plan.md`
+
 ## 2. Local Prerequisites
 
 Required locally:
