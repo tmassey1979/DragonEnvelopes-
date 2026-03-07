@@ -150,9 +150,39 @@ public sealed class DesktopAuthServiceTests
         Assert.Equal(0, store.SaveCallCount);
     }
 
+    [Fact]
+    public async Task GetAccessTokenAsync_ConcurrentExpiredSessionRequests_AttemptSingleRefresh()
+    {
+        var store = new TestSessionStore
+        {
+            LoadResult = new AuthSession
+            {
+                AccessToken = "expired-token",
+                RefreshToken = "refresh-token",
+                ExpiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+                Subject = "user-a"
+            }
+        };
+        var oidc = new TestOidcClient
+        {
+            RefreshException = new InvalidOperationException("Simulated refresh failure."),
+            RefreshDelayMilliseconds = 150
+        };
+        var service = new DesktopAuthService(store, new DesktopAuthOptions(), oidc);
+
+        var firstRequest = service.GetAccessTokenAsync(forceRefresh: true);
+        var secondRequest = service.GetAccessTokenAsync(forceRefresh: true);
+        await Task.WhenAll(firstRequest, secondRequest);
+
+        Assert.Null(firstRequest.Result);
+        Assert.Null(secondRequest.Result);
+        Assert.Equal(1, oidc.RefreshCallCount);
+        Assert.True(store.ClearCallCount >= 1);
+    }
+
     private sealed class TestSessionStore : IAuthSessionStore
     {
-        public AuthSession? LoadResult { get; init; }
+        public AuthSession? LoadResult { get; set; }
 
         public Exception? LoadException { get; init; }
 
@@ -182,6 +212,7 @@ public sealed class DesktopAuthServiceTests
         public Task ClearAsync(CancellationToken cancellationToken = default)
         {
             ClearCallCount++;
+            LoadResult = null;
             return Task.CompletedTask;
         }
     }
@@ -198,6 +229,10 @@ public sealed class DesktopAuthServiceTests
 
         public RefreshTokenResult? RefreshResult { get; init; }
 
+        public int RefreshDelayMilliseconds { get; init; }
+
+        public int RefreshCallCount { get; private set; }
+
         public Task<LoginResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
         {
             if (LoginException is not null)
@@ -213,14 +248,20 @@ public sealed class DesktopAuthServiceTests
             return Task.FromResult(LoginResult ?? new LoginResult { Error = "Test login response not configured." });
         }
 
-        public Task<RefreshTokenResult> RefreshTokenAsync(string refreshToken)
+        public async Task<RefreshTokenResult> RefreshTokenAsync(string refreshToken)
         {
+            RefreshCallCount++;
+            if (RefreshDelayMilliseconds > 0)
+            {
+                await Task.Delay(RefreshDelayMilliseconds);
+            }
+
             if (RefreshException is not null)
             {
                 throw RefreshException;
             }
 
-            return Task.FromResult(RefreshResult!);
+            return RefreshResult!;
         }
     }
 }

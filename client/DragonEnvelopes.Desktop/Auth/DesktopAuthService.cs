@@ -12,6 +12,7 @@ public sealed class DesktopAuthService : IAuthService
     private readonly DesktopAuthOptions _options;
     private readonly IAuthSessionStore _sessionStore;
     private readonly IDesktopOidcClient _oidcClient;
+    private readonly SemaphoreSlim _sessionStateLock = new(1, 1);
     private AuthSession? _currentSession;
 
     public DesktopAuthService(
@@ -58,18 +59,19 @@ public sealed class DesktopAuthService : IAuthService
 
     public async Task<AuthSession?> TryRestoreSessionAsync(CancellationToken cancellationToken = default)
     {
+        await _sessionStateLock.WaitAsync(cancellationToken);
         try
         {
             var loadedSession = await _sessionStore.LoadAsync(cancellationToken);
             if (!TryNormalizeSession(loadedSession, out var session))
             {
-                await SafeSignOutAsync(cancellationToken);
+                await SafeSignOutAsync(cancellationToken, lockAlreadyHeld: true);
                 return null;
             }
 
             if (session.IsExpired(DateTimeOffset.UtcNow))
             {
-                await SafeSignOutAsync(cancellationToken);
+                await SafeSignOutAsync(cancellationToken, lockAlreadyHeld: true);
                 return null;
             }
 
@@ -78,8 +80,12 @@ public sealed class DesktopAuthService : IAuthService
         }
         catch
         {
-            await SafeSignOutAsync(cancellationToken);
+            await SafeSignOutAsync(cancellationToken, lockAlreadyHeld: true);
             return null;
+        }
+        finally
+        {
+            _sessionStateLock.Release();
         }
     }
 
@@ -129,8 +135,17 @@ public sealed class DesktopAuthService : IAuthService
                 Subject = subject
             };
 
-            _currentSession = session;
-            await _sessionStore.SaveAsync(session, cancellationToken);
+            await _sessionStateLock.WaitAsync(cancellationToken);
+            try
+            {
+                _currentSession = session;
+                await _sessionStore.SaveAsync(session, cancellationToken);
+            }
+            finally
+            {
+                _sessionStateLock.Release();
+            }
+
             return new AuthSignInResult(true, false, "Signed in successfully.", session);
         }
         catch (TaskCanceledException)
@@ -209,8 +224,17 @@ public sealed class DesktopAuthService : IAuthService
                 Subject = usernameOrEmail
             };
 
-            _currentSession = session;
-            await _sessionStore.SaveAsync(session, cancellationToken);
+            await _sessionStateLock.WaitAsync(cancellationToken);
+            try
+            {
+                _currentSession = session;
+                await _sessionStore.SaveAsync(session, cancellationToken);
+            }
+            finally
+            {
+                _sessionStateLock.Release();
+            }
+
             return new AuthSignInResult(true, false, "Signed in successfully.", session);
         }
         catch (TaskCanceledException)
@@ -223,10 +247,17 @@ public sealed class DesktopAuthService : IAuthService
         }
     }
 
-    public Task SignOutAsync(CancellationToken cancellationToken = default)
+    public async Task SignOutAsync(CancellationToken cancellationToken = default)
     {
-        _currentSession = null;
-        return _sessionStore.ClearAsync(cancellationToken);
+        await _sessionStateLock.WaitAsync(cancellationToken);
+        try
+        {
+            await ClearSessionCoreAsync(cancellationToken);
+        }
+        finally
+        {
+            _sessionStateLock.Release();
+        }
     }
 
     public async Task<string?> GetAccessTokenAsync(
@@ -251,12 +282,13 @@ public sealed class DesktopAuthService : IAuthService
         bool forceRefresh,
         CancellationToken cancellationToken)
     {
+        await _sessionStateLock.WaitAsync(cancellationToken);
         try
         {
             _currentSession ??= await _sessionStore.LoadAsync(cancellationToken);
             if (!TryNormalizeSession(_currentSession, out var session))
             {
-                await SafeSignOutAsync(cancellationToken);
+                await SafeSignOutAsync(cancellationToken, lockAlreadyHeld: true);
                 return null;
             }
 
@@ -273,7 +305,7 @@ public sealed class DesktopAuthService : IAuthService
             {
                 if (session.IsExpired(nowUtc))
                 {
-                    await SafeSignOutAsync(cancellationToken);
+                    await SafeSignOutAsync(cancellationToken, lockAlreadyHeld: true);
                     return null;
                 }
 
@@ -292,7 +324,7 @@ public sealed class DesktopAuthService : IAuthService
                     return session;
                 }
 
-                await SafeSignOutAsync(cancellationToken);
+                await SafeSignOutAsync(cancellationToken, lockAlreadyHeld: true);
                 return null;
             }
 
@@ -303,7 +335,7 @@ public sealed class DesktopAuthService : IAuthService
                     return session;
                 }
 
-                await SafeSignOutAsync(cancellationToken);
+                await SafeSignOutAsync(cancellationToken, lockAlreadyHeld: true);
                 return null;
             }
 
@@ -313,8 +345,12 @@ public sealed class DesktopAuthService : IAuthService
         }
         catch
         {
-            await SafeSignOutAsync(cancellationToken);
+            await SafeSignOutAsync(cancellationToken, lockAlreadyHeld: true);
             return null;
+        }
+        finally
+        {
+            _sessionStateLock.Release();
         }
     }
 
@@ -403,15 +439,35 @@ public sealed class DesktopAuthService : IAuthService
             : value.Trim();
     }
 
-    private async Task SafeSignOutAsync(CancellationToken cancellationToken)
+    private async Task SafeSignOutAsync(CancellationToken cancellationToken, bool lockAlreadyHeld = false)
     {
         try
         {
-            await SignOutAsync(cancellationToken);
+            if (lockAlreadyHeld)
+            {
+                await ClearSessionCoreAsync(cancellationToken);
+                return;
+            }
+
+            await _sessionStateLock.WaitAsync(cancellationToken);
+            try
+            {
+                await ClearSessionCoreAsync(cancellationToken);
+            }
+            finally
+            {
+                _sessionStateLock.Release();
+            }
         }
         catch
         {
             _currentSession = null;
         }
+    }
+
+    private Task ClearSessionCoreAsync(CancellationToken cancellationToken)
+    {
+        _currentSession = null;
+        return _sessionStore.ClearAsync(cancellationToken);
     }
 }
