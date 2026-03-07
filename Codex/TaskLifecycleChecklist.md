@@ -21,5 +21,5 @@ Use this checklist at the start and end of every task.
 ## Session Run Log
 - Active task: `TBD`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#212` CI hardening: add Linux service compile job for split APIs.
+- Previous completed task: `#213` Integration coverage: add Family API and Ledger API smoke test projects.
 - Last updated: `2026-03-06`.

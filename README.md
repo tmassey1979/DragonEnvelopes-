@@ -17,6 +17,8 @@ Initial implementation uses .NET 8 with a Clean Architecture layout.
 - `tests/DragonEnvelopes.Domain.Tests`
 - `tests/DragonEnvelopes.Application.Tests`
 - `tests/DragonEnvelopes.Api.IntegrationTests`
+- `tests/DragonEnvelopes.Family.Api.IntegrationTests`
+- `tests/DragonEnvelopes.Ledger.Api.IntegrationTests`
 - `tests/DragonEnvelopes.Desktop.Tests`
 
 ## Architecture Dependencies
