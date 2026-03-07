@@ -1,6 +1,11 @@
-﻿using System.Net;
+using System.Net;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using DragonEnvelopes.Contracts.Accounts;
+using DragonEnvelopes.Ledger.Api.CrossCutting.Auth;
+using DragonEnvelopes.Domain.Entities;
+using DragonEnvelopes.Domain.ValueObjects;
 using DragonEnvelopes.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
@@ -42,10 +47,67 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Authenticated_User_Can_List_Own_Family_Accounts_But_Not_Other_Family()
+    {
+        var userId = "ledger-user-a";
+        var ownFamilyId = Guid.Parse("e1000000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e1000000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAndAccountAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var ownResponse = await client.GetAsync($"/api/v1/accounts?familyId={ownFamilyId}");
+        var ownPayload = await ownResponse.Content.ReadFromJsonAsync<List<AccountResponse>>();
+
+        var otherResponse = await client.GetAsync($"/api/v1/accounts?familyId={otherFamilyId}");
+
+        Assert.Equal(HttpStatusCode.OK, ownResponse.StatusCode);
+        Assert.NotNull(ownPayload);
+        Assert.Single(ownPayload!);
+        Assert.Equal("Primary Checking", ownPayload[0].Name);
+        Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
+    }
+
+    private async Task SeedFamilyMembershipAndAccountAsync(string userId, Guid ownFamilyId, Guid otherFamilyId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+
+        dbContext.Accounts.RemoveRange(dbContext.Accounts);
+        dbContext.FamilyMembers.RemoveRange(dbContext.FamilyMembers);
+        dbContext.Families.RemoveRange(dbContext.Families);
+
+        var now = DateTimeOffset.UtcNow;
+        dbContext.Families.AddRange(
+            new Family(ownFamilyId, "Authorized Ledger Family", now),
+            new Family(otherFamilyId, "Forbidden Ledger Family", now));
+
+        dbContext.FamilyMembers.Add(new FamilyMember(
+            Guid.NewGuid(),
+            ownFamilyId,
+            userId,
+            "Ledger Parent User",
+            EmailAddress.Parse("ledger.parent@test.local"),
+            MemberRole.Parent));
+
+        dbContext.Accounts.Add(new Account(
+            Guid.NewGuid(),
+            ownFamilyId,
+            "Primary Checking",
+            AccountType.Checking,
+            Money.FromDecimal(500m)));
+
+        await dbContext.SaveChangesAsync();
+    }
 }
 
 public sealed class LedgerApiFactory : WebApplicationFactory<Program>
 {
+    private readonly string _databaseName = $"ledger-api-smoke-{Guid.NewGuid()}";
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -66,7 +128,7 @@ public sealed class LedgerApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<DbContextOptions<DragonEnvelopesDbContext>>();
             services.RemoveAll<DragonEnvelopesDbContext>();
             services.AddDbContext<DragonEnvelopesDbContext>(options =>
-                options.UseInMemoryDatabase($"ledger-api-smoke-{Guid.NewGuid()}"));
+                options.UseInMemoryDatabase(_databaseName));
 
             services.AddAuthentication(options =>
                 {
@@ -74,6 +136,12 @@ public sealed class LedgerApiFactory : WebApplicationFactory<Program>
                     options.DefaultChallengeScheme = TestAuthHandler.SchemeName;
                 })
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
+
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy(ApiAuthorizationPolicies.AnyFamilyMember, policy => policy.RequireAuthenticatedUser());
+                options.AddPolicy(ApiAuthorizationPolicies.Parent, policy => policy.RequireAuthenticatedUser());
+            });
         });
     }
 }
@@ -98,8 +166,14 @@ internal sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSche
         }
 
         var identity = new ClaimsIdentity(
-            [new Claim("sub", userId.ToString())],
-            SchemeName);
+            [
+                new Claim("sub", userId.ToString()),
+                new Claim(ClaimTypes.Role, "Parent"),
+                new Claim("role", "Parent")
+            ],
+            SchemeName,
+            ClaimTypes.Name,
+            ClaimTypes.Role);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, SchemeName);
 

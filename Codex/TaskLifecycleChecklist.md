@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#216` CI observability smoke: validate Grafana/Loki compose profile startup.
+- Active task: `#217` Split API integration tests: enforce cross-family authorization boundaries.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#215` Desktop Settings: show split-service health and remove placeholder copy.
+- Previous completed task: `#216` CI observability smoke: validate Grafana/Loki compose profile startup.
 - Last updated: `2026-03-07`.
