@@ -1329,6 +1329,11 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.Contains(
             payload.Events,
             evt => evt.Source == "StripeWebhook" && evt.EventType == "webhook.family_a");
+        Assert.Contains(
+            payload.Events,
+            evt => evt.Source == "NotificationDispatch"
+                   && evt.Status == "Failed"
+                   && evt.NotificationDispatchEventId.HasValue);
         Assert.DoesNotContain(
             payload.Events,
             evt => evt.EventType == "webhook.family_b_marker");
@@ -1419,6 +1424,71 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
 
         var response = await client.PostAsync(
             $"/api/v1/families/{TestApiFactory.FamilyBId}/notifications/dispatch-events/{TestApiFactory.NotificationEventBId}/retry",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserA_Can_Replay_Own_Failed_Notification_Dispatch_Event_From_Timeline_Idempotently()
+    {
+        var eventId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            var notification = new SpendNotificationEvent(
+                eventId,
+                TestApiFactory.FamilyAId,
+                TestApiFactory.UserAId,
+                TestApiFactory.EnvelopeAId,
+                Guid.NewGuid(),
+                "evt_timeline_replay_a",
+                "Email",
+                12.34m,
+                "Replay Merchant",
+                87.66m,
+                now.AddMinutes(-5));
+            notification.MarkRetry("attempt 1", now.AddMinutes(-4), 3);
+            notification.MarkRetry("attempt 2", now.AddMinutes(-3), 3);
+            notification.MarkRetry("attempt 3", now.AddMinutes(-2), 3);
+            dbContext.SpendNotificationEvents.Add(notification);
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var firstReplay = await client.PostAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/financial/provider-activity/timeline/notifications/{eventId}/replay",
+            content: null);
+        Assert.Equal(HttpStatusCode.OK, firstReplay.StatusCode);
+        var firstPayload = await firstReplay.Content.ReadFromJsonAsync<RetryNotificationDispatchEventResponse>();
+        Assert.NotNull(firstPayload);
+        Assert.Equal("Sent", firstPayload!.Status);
+        Assert.True(firstPayload.AttemptCount >= 4);
+        Assert.NotNull(firstPayload.SentAtUtc);
+
+        var secondReplay = await client.PostAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/financial/provider-activity/timeline/notifications/{eventId}/replay",
+            content: null);
+        Assert.Equal(HttpStatusCode.OK, secondReplay.StatusCode);
+        var secondPayload = await secondReplay.Content.ReadFromJsonAsync<RetryNotificationDispatchEventResponse>();
+        Assert.NotNull(secondPayload);
+        Assert.Equal("Sent", secondPayload!.Status);
+        Assert.Equal(firstPayload.AttemptCount, secondPayload.AttemptCount);
+        Assert.Equal(firstPayload.SentAtUtc, secondPayload.SentAtUtc);
+    }
+
+    [Fact]
+    public async Task UserA_Cannot_Replay_FamilyB_Notification_Dispatch_Event_From_Timeline()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PostAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyBId}/financial/provider-activity/timeline/notifications/{TestApiFactory.NotificationEventBId}/replay",
             content: null);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);

@@ -15,4 +15,9 @@ public interface ISpendNotificationDispatchService
         Guid familyId,
         Guid eventId,
         CancellationToken cancellationToken = default);
+
+    Task<SpendNotificationDispatchEventDetails> ReplayEventAsync(
+        Guid familyId,
+        Guid eventId,
+        CancellationToken cancellationToken = default);
 }

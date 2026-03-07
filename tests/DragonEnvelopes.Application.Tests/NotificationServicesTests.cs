@@ -226,4 +226,41 @@ public sealed class NotificationServicesTests
         Assert.Equal(now, result.SentAtUtc);
         Assert.Equal("Sent", failed.Status);
     }
+
+    [Fact]
+    public async Task ReplayEventAsync_IsIdempotent_ForAlreadySentEvent()
+    {
+        var familyId = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+        var sentAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var sent = new SpendNotificationEvent(
+            eventId,
+            familyId,
+            "parent-1",
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "evt_sent",
+            "Email",
+            11m,
+            "Fuel",
+            89m,
+            DateTimeOffset.UtcNow.AddMinutes(-10));
+        sent.MarkSent(sentAt);
+
+        var eventRepository = new Mock<ISpendNotificationEventRepository>();
+        eventRepository
+            .Setup(x => x.GetByFamilyAndIdForUpdateAsync(familyId, eventId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(sent);
+
+        var service = new SpendNotificationDispatchService(
+            eventRepository.Object,
+            Mock.Of<IClock>(),
+            Mock.Of<ILogger<SpendNotificationDispatchService>>());
+
+        var result = await service.ReplayEventAsync(familyId, eventId);
+
+        Assert.Equal("Sent", result.Status);
+        Assert.Equal(1, result.AttemptCount);
+        Assert.Equal(sentAt, result.SentAtUtc);
+    }
 }

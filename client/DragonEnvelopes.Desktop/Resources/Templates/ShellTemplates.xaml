@@ -2143,6 +2143,10 @@
                                             Content="Refresh Failed Notifications"
                                             Command="{Binding RefreshFailedNotificationEventsCommand}" />
                                     <Button Margin="0,0,8,8"
+                                            Content="Replay Selected Timeline Notification"
+                                            IsEnabled="{Binding CanReplaySelectedProviderTimelineEvent}"
+                                            Command="{Binding ReplaySelectedTimelineNotificationDispatchEventCommand}" />
+                                    <Button Margin="0,0,8,8"
                                             Content="Retry Selected Failed Notification"
                                             Command="{Binding RetrySelectedFailedNotificationDispatchEventCommand}" />
                                     <Button Margin="0,0,8,8"
@@ -2165,6 +2169,7 @@
                             <DataGrid Grid.Row="2"
                                       Grid.ColumnSpan="3"
                                       ItemsSource="{Binding ProviderTimelineEvents}"
+                                      SelectedItem="{Binding SelectedProviderTimelineEvent, Mode=TwoWay}"
                                       AutoGenerateColumns="False"
                                       CanUserAddRows="False"
                                       CanUserDeleteRows="False"
@@ -2179,7 +2184,9 @@
                                     <DataGridTextColumn Header="Type" Binding="{Binding EventType}" Width="170" />
                                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110" />
                                     <DataGridTextColumn Header="Occurred" Binding="{Binding OccurredAt}" Width="130" />
+                                    <DataGridTextColumn Header="Replay" Binding="{Binding ReplayEligibility}" Width="90" />
                                     <DataGridTextColumn Header="Summary" Binding="{Binding Summary}" Width="*" />
+                                    <DataGridTextColumn Header="Notification Event Id" Binding="{Binding NotificationDispatchEventIdDisplay}" Width="250" />
                                     <DataGridTextColumn Header="Detail" Binding="{Binding Detail}" Width="220" />
                                 </DataGrid.Columns>
                             </DataGrid>

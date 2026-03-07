@@ -190,6 +190,36 @@ internal static class FinancialIntegrationEndpoints
             .WithName("RetryNotificationDispatchEvent")
             .WithOpenApi();
 
+        v1.MapPost("/families/{familyId:guid}/financial/provider-activity/timeline/notifications/{eventId:guid}/replay", async (
+                Guid familyId,
+                Guid eventId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                ISpendNotificationDispatchService spendNotificationDispatchService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var replayed = await spendNotificationDispatchService.ReplayEventAsync(
+                    familyId,
+                    eventId,
+                    cancellationToken);
+                return Results.Ok(new RetryNotificationDispatchEventResponse(
+                    replayed.Id,
+                    replayed.FamilyId,
+                    replayed.Status,
+                    replayed.AttemptCount,
+                    replayed.LastAttemptAtUtc,
+                    replayed.SentAtUtc,
+                    replayed.ErrorMessage));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("ReplayTimelineNotificationDispatchEvent")
+            .WithOpenApi();
+
         v1.MapGet("/families/{familyId:guid}/financial/status", async (
                 Guid familyId,
                 ClaimsPrincipal user,
@@ -357,7 +387,8 @@ internal static class FinancialIntegrationEndpoints
                         webhook.ProcessingStatus,
                         webhook.ProcessedAtUtc,
                         $"Stripe webhook {webhook.EventType} -> {webhook.ProcessingStatus}.",
-                        webhook.ErrorMessage))
+                        webhook.ErrorMessage,
+                        null))
                     .ToArrayAsync(cancellationToken);
 
                 var notifications = await dbContext.SpendNotificationEvents
@@ -371,7 +402,8 @@ internal static class FinancialIntegrationEndpoints
                         notification.Status,
                         notification.LastAttemptAtUtc ?? notification.CreatedAtUtc,
                         $"Spend notification via {notification.Channel} -> {notification.Status}.",
-                        notification.ErrorMessage))
+                        notification.ErrorMessage,
+                        notification.Id))
                     .ToArrayAsync(cancellationToken);
 
                 var timeline = webhooks

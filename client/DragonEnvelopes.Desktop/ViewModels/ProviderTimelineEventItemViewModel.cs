@@ -6,4 +6,11 @@ public sealed record ProviderTimelineEventItemViewModel(
     string Status,
     string OccurredAt,
     string Summary,
-    string Detail);
+    string Detail,
+    Guid? NotificationDispatchEventId,
+    bool CanReplayNotification)
+{
+    public string NotificationDispatchEventIdDisplay => NotificationDispatchEventId?.ToString("D") ?? "-";
+
+    public string ReplayEligibility => CanReplayNotification ? "Replayable" : "-";
+}

@@ -62,6 +62,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         RefreshProviderTimelineCommand = new AsyncRelayCommand(RefreshProviderTimelineAsync);
         RefreshFailedNotificationEventsCommand = new AsyncRelayCommand(RefreshFailedNotificationEventsAsync);
         RetrySelectedFailedNotificationDispatchEventCommand = new AsyncRelayCommand(RetrySelectedFailedNotificationDispatchEventAsync);
+        ReplaySelectedTimelineNotificationDispatchEventCommand = new AsyncRelayCommand(ReplaySelectedTimelineNotificationDispatchEventAsync);
         RewrapProviderSecretsCommand = new AsyncRelayCommand(RewrapProviderSecretsAsync);
         SaveNotificationPreferenceCommand = new AsyncRelayCommand(SaveNotificationPreferenceAsync);
         CreatePlaidLinkTokenCommand = new AsyncRelayCommand(CreatePlaidLinkTokenAsync);
@@ -100,6 +101,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public IAsyncRelayCommand RefreshProviderTimelineCommand { get; }
     public IAsyncRelayCommand RefreshFailedNotificationEventsCommand { get; }
     public IAsyncRelayCommand RetrySelectedFailedNotificationDispatchEventCommand { get; }
+    public IAsyncRelayCommand ReplaySelectedTimelineNotificationDispatchEventCommand { get; }
     public IAsyncRelayCommand RewrapProviderSecretsCommand { get; }
     public IAsyncRelayCommand SaveNotificationPreferenceCommand { get; }
     public IAsyncRelayCommand CreatePlaidLinkTokenCommand { get; }
@@ -352,6 +354,9 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     private ObservableCollection<ProviderTimelineEventItemViewModel> providerTimelineEvents = [];
 
     [ObservableProperty]
+    private ProviderTimelineEventItemViewModel? selectedProviderTimelineEvent;
+
+    [ObservableProperty]
     private string notificationRetrySummary = string.Empty;
 
     [ObservableProperty]
@@ -366,6 +371,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public bool HasEnvelopeSelection => SelectedEnvelope is not null;
     public bool HasCardSelection => SelectedCard is not null;
     public bool HasFailedNotificationSelection => SelectedFailedNotificationDispatchEvent is not null;
+    public bool CanReplaySelectedProviderTimelineEvent => SelectedProviderTimelineEvent?.CanReplayNotification == true;
     public bool SelectedCardIsPhysical => SelectedCard?.IsPhysical == true;
     public string PlaidItemIdentifierDisplay => GetMaskedIdentifierDisplay(PlaidItemIdentifier);
     public string StripeCustomerIdentifierDisplay => GetMaskedIdentifierDisplay(StripeCustomerIdentifier);
@@ -444,6 +450,11 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     partial void OnSelectedFailedNotificationDispatchEventChanged(FailedNotificationDispatchEventItemViewModel? value)
     {
         OnPropertyChanged(nameof(HasFailedNotificationSelection));
+    }
+
+    partial void OnSelectedProviderTimelineEventChanged(ProviderTimelineEventItemViewModel? value)
+    {
+        OnPropertyChanged(nameof(CanReplaySelectedProviderTimelineEvent));
     }
 
     private Task LoadAsync(CancellationToken cancellationToken)
@@ -552,16 +563,55 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             var attemptedAt = retry.LastAttemptAtUtc.HasValue
                 ? FormatDate(retry.LastAttemptAtUtc.Value)
                 : "-";
-
-            NotificationRetrySummary =
-                $"Retry result: {retry.Status} (attempt {retry.AttemptCount}) at {attemptedAt}.";
+            var error = string.IsNullOrWhiteSpace(retry.ErrorMessage)
+                ? "-"
+                : retry.ErrorMessage;
+            var retrySummary = $"Retry result: {retry.Status} (attempt {retry.AttemptCount}) at {attemptedAt}. Last error: {error}.";
 
             await LoadProviderActivityHealthCoreAsync(ct);
             await LoadProviderTimelineCoreAsync(ct);
             await LoadFailedNotificationDispatchEventsCoreAsync(ct);
+            NotificationRetrySummary = retrySummary;
             StatusMessage = retry.Status.Equals("Sent", StringComparison.OrdinalIgnoreCase)
                 ? "Notification dispatch retried successfully."
                 : "Notification dispatch retry completed with failure status.";
+        }, cancellationToken);
+    }
+
+    private async Task ReplaySelectedTimelineNotificationDispatchEventAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedProviderTimelineEvent is null || !SelectedProviderTimelineEvent.CanReplayNotification)
+        {
+            SetValidationError("Select a replayable failed notification dispatch event in timeline.");
+            return;
+        }
+
+        if (!SelectedProviderTimelineEvent.NotificationDispatchEventId.HasValue)
+        {
+            SetValidationError("Selected timeline event is missing notification event id.");
+            return;
+        }
+
+        await RunOperationAsync("Replaying selected timeline notification event...", async ct =>
+        {
+            var replay = await _financialIntegrationDataService.ReplayTimelineNotificationDispatchEventAsync(
+                SelectedProviderTimelineEvent.NotificationDispatchEventId.Value,
+                ct);
+            var attemptedAt = replay.LastAttemptAtUtc.HasValue
+                ? FormatDate(replay.LastAttemptAtUtc.Value)
+                : "-";
+            var error = string.IsNullOrWhiteSpace(replay.ErrorMessage)
+                ? "-"
+                : replay.ErrorMessage;
+            var replaySummary = $"Timeline replay result: {replay.Status} (attempt {replay.AttemptCount}) at {attemptedAt}. Last error: {error}.";
+
+            await LoadProviderActivityHealthCoreAsync(ct);
+            await LoadProviderTimelineCoreAsync(ct);
+            await LoadFailedNotificationDispatchEventsCoreAsync(ct);
+            NotificationRetrySummary = replaySummary;
+            StatusMessage = replay.Status.Equals("Sent", StringComparison.OrdinalIgnoreCase)
+                ? "Timeline notification replay completed successfully."
+                : "Timeline notification replay completed with failure status.";
         }, cancellationToken);
     }
 
@@ -1275,6 +1325,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     private async Task LoadProviderTimelineCoreAsync(CancellationToken cancellationToken)
     {
         var timeline = await _financialIntegrationDataService.GetProviderActivityTimelineAsync(cancellationToken: cancellationToken);
+        var previousSelectedEventId = SelectedProviderTimelineEvent?.NotificationDispatchEventId;
 
         ProviderTimelineEvents = new ObservableCollection<ProviderTimelineEventItemViewModel>(
             timeline.Events.Select(eventItem => new ProviderTimelineEventItemViewModel(
@@ -1283,7 +1334,15 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
                 eventItem.Status,
                 FormatDate(eventItem.OccurredAtUtc),
                 eventItem.Summary,
-                string.IsNullOrWhiteSpace(eventItem.Detail) ? "-" : eventItem.Detail)));
+                string.IsNullOrWhiteSpace(eventItem.Detail) ? "-" : eventItem.Detail,
+                eventItem.NotificationDispatchEventId,
+                eventItem.Source.Equals("NotificationDispatch", StringComparison.OrdinalIgnoreCase)
+                    && eventItem.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase)
+                    && eventItem.NotificationDispatchEventId.HasValue)));
+
+        SelectedProviderTimelineEvent = previousSelectedEventId.HasValue
+            ? ProviderTimelineEvents.FirstOrDefault(evt => evt.NotificationDispatchEventId == previousSelectedEventId.Value)
+            : ProviderTimelineEvents.FirstOrDefault(evt => evt.CanReplayNotification);
 
         ProviderTimelineSummary = timeline.Events.Count == 0
             ? "No provider timeline events recorded."

@@ -65,7 +65,8 @@ public sealed record ProviderTimelineEventResponse(
     string Status,
     DateTimeOffset OccurredAtUtc,
     string Summary,
-    string? Detail);
+    string? Detail,
+    Guid? NotificationDispatchEventId);
 
 public sealed record ProviderActivityTimelineResponse(
     Guid FamilyId,

@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#188` Financial operations center: replay failed notification dispatch from timeline.
+- Active task: `none` (awaiting next prioritized issue).
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#187` Recurring operations UX: execution filtering and CSV export.
+- Previous completed task: `#188` Financial operations center: replay failed notification dispatch from timeline.
 - Last updated: `2026-03-06`.

@@ -74,6 +74,31 @@ public sealed class SpendNotificationDispatchService(
         Guid eventId,
         CancellationToken cancellationToken = default)
     {
+        return await ReplayEventCoreAsync(
+            familyId,
+            eventId,
+            allowAlreadySent: false,
+            cancellationToken);
+    }
+
+    public async Task<SpendNotificationDispatchEventDetails> ReplayEventAsync(
+        Guid familyId,
+        Guid eventId,
+        CancellationToken cancellationToken = default)
+    {
+        return await ReplayEventCoreAsync(
+            familyId,
+            eventId,
+            allowAlreadySent: true,
+            cancellationToken);
+    }
+
+    private async Task<SpendNotificationDispatchEventDetails> ReplayEventCoreAsync(
+        Guid familyId,
+        Guid eventId,
+        bool allowAlreadySent,
+        CancellationToken cancellationToken)
+    {
         if (familyId == Guid.Empty)
         {
             throw new DomainValidationException("Family id is required.");
@@ -91,6 +116,12 @@ public sealed class SpendNotificationDispatchService(
         if (notification is null)
         {
             throw new DomainValidationException("Notification event was not found for this family.");
+        }
+
+        if (allowAlreadySent && notification.Status.Equals("Sent", StringComparison.OrdinalIgnoreCase))
+        {
+            // Idempotent replay behavior: already-sent events are returned as-is.
+            return Map(notification);
         }
 
         if (!notification.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase))

@@ -204,6 +204,29 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
         Assert.Empty(harness.ViewModel.FailedNotificationDispatchEvents);
     }
 
+    [Fact]
+    public async Task ReplaySelectedTimelineNotificationDispatchEventCommand_ReplaysSelectedFailedTimelineEvent()
+    {
+        var harness = CreateHarness();
+        await EnsureLoadedAsync(harness.ViewModel);
+
+        var replayableTimelineEvent = Assert.Single(
+            harness.ViewModel.ProviderTimelineEvents.Where(static evt => evt.CanReplayNotification));
+        harness.ViewModel.SelectedProviderTimelineEvent = replayableTimelineEvent;
+
+        await harness.ViewModel.ReplaySelectedTimelineNotificationDispatchEventCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(harness.ViewModel);
+
+        Assert.False(harness.ViewModel.HasError);
+        Assert.Contains("Timeline replay result: Sent", harness.ViewModel.NotificationRetrySummary);
+        Assert.Equal("Timeline notification replay completed successfully.", harness.ViewModel.StatusMessage);
+        Assert.Equal(1, harness.FinancialDataService.RetryFailedNotificationDispatchEventCallCount);
+        Assert.DoesNotContain(
+            harness.ViewModel.ProviderTimelineEvents,
+            evt => evt.NotificationDispatchEventId == replayableTimelineEvent.NotificationDispatchEventId
+                   && evt.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static TestHarness CreateHarness()
     {
         var familyId = Guid.Parse("00000000-0000-0000-0000-000000000001");

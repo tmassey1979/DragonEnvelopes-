@@ -28,6 +28,10 @@ public interface IFinancialIntegrationDataService
         Guid eventId,
         CancellationToken cancellationToken = default);
 
+    Task<RetryNotificationDispatchEventResponse> ReplayTimelineNotificationDispatchEventAsync(
+        Guid eventId,
+        CancellationToken cancellationToken = default);
+
     Task<RewrapProviderSecretsResponse> RewrapProviderSecretsAsync(CancellationToken cancellationToken = default);
 
     Task<CreatePlaidLinkTokenResponse> CreatePlaidLinkTokenAsync(

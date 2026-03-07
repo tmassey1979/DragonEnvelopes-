@@ -119,14 +119,16 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
                     Status: "Processed",
                     OccurredAtUtc: now.AddMinutes(-2),
                     Summary: "Stripe webhook issuing_authorization.request -> Processed.",
-                    Detail: null),
+                    Detail: null,
+                    NotificationDispatchEventId: null),
                 new ProviderTimelineEventResponse(
                     Source: "NotificationDispatch",
                     EventType: "InApp",
-                    Status: "Sent",
+                    Status: "Failed",
                     OccurredAtUtc: now.AddMinutes(-1),
-                    Summary: "Spend notification via InApp -> Sent.",
-                    Detail: null)
+                    Summary: "Spend notification via InApp -> Failed.",
+                    Detail: "Simulated delivery failure",
+                    NotificationDispatchEventId: Guid.Parse("00000000-0000-0000-0000-000000000060"))
             ],
             TraceId: "trace-test-002");
         FailedNotificationDispatchEvents =
@@ -321,6 +323,27 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow,
             null));
+    }
+
+    public Task<RetryNotificationDispatchEventResponse> ReplayTimelineNotificationDispatchEventAsync(
+        Guid eventId,
+        CancellationToken cancellationToken = default)
+    {
+        var replay = RetryFailedNotificationDispatchEventAsync(eventId, cancellationToken);
+        ProviderActivityTimelineResponse = ProviderActivityTimelineResponse with
+        {
+            Events = ProviderActivityTimelineResponse.Events
+                .Select(evt => evt.NotificationDispatchEventId == eventId
+                    ? evt with
+                    {
+                        Status = "Sent",
+                        Summary = $"Spend notification via {evt.EventType} -> Sent.",
+                        Detail = null
+                    }
+                    : evt)
+                .ToArray()
+        };
+        return replay;
     }
 
     public Task<RewrapProviderSecretsResponse> RewrapProviderSecretsAsync(CancellationToken cancellationToken = default)

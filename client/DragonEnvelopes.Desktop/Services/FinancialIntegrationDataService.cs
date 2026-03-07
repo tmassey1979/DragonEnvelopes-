@@ -99,6 +99,19 @@ public sealed class FinancialIntegrationDataService : IFinancialIntegrationDataS
             cancellationToken);
     }
 
+    public Task<RetryNotificationDispatchEventResponse> ReplayTimelineNotificationDispatchEventAsync(
+        Guid eventId,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        return SendAsync<RetryNotificationDispatchEventResponse>(
+            HttpMethod.Post,
+            $"families/{familyId}/financial/provider-activity/timeline/notifications/{eventId}/replay",
+            payload: null,
+            "Replaying timeline notification dispatch event",
+            cancellationToken);
+    }
+
     public Task<RewrapProviderSecretsResponse> RewrapProviderSecretsAsync(CancellationToken cancellationToken = default)
     {
         var familyId = RequireFamilyId();
