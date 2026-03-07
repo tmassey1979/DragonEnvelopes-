@@ -1,5 +1,6 @@
 using System.Security.Claims;
-using DragonEnvelopes.Application.Services;
+using DragonEnvelopes.Application.Cqrs;
+using DragonEnvelopes.Application.Cqrs.Planning;
 using DragonEnvelopes.Contracts.EnvelopeGoals;
 using DragonEnvelopes.Infrastructure.Persistence;
 using DragonEnvelopes.Ledger.Api.CrossCutting.Auth;
@@ -15,7 +16,7 @@ internal static partial class PlanningEndpoints
                 CreateEnvelopeGoalRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopeGoalService envelopeGoalService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, request.FamilyId, dbContext, cancellationToken))
@@ -23,12 +24,13 @@ internal static partial class PlanningEndpoints
                     return Results.Forbid();
                 }
 
-                var created = await envelopeGoalService.CreateAsync(
-                    request.FamilyId,
-                    request.EnvelopeId,
-                    request.TargetAmount,
-                    request.DueDate,
-                    request.Status,
+                var created = await commandBus.SendAsync(
+                    new CreateEnvelopeGoalCommand(
+                        request.FamilyId,
+                        request.EnvelopeId,
+                        request.TargetAmount,
+                        request.DueDate,
+                        request.Status),
                     cancellationToken);
 
                 return Results.Created($"/api/v1/envelope-goals/{created.Id}", EndpointMappers.MapEnvelopeGoalResponse(created));
@@ -41,7 +43,7 @@ internal static partial class PlanningEndpoints
                 Guid familyId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopeGoalService envelopeGoalService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -49,7 +51,9 @@ internal static partial class PlanningEndpoints
                     return Results.Forbid();
                 }
 
-                var goals = await envelopeGoalService.ListByFamilyAsync(familyId, cancellationToken);
+                var goals = await queryBus.QueryAsync(
+                    new ListEnvelopeGoalsByFamilyQuery(familyId),
+                    cancellationToken);
                 return Results.Ok(goals.Select(EndpointMappers.MapEnvelopeGoalResponse).ToArray());
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
@@ -60,7 +64,7 @@ internal static partial class PlanningEndpoints
                 Guid goalId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopeGoalService envelopeGoalService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 var familyId = await dbContext.EnvelopeGoals
@@ -73,7 +77,9 @@ internal static partial class PlanningEndpoints
                     return Results.Forbid();
                 }
 
-                var goal = await envelopeGoalService.GetByIdAsync(goalId, cancellationToken);
+                var goal = await queryBus.QueryAsync(
+                    new GetEnvelopeGoalByIdQuery(goalId),
+                    cancellationToken);
                 return goal is null
                     ? Results.NotFound()
                     : Results.Ok(EndpointMappers.MapEnvelopeGoalResponse(goal));
@@ -87,7 +93,7 @@ internal static partial class PlanningEndpoints
                 UpdateEnvelopeGoalRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopeGoalService envelopeGoalService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 var familyId = await dbContext.EnvelopeGoals
@@ -100,11 +106,12 @@ internal static partial class PlanningEndpoints
                     return Results.Forbid();
                 }
 
-                var updated = await envelopeGoalService.UpdateAsync(
-                    goalId,
-                    request.TargetAmount,
-                    request.DueDate,
-                    request.Status,
+                var updated = await commandBus.SendAsync(
+                    new UpdateEnvelopeGoalCommand(
+                        goalId,
+                        request.TargetAmount,
+                        request.DueDate,
+                        request.Status),
                     cancellationToken);
                 return Results.Ok(EndpointMappers.MapEnvelopeGoalResponse(updated));
             })
@@ -116,7 +123,7 @@ internal static partial class PlanningEndpoints
                 Guid goalId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopeGoalService envelopeGoalService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 var familyId = await dbContext.EnvelopeGoals
@@ -129,7 +136,9 @@ internal static partial class PlanningEndpoints
                     return Results.Forbid();
                 }
 
-                await envelopeGoalService.DeleteAsync(goalId, cancellationToken);
+                await commandBus.SendAsync(
+                    new DeleteEnvelopeGoalCommand(goalId),
+                    cancellationToken);
                 return Results.NoContent();
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
@@ -141,7 +150,7 @@ internal static partial class PlanningEndpoints
                 DateOnly? asOf,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopeGoalService envelopeGoalService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -149,9 +158,10 @@ internal static partial class PlanningEndpoints
                     return Results.Forbid();
                 }
 
-                var projection = await envelopeGoalService.ProjectAsync(
-                    familyId,
-                    asOf ?? DateOnly.FromDateTime(DateTime.UtcNow),
+                var projection = await queryBus.QueryAsync(
+                    new ProjectEnvelopeGoalsQuery(
+                        familyId,
+                        asOf ?? DateOnly.FromDateTime(DateTime.UtcNow)),
                     cancellationToken);
                 return Results.Ok(projection.Select(EndpointMappers.MapEnvelopeGoalProjectionResponse).ToArray());
             })

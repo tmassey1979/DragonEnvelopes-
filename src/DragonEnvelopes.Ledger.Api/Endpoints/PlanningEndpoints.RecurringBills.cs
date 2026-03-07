@@ -1,5 +1,6 @@
 using System.Security.Claims;
-using DragonEnvelopes.Application.Services;
+using DragonEnvelopes.Application.Cqrs;
+using DragonEnvelopes.Application.Cqrs.Planning;
 using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Infrastructure.Persistence;
 using DragonEnvelopes.Ledger.Api.CrossCutting.Auth;
@@ -16,7 +17,7 @@ internal static partial class PlanningEndpoints
                 CreateRecurringBillRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IRecurringBillService recurringBillService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, request.FamilyId, dbContext, cancellationToken))
@@ -24,16 +25,17 @@ internal static partial class PlanningEndpoints
                     return Results.Forbid();
                 }
 
-                var recurringBill = await recurringBillService.CreateAsync(
-                    request.FamilyId,
-                    request.Name,
-                    request.Merchant,
-                    request.Amount,
-                    request.Frequency,
-                    request.DayOfMonth,
-                    request.StartDate,
-                    request.EndDate,
-                    request.IsActive,
+                var recurringBill = await commandBus.SendAsync(
+                    new CreateRecurringBillCommand(
+                        request.FamilyId,
+                        request.Name,
+                        request.Merchant,
+                        request.Amount,
+                        request.Frequency,
+                        request.DayOfMonth,
+                        request.StartDate,
+                        request.EndDate,
+                        request.IsActive),
                     cancellationToken);
                 return Results.Created($"/api/v1/recurring-bills/{recurringBill.Id}", EndpointMappers.MapRecurringBillResponse(recurringBill));
             })
@@ -45,7 +47,7 @@ internal static partial class PlanningEndpoints
                 Guid familyId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IRecurringBillService recurringBillService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -53,7 +55,9 @@ internal static partial class PlanningEndpoints
                     return Results.Forbid();
                 }
 
-                var recurringBills = await recurringBillService.ListByFamilyAsync(familyId, cancellationToken);
+                var recurringBills = await queryBus.QueryAsync(
+                    new ListRecurringBillsByFamilyQuery(familyId),
+                    cancellationToken);
                 return Results.Ok(recurringBills.Select(EndpointMappers.MapRecurringBillResponse).ToArray());
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
@@ -65,7 +69,7 @@ internal static partial class PlanningEndpoints
                 UpdateRecurringBillRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IRecurringBillService recurringBillService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 var familyId = await dbContext.RecurringBills
@@ -78,16 +82,17 @@ internal static partial class PlanningEndpoints
                     return Results.Forbid();
                 }
 
-                var recurringBill = await recurringBillService.UpdateAsync(
-                    recurringBillId,
-                    request.Name,
-                    request.Merchant,
-                    request.Amount,
-                    request.Frequency,
-                    request.DayOfMonth,
-                    request.StartDate,
-                    request.EndDate,
-                    request.IsActive,
+                var recurringBill = await commandBus.SendAsync(
+                    new UpdateRecurringBillCommand(
+                        recurringBillId,
+                        request.Name,
+                        request.Merchant,
+                        request.Amount,
+                        request.Frequency,
+                        request.DayOfMonth,
+                        request.StartDate,
+                        request.EndDate,
+                        request.IsActive),
                     cancellationToken);
                 return Results.Ok(EndpointMappers.MapRecurringBillResponse(recurringBill));
             })
@@ -99,7 +104,7 @@ internal static partial class PlanningEndpoints
                 Guid recurringBillId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IRecurringBillService recurringBillService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 var familyId = await dbContext.RecurringBills
@@ -112,7 +117,9 @@ internal static partial class PlanningEndpoints
                     return Results.Forbid();
                 }
 
-                await recurringBillService.DeleteAsync(recurringBillId, cancellationToken);
+                await commandBus.SendAsync(
+                    new DeleteRecurringBillCommand(recurringBillId),
+                    cancellationToken);
                 return Results.NoContent();
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
@@ -125,7 +132,7 @@ internal static partial class PlanningEndpoints
                 DateOnly to,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IRecurringBillService recurringBillService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -133,7 +140,9 @@ internal static partial class PlanningEndpoints
                     return Results.Forbid();
                 }
 
-                var projection = await recurringBillService.ProjectAsync(familyId, from, to, cancellationToken);
+                var projection = await queryBus.QueryAsync(
+                    new ProjectRecurringBillsQuery(familyId, from, to),
+                    cancellationToken);
                 return Results.Ok(projection.Select(EndpointMappers.MapRecurringBillProjectionItemResponse).ToArray());
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
@@ -148,7 +157,7 @@ internal static partial class PlanningEndpoints
                 DateOnly? toDate,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IRecurringBillService recurringBillService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 var familyId = await dbContext.RecurringBills
@@ -161,12 +170,13 @@ internal static partial class PlanningEndpoints
                     return Results.Forbid();
                 }
 
-                var executions = await recurringBillService.ListExecutionsAsync(
-                    recurringBillId,
-                    take ?? 25,
-                    result,
-                    fromDate,
-                    toDate,
+                var executions = await queryBus.QueryAsync(
+                    new ListRecurringBillExecutionsQuery(
+                        recurringBillId,
+                        take ?? 25,
+                        result,
+                        fromDate,
+                        toDate),
                     cancellationToken);
 
                 return Results.Ok(executions.Select(EndpointMappers.MapRecurringBillExecutionResponse).ToArray());
