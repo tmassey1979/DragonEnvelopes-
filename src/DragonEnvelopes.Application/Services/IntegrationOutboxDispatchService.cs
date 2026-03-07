@@ -11,17 +11,22 @@ public sealed class IntegrationOutboxDispatchService(
     ILogger<IntegrationOutboxDispatchService> logger) : IIntegrationOutboxDispatchService
 {
     public async Task<IntegrationOutboxDispatchResult> DispatchPendingAsync(
+        string sourceService,
         int take,
         CancellationToken cancellationToken = default)
     {
+        var normalizedSourceService = NormalizeSourceService(sourceService);
         var now = clock.UtcNow;
         var batch = await integrationOutboxRepository.ListDispatchableAsync(
             now,
             Math.Clamp(take, 1, 500),
+            normalizedSourceService,
             cancellationToken);
         if (batch.Count == 0)
         {
-            var pendingWithoutDispatch = await integrationOutboxRepository.CountPendingAsync(cancellationToken);
+            var pendingWithoutDispatch = await integrationOutboxRepository.CountPendingAsync(
+                normalizedSourceService,
+                cancellationToken);
             return new IntegrationOutboxDispatchResult(
                 LoadedCount: 0,
                 PublishedCount: 0,
@@ -69,7 +74,9 @@ public sealed class IntegrationOutboxDispatchService(
         }
 
         await integrationOutboxRepository.SaveChangesAsync(cancellationToken);
-        var pendingCount = await integrationOutboxRepository.CountPendingAsync(cancellationToken);
+        var pendingCount = await integrationOutboxRepository.CountPendingAsync(
+            normalizedSourceService,
+            cancellationToken);
 
         return new IntegrationOutboxDispatchResult(
             LoadedCount: batch.Count,
@@ -97,5 +104,15 @@ public sealed class IntegrationOutboxDispatchService(
         return trimmed.Length <= 1900
             ? trimmed
             : trimmed[..1900];
+    }
+
+    private static string NormalizeSourceService(string sourceService)
+    {
+        if (string.IsNullOrWhiteSpace(sourceService))
+        {
+            throw new InvalidOperationException("Outbox source service is required.");
+        }
+
+        return sourceService.Trim();
     }
 }

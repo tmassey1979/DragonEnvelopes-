@@ -1,4 +1,3 @@
-using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Application.Cqrs.Transactions;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
@@ -10,7 +9,7 @@ namespace DragonEnvelopes.Application.Tests;
 public sealed class CqrsTransactionHandlersTests
 {
     [Fact]
-    public async Task CreateTransactionCommandHandler_Publishes_LedgerTransactionCreated_Event()
+    public async Task CreateTransactionCommandHandler_Returns_Service_Result()
     {
         var accountId = Guid.Parse("90000000-0000-0000-0000-000000000001");
         var familyId = Guid.Parse("90000000-0000-0000-0000-000000000002");
@@ -49,20 +48,9 @@ public sealed class CqrsTransactionHandlersTests
             .Setup(repository => repository.GetAccountFamilyIdAsync(accountId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(familyId);
 
-        var publisher = new Mock<IIntegrationEventPublisher>(MockBehavior.Strict);
-        LedgerTransactionCreatedIntegrationEvent? publishedEvent = null;
-        publisher
-            .Setup(p => p.PublishAsync(
-                IntegrationEventRoutingKeys.LedgerTransactionCreatedV1,
-                It.IsAny<LedgerTransactionCreatedIntegrationEvent>(),
-                It.IsAny<CancellationToken>()))
-            .Callback<string, LedgerTransactionCreatedIntegrationEvent, CancellationToken>((_, evt, _) => publishedEvent = evt)
-            .Returns(Task.CompletedTask);
-
         var handler = new CreateTransactionCommandHandler(
             transactionService.Object,
-            transactionRepository.Object,
-            publisher.Object);
+            transactionRepository.Object);
         var command = new CreateTransactionCommand(
             accountId,
             -42.50m,
@@ -77,14 +65,6 @@ public sealed class CqrsTransactionHandlersTests
         var result = await handler.HandleAsync(command);
 
         Assert.Equal(transactionId, result.Id);
-        Assert.NotNull(publishedEvent);
-        Assert.Equal(familyId, publishedEvent!.FamilyId);
-        Assert.Equal(transactionId, publishedEvent.TransactionId);
-        Assert.Equal(accountId, publishedEvent.AccountId);
-        Assert.Equal(-42.50m, publishedEvent.Amount);
-        Assert.False(publishedEvent.IsSplit);
-
-        publisher.VerifyAll();
         transactionService.VerifyAll();
         transactionRepository.VerifyAll();
     }

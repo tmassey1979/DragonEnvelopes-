@@ -11,6 +11,8 @@ namespace DragonEnvelopes.Application.Tests;
 
 public sealed class IntegrationOutboxDispatchServiceTests
 {
+    private const string SourceService = "family-api";
+
     [Fact]
     public async Task DispatchPendingAsync_Publishes_Message_And_Marks_Dispatched()
     {
@@ -21,11 +23,11 @@ public sealed class IntegrationOutboxDispatchServiceTests
         var logger = new Mock<ILogger<IntegrationOutboxDispatchService>>();
 
         var message = CreateMessage(fixture.FrozenUtcNow.AddMinutes(-2));
-        repository.Setup(x => x.ListDispatchableAsync(fixture.FrozenUtcNow, 50, It.IsAny<CancellationToken>()))
+        repository.Setup(x => x.ListDispatchableAsync(fixture.FrozenUtcNow, 50, SourceService, It.IsAny<CancellationToken>()))
             .ReturnsAsync([message]);
         repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        repository.Setup(x => x.CountPendingAsync(It.IsAny<CancellationToken>()))
+        repository.Setup(x => x.CountPendingAsync(SourceService, It.IsAny<CancellationToken>()))
             .ReturnsAsync(0);
         publisher.Setup(x => x.PublishAsync(It.IsAny<IntegrationOutboxEnvelopeMessage>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -36,7 +38,7 @@ public sealed class IntegrationOutboxDispatchServiceTests
             clock.Object,
             logger.Object);
 
-        var result = await service.DispatchPendingAsync(50);
+        var result = await service.DispatchPendingAsync(SourceService, 50);
 
         Assert.Equal(1, result.LoadedCount);
         Assert.Equal(1, result.PublishedCount);
@@ -61,11 +63,11 @@ public sealed class IntegrationOutboxDispatchServiceTests
 
         var createdAt = fixture.FrozenUtcNow.AddMinutes(-1);
         var message = CreateMessage(createdAt);
-        repository.Setup(x => x.ListDispatchableAsync(fixture.FrozenUtcNow, 25, It.IsAny<CancellationToken>()))
+        repository.Setup(x => x.ListDispatchableAsync(fixture.FrozenUtcNow, 25, SourceService, It.IsAny<CancellationToken>()))
             .ReturnsAsync([message]);
         repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        repository.Setup(x => x.CountPendingAsync(It.IsAny<CancellationToken>()))
+        repository.Setup(x => x.CountPendingAsync(SourceService, It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
         publisher.Setup(x => x.PublishAsync(It.IsAny<IntegrationOutboxEnvelopeMessage>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("RabbitMQ unavailable"));
@@ -76,7 +78,7 @@ public sealed class IntegrationOutboxDispatchServiceTests
             clock.Object,
             logger.Object);
 
-        var result = await service.DispatchPendingAsync(25);
+        var result = await service.DispatchPendingAsync(SourceService, 25);
 
         Assert.Equal(1, result.LoadedCount);
         Assert.Equal(0, result.PublishedCount);
@@ -99,9 +101,9 @@ public sealed class IntegrationOutboxDispatchServiceTests
         var publisher = new Mock<IIntegrationOutboxMessagePublisher>();
         var logger = new Mock<ILogger<IntegrationOutboxDispatchService>>();
 
-        repository.Setup(x => x.ListDispatchableAsync(fixture.FrozenUtcNow, 10, It.IsAny<CancellationToken>()))
+        repository.Setup(x => x.ListDispatchableAsync(fixture.FrozenUtcNow, 10, SourceService, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<IntegrationOutboxMessage>());
-        repository.Setup(x => x.CountPendingAsync(It.IsAny<CancellationToken>()))
+        repository.Setup(x => x.CountPendingAsync(SourceService, It.IsAny<CancellationToken>()))
             .ReturnsAsync(4);
 
         var service = new IntegrationOutboxDispatchService(
@@ -110,7 +112,7 @@ public sealed class IntegrationOutboxDispatchServiceTests
             clock.Object,
             logger.Object);
 
-        var result = await service.DispatchPendingAsync(10);
+        var result = await service.DispatchPendingAsync(SourceService, 10);
 
         Assert.Equal(0, result.LoadedCount);
         Assert.Equal(0, result.PublishedCount);

@@ -16,11 +16,15 @@ public sealed class IntegrationOutboxRepository(DragonEnvelopesDbContext dbConte
     public async Task<IReadOnlyList<IntegrationOutboxMessage>> ListDispatchableAsync(
         DateTimeOffset nowUtc,
         int take,
+        string sourceService,
         CancellationToken cancellationToken = default)
     {
+        var normalizedSourceService = NormalizeSourceService(sourceService);
         var normalizedTake = take <= 0 ? 50 : take;
         return await dbContext.IntegrationOutboxMessages
             .Where(message =>
+                message.SourceService == normalizedSourceService
+                && 
                 message.DispatchedAtUtc == null
                 && message.NextAttemptAtUtc <= nowUtc)
             .OrderBy(message => message.CreatedAtUtc)
@@ -29,15 +33,30 @@ public sealed class IntegrationOutboxRepository(DragonEnvelopesDbContext dbConte
             .ToArrayAsync(cancellationToken);
     }
 
-    public Task<int> CountPendingAsync(CancellationToken cancellationToken = default)
+    public Task<int> CountPendingAsync(string sourceService, CancellationToken cancellationToken = default)
     {
+        var normalizedSourceService = NormalizeSourceService(sourceService);
         return dbContext.IntegrationOutboxMessages
             .AsNoTracking()
-            .CountAsync(message => message.DispatchedAtUtc == null, cancellationToken);
+            .CountAsync(
+                message =>
+                    message.SourceService == normalizedSourceService
+                    && message.DispatchedAtUtc == null,
+                cancellationToken);
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static string NormalizeSourceService(string sourceService)
+    {
+        if (string.IsNullOrWhiteSpace(sourceService))
+        {
+            throw new InvalidOperationException("Outbox source service is required.");
+        }
+
+        return sourceService.Trim();
     }
 }

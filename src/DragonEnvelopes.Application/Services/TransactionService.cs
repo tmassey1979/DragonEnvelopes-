@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Text.Json;
+using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Domain;
@@ -11,8 +14,12 @@ public sealed class TransactionService(
     IEnvelopeRepository envelopeRepository,
     ICategorizationRuleEngine categorizationRuleEngine,
     IIncomeAllocationEngine incomeAllocationEngine,
-    ISpendAnomalyService? spendAnomalyService = null) : ITransactionService
+    ISpendAnomalyService? spendAnomalyService = null,
+    IIntegrationOutboxRepository? integrationOutboxRepository = null) : ITransactionService
 {
+    private const string OutboxSchemaVersion = "1.0";
+    private const string LedgerSourceService = "ledger-api";
+
     public async Task<TransactionDetails> CreateAsync(
         Guid accountId,
         decimal amount,
@@ -162,6 +169,28 @@ public sealed class TransactionService(
         }
 
         await transactionRepository.AddTransactionAsync(transaction, splitEntries, cancellationToken);
+        if (integrationOutboxRepository is not null)
+        {
+            var createdEvent = new LedgerTransactionCreatedIntegrationEvent(
+                Guid.NewGuid(),
+                DateTimeOffset.UtcNow,
+                familyId.Value,
+                transaction.Id,
+                transaction.AccountId,
+                transaction.Amount.Amount,
+                transaction.Description,
+                transaction.Merchant,
+                transaction.Category,
+                transaction.EnvelopeId,
+                splitEntries.Count > 0);
+            await EnqueueLedgerOutboxAsync(
+                familyId.Value,
+                IntegrationEventRoutingKeys.LedgerTransactionCreatedV1,
+                LedgerIntegrationEventNames.TransactionCreated,
+                createdEvent,
+                cancellationToken);
+        }
+        await transactionRepository.SaveChangesAsync(cancellationToken);
 
         if (spendAnomalyService is not null && amount < 0m)
         {
@@ -213,6 +242,11 @@ public sealed class TransactionService(
         {
             throw new DomainValidationException("Transaction was not found.");
         }
+        var familyId = await transactionRepository.GetAccountFamilyIdAsync(transaction.AccountId, cancellationToken);
+        if (!familyId.HasValue)
+        {
+            throw new DomainValidationException("Account was not found.");
+        }
 
         if (transaction.DeletedAtUtc.HasValue)
         {
@@ -224,6 +258,7 @@ public sealed class TransactionService(
             throw new DomainValidationException("Transfer transactions cannot be edited.");
         }
 
+        var existingSplitsForEvent = await transactionRepository.ListTransactionSplitsByTransactionIdAsync(transactionId, cancellationToken);
         if (replaceAllocation)
         {
             if (envelopeId.HasValue && splits is { Count: > 0 })
@@ -267,6 +302,32 @@ public sealed class TransactionService(
         }
 
         transaction.UpdateMetadata(description, merchant, category);
+        if (integrationOutboxRepository is not null)
+        {
+            var hasSplits = replaceAllocation
+                ? splits is { Count: > 0 }
+                : existingSplitsForEvent.Count > 0;
+            var updatedEvent = new TransactionUpdatedIntegrationEvent(
+                Guid.NewGuid(),
+                DateTimeOffset.UtcNow,
+                familyId.Value,
+                ResolveCorrelationId(),
+                transaction.Id,
+                transaction.AccountId,
+                transaction.Amount.Amount,
+                transaction.Description,
+                transaction.Merchant,
+                transaction.Category,
+                transaction.EnvelopeId,
+                hasSplits,
+                replaceAllocation);
+            await EnqueueLedgerOutboxAsync(
+                familyId.Value,
+                IntegrationEventRoutingKeys.LedgerTransactionUpdatedV1,
+                LedgerIntegrationEventNames.TransactionUpdated,
+                updatedEvent,
+                cancellationToken);
+        }
         await transactionRepository.SaveChangesAsync(cancellationToken);
 
         var refreshedSplits = await transactionRepository.ListTransactionSplitsAsync([transactionId], cancellationToken);
@@ -282,6 +343,11 @@ public sealed class TransactionService(
         if (transaction is null)
         {
             throw new DomainValidationException("Transaction was not found.");
+        }
+        var familyId = await transactionRepository.GetAccountFamilyIdAsync(transaction.AccountId, cancellationToken);
+        if (!familyId.HasValue)
+        {
+            throw new DomainValidationException("Account was not found.");
         }
 
         if (transaction.IsTransfer)
@@ -316,6 +382,24 @@ public sealed class TransactionService(
         }
 
         transaction.SoftDelete(DateTimeOffset.UtcNow, deletedByUserId);
+        if (integrationOutboxRepository is not null)
+        {
+            var deletedEvent = new TransactionDeletedIntegrationEvent(
+                Guid.NewGuid(),
+                DateTimeOffset.UtcNow,
+                familyId.Value,
+                ResolveCorrelationId(),
+                transaction.Id,
+                transaction.AccountId,
+                transaction.Amount.Amount,
+                deletedByUserId);
+            await EnqueueLedgerOutboxAsync(
+                familyId.Value,
+                IntegrationEventRoutingKeys.LedgerTransactionDeletedV1,
+                LedgerIntegrationEventNames.TransactionDeleted,
+                deletedEvent,
+                cancellationToken);
+        }
         await transactionRepository.SaveChangesAsync(cancellationToken);
     }
 
@@ -327,6 +411,11 @@ public sealed class TransactionService(
         if (transaction is null)
         {
             throw new DomainValidationException("Transaction was not found.");
+        }
+        var familyId = await transactionRepository.GetAccountFamilyIdAsync(transaction.AccountId, cancellationToken);
+        if (!familyId.HasValue)
+        {
+            throw new DomainValidationException("Account was not found.");
         }
 
         if (!transaction.DeletedAtUtc.HasValue)
@@ -366,6 +455,23 @@ public sealed class TransactionService(
         }
 
         transaction.Restore();
+        if (integrationOutboxRepository is not null)
+        {
+            var restoredEvent = new TransactionRestoredIntegrationEvent(
+                Guid.NewGuid(),
+                DateTimeOffset.UtcNow,
+                familyId.Value,
+                ResolveCorrelationId(),
+                transaction.Id,
+                transaction.AccountId,
+                transaction.Amount.Amount);
+            await EnqueueLedgerOutboxAsync(
+                familyId.Value,
+                IntegrationEventRoutingKeys.LedgerTransactionRestoredV1,
+                LedgerIntegrationEventNames.TransactionRestored,
+                restoredEvent,
+                cancellationToken);
+        }
         await transactionRepository.SaveChangesAsync(cancellationToken);
 
         var refreshedSplits = await transactionRepository.ListTransactionSplitsByTransactionIdAsync(transactionId, cancellationToken);
@@ -482,6 +588,108 @@ public sealed class TransactionService(
         {
             envelope.Spend(absoluteAmount, occurredAt);
         }
+    }
+
+    private async Task EnqueueLedgerOutboxAsync<TPayload>(
+        Guid familyId,
+        string routingKey,
+        string eventName,
+        TPayload payload,
+        CancellationToken cancellationToken)
+    {
+        if (integrationOutboxRepository is null)
+        {
+            return;
+        }
+
+        var outboxMessage = new IntegrationOutboxMessage(
+            Guid.NewGuid(),
+            familyId,
+            ResolveEventId(payload),
+            routingKey,
+            eventName,
+            OutboxSchemaVersion,
+            LedgerSourceService,
+            ResolveCorrelationId(payload),
+            causationId: null,
+            JsonSerializer.Serialize(payload),
+            ResolveOccurredAtUtc(payload),
+            DateTimeOffset.UtcNow);
+        await integrationOutboxRepository.AddAsync(outboxMessage, cancellationToken);
+    }
+
+    private static string ResolveCorrelationId<TPayload>(TPayload payload)
+    {
+        if (TryGetStringProperty(payload, "CorrelationId", out var correlationId))
+        {
+            return correlationId;
+        }
+
+        return ResolveCorrelationId();
+    }
+
+    private static string ResolveCorrelationId()
+    {
+        return Activity.Current?.Id ?? Guid.NewGuid().ToString("D");
+    }
+
+    private static string ResolveEventId<TPayload>(TPayload payload)
+    {
+        if (TryGetGuidProperty(payload, "EventId", out var eventId))
+        {
+            return eventId.ToString("D");
+        }
+
+        return Guid.NewGuid().ToString("D");
+    }
+
+    private static DateTimeOffset ResolveOccurredAtUtc<TPayload>(TPayload payload)
+    {
+        if (TryGetDateTimeOffsetProperty(payload, "OccurredAtUtc", out var occurredAtUtc))
+        {
+            return occurredAtUtc;
+        }
+
+        return DateTimeOffset.UtcNow;
+    }
+
+    private static bool TryGetStringProperty<TPayload>(TPayload payload, string propertyName, out string value)
+    {
+        value = string.Empty;
+        var property = payload?.GetType().GetProperty(propertyName);
+        if (property?.GetValue(payload) is not string stringValue || string.IsNullOrWhiteSpace(stringValue))
+        {
+            return false;
+        }
+
+        value = stringValue.Trim();
+        return true;
+    }
+
+    private static bool TryGetGuidProperty<TPayload>(TPayload payload, string propertyName, out Guid value)
+    {
+        value = Guid.Empty;
+        var property = payload?.GetType().GetProperty(propertyName);
+        if (property?.GetValue(payload) is not Guid guidValue || guidValue == Guid.Empty)
+        {
+            return false;
+        }
+
+        value = guidValue;
+        return true;
+    }
+
+    private static bool TryGetDateTimeOffsetProperty<TPayload>(TPayload payload, string propertyName, out DateTimeOffset value)
+    {
+        value = default;
+        var property = payload?.GetType().GetProperty(propertyName);
+        if (property?.GetValue(payload) is not DateTimeOffset dateTimeOffsetValue || dateTimeOffsetValue == default)
+        {
+            return false;
+        }
+
+        value = dateTimeOffsetValue;
+        return true;
     }
 
     private static TransactionDetails Map(

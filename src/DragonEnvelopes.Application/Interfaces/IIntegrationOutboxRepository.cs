@@ -9,9 +9,10 @@ public interface IIntegrationOutboxRepository
     Task<IReadOnlyList<IntegrationOutboxMessage>> ListDispatchableAsync(
         DateTimeOffset nowUtc,
         int take,
+        string sourceService,
         CancellationToken cancellationToken = default);
 
-    Task<int> CountPendingAsync(CancellationToken cancellationToken = default);
+    Task<int> CountPendingAsync(string sourceService, CancellationToken cancellationToken = default);
 
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

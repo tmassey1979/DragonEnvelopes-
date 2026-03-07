@@ -1,21 +1,21 @@
 using DragonEnvelopes.Application.Services;
 using Microsoft.Extensions.Options;
 
-namespace DragonEnvelopes.Family.Api.Services;
+namespace DragonEnvelopes.Ledger.Api.Services;
 
-public sealed class FamilyOutboxDispatchWorker(
+public sealed class LedgerOutboxDispatchWorker(
     IServiceScopeFactory scopeFactory,
-    IOptions<FamilyOutboxDispatchWorkerOptions> optionsAccessor,
-    ILogger<FamilyOutboxDispatchWorker> logger) : BackgroundService
+    IOptions<LedgerOutboxDispatchWorkerOptions> optionsAccessor,
+    ILogger<LedgerOutboxDispatchWorker> logger) : BackgroundService
 {
-    private const string FamilySourceService = "family-api";
-    private readonly FamilyOutboxDispatchWorkerOptions _options = optionsAccessor.Value;
+    private const string LedgerSourceService = "ledger-api";
+    private readonly LedgerOutboxDispatchWorkerOptions _options = optionsAccessor.Value;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!_options.Enabled)
         {
-            logger.LogInformation("Family outbox dispatch worker is disabled by configuration.");
+            logger.LogInformation("Ledger outbox dispatch worker is disabled by configuration.");
             return;
         }
 
@@ -25,16 +25,15 @@ public sealed class FamilyOutboxDispatchWorker(
             {
                 using var scope = scopeFactory.CreateScope();
                 var dispatchService = scope.ServiceProvider.GetRequiredService<IIntegrationOutboxDispatchService>();
-
                 var result = await dispatchService.DispatchPendingAsync(
-                    FamilySourceService,
+                    LedgerSourceService,
                     Math.Clamp(_options.BatchSize, 1, 500),
                     stoppingToken);
 
                 if (result.LoadedCount > 0 || result.PendingCount > 0)
                 {
                     logger.LogInformation(
-                        "Family outbox dispatch cycle completed. Loaded={Loaded}, Published={Published}, Failed={Failed}, Pending={Pending}",
+                        "Ledger outbox dispatch cycle completed. Loaded={Loaded}, Published={Published}, Failed={Failed}, Pending={Pending}",
                         result.LoadedCount,
                         result.PublishedCount,
                         result.FailedCount,
@@ -44,7 +43,7 @@ public sealed class FamilyOutboxDispatchWorker(
                 if (result.PendingCount >= Math.Max(1, _options.BacklogWarningThreshold))
                 {
                     logger.LogWarning(
-                        "Family outbox backlog threshold exceeded. Pending={Pending}, Threshold={Threshold}",
+                        "Ledger outbox backlog threshold exceeded. Pending={Pending}, Threshold={Threshold}",
                         result.PendingCount,
                         _options.BacklogWarningThreshold);
                 }
@@ -55,7 +54,7 @@ public sealed class FamilyOutboxDispatchWorker(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Family outbox dispatch worker loop failed.");
+                logger.LogError(ex, "Ledger outbox dispatch worker loop failed.");
             }
 
             try

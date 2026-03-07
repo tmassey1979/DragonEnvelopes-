@@ -11,6 +11,8 @@ namespace DragonEnvelopes.Family.Api.IntegrationTests;
 
 public sealed class FamilyOutboxIntegrationTests
 {
+    private const string SourceService = "family-api";
+
     [Fact]
     public async Task Family_Create_Persists_Family_And_Outbox_Message()
     {
@@ -51,7 +53,7 @@ public sealed class FamilyOutboxIntegrationTests
             IntegrationEventRoutingKeys.FamilyMemberAddedV1,
             FamilyIntegrationEventNames.FamilyMemberAdded,
             "1.0",
-            "family-api",
+            SourceService,
             Guid.NewGuid().ToString("D"),
             causationId: null,
             "{\"memberId\":\"test\"}",
@@ -67,13 +69,13 @@ public sealed class FamilyOutboxIntegrationTests
             clock,
             NullLogger<IntegrationOutboxDispatchService>.Instance);
 
-        var firstResult = await dispatchService.DispatchPendingAsync(20);
+        var firstResult = await dispatchService.DispatchPendingAsync(SourceService, 20);
         Assert.Equal(1, firstResult.LoadedCount);
         Assert.Equal(0, firstResult.PublishedCount);
         Assert.Equal(1, firstResult.FailedCount);
 
         clock.Advance(TimeSpan.FromSeconds(6));
-        var secondResult = await dispatchService.DispatchPendingAsync(20);
+        var secondResult = await dispatchService.DispatchPendingAsync(SourceService, 20);
         Assert.Equal(1, secondResult.LoadedCount);
         Assert.Equal(1, secondResult.PublishedCount);
         Assert.Equal(0, secondResult.FailedCount);

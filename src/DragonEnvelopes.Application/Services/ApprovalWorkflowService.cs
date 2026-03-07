@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Text.Json;
+using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Domain;
@@ -10,9 +13,12 @@ public sealed class ApprovalWorkflowService(
     IApprovalRequestRepository approvalRequestRepository,
     ITransactionRepository transactionRepository,
     ITransactionService transactionService,
-    IClock clock) : IApprovalWorkflowService
+    IClock clock,
+    IIntegrationOutboxRepository? integrationOutboxRepository = null) : IApprovalWorkflowService
 {
     private static readonly string[] AllowedRoles = ["Parent", "Adult", "Teen", "Child"];
+    private const string OutboxSchemaVersion = "1.0";
+    private const string LedgerSourceService = "ledger-api";
 
     public async Task<ApprovalPolicyDetails?> GetPolicyAsync(
         Guid familyId,
@@ -111,6 +117,22 @@ public sealed class ApprovalWorkflowService(
                 approvalRequest.RequestNotes,
                 now),
             cancellationToken);
+        await EnqueueOutboxAsync(
+            approvalRequest.FamilyId,
+            IntegrationEventRoutingKeys.LedgerApprovalRequestCreatedV1,
+            LedgerIntegrationEventNames.ApprovalRequestCreated,
+            new ApprovalRequestCreatedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                approvalRequest.FamilyId,
+                ResolveCorrelationId(),
+                approvalRequest.Id,
+                approvalRequest.AccountId,
+                approvalRequest.Status.ToString(),
+                approvalRequest.Amount,
+                approvalRequest.RequestedByUserId,
+                approvalRequest.RequestedByRole),
+            cancellationToken);
         await approvalRequestRepository.SaveChangesAsync(cancellationToken);
         return Map(approvalRequest);
     }
@@ -158,6 +180,22 @@ public sealed class ApprovalWorkflowService(
                 approvalRequest.Status,
                 notes,
                 now),
+            cancellationToken);
+        await EnqueueOutboxAsync(
+            approvalRequest.FamilyId,
+            IntegrationEventRoutingKeys.LedgerApprovalRequestCreatedV1,
+            LedgerIntegrationEventNames.ApprovalRequestCreated,
+            new ApprovalRequestCreatedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                approvalRequest.FamilyId,
+                ResolveCorrelationId(),
+                approvalRequest.Id,
+                approvalRequest.AccountId,
+                approvalRequest.Status.ToString(),
+                approvalRequest.Amount,
+                approvalRequest.RequestedByUserId,
+                approvalRequest.RequestedByRole),
             cancellationToken);
         await approvalRequestRepository.SaveChangesAsync(cancellationToken);
         return Map(approvalRequest);
@@ -222,6 +260,21 @@ public sealed class ApprovalWorkflowService(
                 notes,
                 now),
             cancellationToken);
+        await EnqueueOutboxAsync(
+            request.FamilyId,
+            IntegrationEventRoutingKeys.LedgerApprovalRequestApprovedV1,
+            LedgerIntegrationEventNames.ApprovalRequestApproved,
+            new ApprovalRequestApprovedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                request.FamilyId,
+                ResolveCorrelationId(),
+                request.Id,
+                request.AccountId,
+                transaction.Id,
+                normalizedResolverUserId,
+                normalizedResolverRole),
+            cancellationToken);
         await approvalRequestRepository.SaveChangesAsync(cancellationToken);
         return Map(request);
     }
@@ -254,6 +307,20 @@ public sealed class ApprovalWorkflowService(
                 request.Status,
                 notes,
                 now),
+            cancellationToken);
+        await EnqueueOutboxAsync(
+            request.FamilyId,
+            IntegrationEventRoutingKeys.LedgerApprovalRequestDeniedV1,
+            LedgerIntegrationEventNames.ApprovalRequestDenied,
+            new ApprovalRequestDeniedIntegrationEvent(
+                Guid.NewGuid(),
+                now,
+                request.FamilyId,
+                ResolveCorrelationId(),
+                request.Id,
+                request.AccountId,
+                normalizedResolverUserId,
+                normalizedResolverRole),
             cancellationToken);
         await approvalRequestRepository.SaveChangesAsync(cancellationToken);
         return Map(request);
@@ -429,5 +496,107 @@ public sealed class ApprovalWorkflowService(
             status.ToString(),
             notes,
             occurredAtUtc);
+    }
+
+    private async Task EnqueueOutboxAsync<TPayload>(
+        Guid familyId,
+        string routingKey,
+        string eventName,
+        TPayload payload,
+        CancellationToken cancellationToken)
+    {
+        if (integrationOutboxRepository is null)
+        {
+            return;
+        }
+
+        var outboxMessage = new IntegrationOutboxMessage(
+            Guid.NewGuid(),
+            familyId,
+            ResolveEventId(payload),
+            routingKey,
+            eventName,
+            OutboxSchemaVersion,
+            LedgerSourceService,
+            ResolveCorrelationId(payload),
+            causationId: null,
+            JsonSerializer.Serialize(payload),
+            ResolveOccurredAtUtc(payload),
+            clock.UtcNow);
+        await integrationOutboxRepository.AddAsync(outboxMessage, cancellationToken);
+    }
+
+    private static string ResolveCorrelationId<TPayload>(TPayload payload)
+    {
+        if (TryGetStringProperty(payload, "CorrelationId", out var correlationId))
+        {
+            return correlationId;
+        }
+
+        return ResolveCorrelationId();
+    }
+
+    private static string ResolveCorrelationId()
+    {
+        return Activity.Current?.Id ?? Guid.NewGuid().ToString("D");
+    }
+
+    private static string ResolveEventId<TPayload>(TPayload payload)
+    {
+        if (TryGetGuidProperty(payload, "EventId", out var eventId))
+        {
+            return eventId.ToString("D");
+        }
+
+        return Guid.NewGuid().ToString("D");
+    }
+
+    private static DateTimeOffset ResolveOccurredAtUtc<TPayload>(TPayload payload)
+    {
+        if (TryGetDateTimeOffsetProperty(payload, "OccurredAtUtc", out var occurredAtUtc))
+        {
+            return occurredAtUtc;
+        }
+
+        return DateTimeOffset.UtcNow;
+    }
+
+    private static bool TryGetStringProperty<TPayload>(TPayload payload, string propertyName, out string value)
+    {
+        value = string.Empty;
+        var property = payload?.GetType().GetProperty(propertyName);
+        if (property?.GetValue(payload) is not string stringValue || string.IsNullOrWhiteSpace(stringValue))
+        {
+            return false;
+        }
+
+        value = stringValue.Trim();
+        return true;
+    }
+
+    private static bool TryGetGuidProperty<TPayload>(TPayload payload, string propertyName, out Guid value)
+    {
+        value = Guid.Empty;
+        var property = payload?.GetType().GetProperty(propertyName);
+        if (property?.GetValue(payload) is not Guid guidValue || guidValue == Guid.Empty)
+        {
+            return false;
+        }
+
+        value = guidValue;
+        return true;
+    }
+
+    private static bool TryGetDateTimeOffsetProperty<TPayload>(TPayload payload, string propertyName, out DateTimeOffset value)
+    {
+        value = default;
+        var property = payload?.GetType().GetProperty(propertyName);
+        if (property?.GetValue(payload) is not DateTimeOffset dateTimeOffsetValue || dateTimeOffsetValue == default)
+        {
+            return false;
+        }
+
+        value = dateTimeOffsetValue;
+        return true;
     }
 }

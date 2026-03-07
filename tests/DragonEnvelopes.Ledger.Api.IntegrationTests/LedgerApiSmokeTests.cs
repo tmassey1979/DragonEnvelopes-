@@ -327,6 +327,111 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
     }
 
     [Fact]
+    public async Task Authenticated_User_Create_Transaction_Emits_Ledger_Outbox_Message()
+    {
+        var userId = "ledger-outbox-user-a";
+        var ownFamilyId = Guid.Parse("e1261000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e1261000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAndAccountAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        Guid ownAccountId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            ownAccountId = await dbContext.Accounts
+                .Where(account => account.FamilyId == ownFamilyId)
+                .Select(account => account.Id)
+                .FirstAsync();
+        }
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/v1/transactions",
+            new CreateTransactionRequest(
+                ownAccountId,
+                -23.45m,
+                "Outbox coffee",
+                "Dragon Cafe",
+                DateTimeOffset.UtcNow,
+                "Food",
+                EnvelopeId: null,
+                Splits: null));
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDbContext = verifyScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var outboxMessages = await verifyDbContext.IntegrationOutboxMessages
+            .AsNoTracking()
+            .Where(message => message.FamilyId == ownFamilyId && message.SourceService == "ledger-api")
+            .OrderByDescending(message => message.CreatedAtUtc)
+            .Take(10)
+            .ToArrayAsync();
+
+        Assert.Contains(outboxMessages, message => message.EventName == "TransactionCreated");
+        Assert.Contains(outboxMessages, message => message.RoutingKey == "ledger.transaction.created.v1");
+    }
+
+    [Fact]
+    public async Task Approval_Workflow_Emits_Ledger_Outbox_Events()
+    {
+        var childUserId = "ledger-outbox-child-a";
+        var parentUserId = "ledger-outbox-parent-a";
+        var ownFamilyId = Guid.Parse("e1262000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e1262000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        var ownAccountId = await SeedFamilyMembershipAndApprovalWorkflowAsync(
+            childUserId,
+            parentUserId,
+            ownFamilyId,
+            otherFamilyId);
+
+        client.DefaultRequestHeaders.Remove("X-Test-User");
+        client.DefaultRequestHeaders.Remove("X-Test-Role");
+        client.DefaultRequestHeaders.Add("X-Test-User", childUserId);
+        client.DefaultRequestHeaders.Add("X-Test-Role", "Child");
+
+        var blockedResponse = await client.PostAsJsonAsync(
+            "/api/v1/transactions",
+            new CreateTransactionRequest(
+                ownAccountId,
+                -150m,
+                "Outbox approval purchase",
+                "Dragon Electronics",
+                DateTimeOffset.UtcNow,
+                "Shopping",
+                EnvelopeId: null,
+                Splits: null));
+        var blockedPayload = await blockedResponse.Content.ReadFromJsonAsync<ApprovalRequestResponse>();
+        Assert.Equal(HttpStatusCode.Accepted, blockedResponse.StatusCode);
+        Assert.NotNull(blockedPayload);
+
+        client.DefaultRequestHeaders.Remove("X-Test-User");
+        client.DefaultRequestHeaders.Remove("X-Test-Role");
+        client.DefaultRequestHeaders.Add("X-Test-User", parentUserId);
+        client.DefaultRequestHeaders.Add("X-Test-Role", "Parent");
+
+        var approveResponse = await client.PostAsJsonAsync(
+            $"/api/v1/approvals/requests/{blockedPayload!.Id}/approve",
+            new ResolveApprovalRequestRequest("approved for outbox test"));
+        Assert.Equal(HttpStatusCode.OK, approveResponse.StatusCode);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDbContext = verifyScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var outboxMessages = await verifyDbContext.IntegrationOutboxMessages
+            .AsNoTracking()
+            .Where(message => message.FamilyId == ownFamilyId && message.SourceService == "ledger-api")
+            .Select(message => message.EventName)
+            .ToArrayAsync();
+
+        Assert.Contains("ApprovalRequestCreated", outboxMessages);
+        Assert.Contains("ApprovalRequestApproved", outboxMessages);
+        Assert.Contains("TransactionCreated", outboxMessages);
+    }
+
+    [Fact]
     public async Task Authenticated_User_Can_SoftDelete_Own_Family_Transaction()
     {
         var userId = "ledger-user-a";

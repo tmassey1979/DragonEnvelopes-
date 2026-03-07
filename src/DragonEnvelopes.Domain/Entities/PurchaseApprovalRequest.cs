@@ -59,9 +59,9 @@ public sealed class PurchaseApprovalRequest
             throw new DomainValidationException("Approval request amount cannot be zero.");
         }
 
-        if (status is not PurchaseApprovalRequestStatus.Pending and not PurchaseApprovalRequestStatus.Blocked)
+        if (!Enum.IsDefined(status))
         {
-            throw new DomainValidationException("New approval requests must start in Pending or Blocked status.");
+            throw new DomainValidationException("Approval request status is invalid.");
         }
 
         Id = id;

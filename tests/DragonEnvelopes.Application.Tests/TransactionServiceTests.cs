@@ -14,6 +14,7 @@ public class TransactionServiceTests
     public async Task CreateAsync_ReturnsCreatedTransaction()
     {
         var repository = new Mock<ITransactionRepository>();
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -48,6 +49,7 @@ public class TransactionServiceTests
     public async Task CreateAsync_ThrowsWhenAccountMissing()
     {
         var repository = new Mock<ITransactionRepository>();
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -73,6 +75,7 @@ public class TransactionServiceTests
     public async Task CreateAsync_WithSplits_PersistsSplitEntries()
     {
         var repository = new Mock<ITransactionRepository>();
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -115,6 +118,7 @@ public class TransactionServiceTests
     public async Task ListAsync_MapsTransactions()
     {
         var repository = new Mock<ITransactionRepository>();
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -146,6 +150,7 @@ public class TransactionServiceTests
     public async Task CreateAsync_WithNegativeAmountAndEnvelope_SpendsEnvelope()
     {
         var transactionRepository = new Mock<ITransactionRepository>();
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -187,6 +192,7 @@ public class TransactionServiceTests
     public async Task CreateAsync_WithPositiveAmountAndEnvelope_AllocatesEnvelope()
     {
         var transactionRepository = new Mock<ITransactionRepository>();
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -228,6 +234,7 @@ public class TransactionServiceTests
     public async Task CreateAsync_WhenCategoryMissing_AppliesCategorizationRule()
     {
         var transactionRepository = new Mock<ITransactionRepository>();
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -269,6 +276,7 @@ public class TransactionServiceTests
     public async Task CreateAsync_WhenCategoryProvided_SkipsCategorizationRule()
     {
         var transactionRepository = new Mock<ITransactionRepository>();
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -309,6 +317,7 @@ public class TransactionServiceTests
     public async Task CreateAsync_WithPositiveAmount_UsesAutomaticAllocationSplits()
     {
         var transactionRepository = new Mock<ITransactionRepository>();
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -365,6 +374,7 @@ public class TransactionServiceTests
     public async Task CreateAsync_WithManualSplits_SkipsAutomaticAllocationEngine()
     {
         var transactionRepository = new Mock<ITransactionRepository>();
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -414,6 +424,7 @@ public class TransactionServiceTests
     public async Task DeleteAsync_WithSingleEnvelope_ReversesEnvelopeAndSoftDeletesTransaction()
     {
         var transactionRepository = new Mock<ITransactionRepository>();
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -438,6 +449,8 @@ public class TransactionServiceTests
 
         transactionRepository.Setup(x => x.GetTransactionByIdForUpdateAsync(transactionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(transaction);
+        transactionRepository.Setup(x => x.GetAccountFamilyIdAsync(transaction.AccountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Guid.NewGuid());
         transactionRepository.Setup(x => x.ListTransactionSplitsByTransactionIdAsync(transactionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(envelopeId, It.IsAny<CancellationToken>()))
@@ -459,6 +472,7 @@ public class TransactionServiceTests
     public async Task DeleteAsync_WithSplits_ReversesEachSplitEnvelopeAndSoftDeletesTransaction()
     {
         var transactionRepository = new Mock<ITransactionRepository>();
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -494,6 +508,8 @@ public class TransactionServiceTests
 
         transactionRepository.Setup(x => x.GetTransactionByIdForUpdateAsync(transactionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(transaction);
+        transactionRepository.Setup(x => x.GetAccountFamilyIdAsync(transaction.AccountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Guid.NewGuid());
         transactionRepository.Setup(x => x.ListTransactionSplitsByTransactionIdAsync(transactionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(splits);
         envelopeRepository.Setup(x => x.GetByIdForUpdateAsync(envelopeAId, It.IsAny<CancellationToken>()))
@@ -517,6 +533,7 @@ public class TransactionServiceTests
     public async Task DeleteAsync_WhenTransactionMissing_Throws()
     {
         var transactionRepository = new Mock<ITransactionRepository>();
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -534,6 +551,7 @@ public class TransactionServiceTests
     public async Task RestoreAsync_WithSingleEnvelope_ReappliesEnvelopeAndClearsDeleteMarker()
     {
         var transactionRepository = new Mock<ITransactionRepository>();
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -559,6 +577,8 @@ public class TransactionServiceTests
 
         transactionRepository.Setup(x => x.GetTransactionByIdForUpdateAsync(transactionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(transaction);
+        transactionRepository.Setup(x => x.GetAccountFamilyIdAsync(transaction.AccountId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Guid.NewGuid());
         transactionRepository.Setup(x => x.ListTransactionSplitsByTransactionIdAsync(transactionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         transactionRepository.Setup(x => x.ListTransactionSplitsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
@@ -581,6 +601,7 @@ public class TransactionServiceTests
     public async Task ListDeletedAsync_ClampsDaysWindow_AndMapsDeletedMetadata()
     {
         var transactionRepository = new Mock<ITransactionRepository>();
+        transactionRepository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var envelopeRepository = new Mock<IEnvelopeRepository>();
         var categorizationEngine = new Mock<ICategorizationRuleEngine>();
         var incomeAllocationEngine = new Mock<IIncomeAllocationEngine>();
@@ -618,3 +639,5 @@ public class TransactionServiceTests
         Assert.Equal("user-a", deleted[0].DeletedByUserId);
     }
 }
+
+

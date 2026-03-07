@@ -7,7 +7,7 @@ namespace DragonEnvelopes.Infrastructure.Repositories;
 
 public sealed class TransactionRepository(DragonEnvelopesDbContext dbContext) : ITransactionRepository
 {
-    public async Task AddTransactionAsync(
+    public Task AddTransactionAsync(
         Transaction transaction,
         IReadOnlyList<TransactionSplitEntry> splitEntries,
         CancellationToken cancellationToken = default)
@@ -18,7 +18,7 @@ public sealed class TransactionRepository(DragonEnvelopesDbContext dbContext) : 
             dbContext.TransactionSplits.AddRange(splitEntries);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public Task<bool> AccountExistsAsync(Guid accountId, CancellationToken cancellationToken = default)

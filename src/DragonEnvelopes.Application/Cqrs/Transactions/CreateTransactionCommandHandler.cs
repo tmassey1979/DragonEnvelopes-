@@ -1,4 +1,3 @@
-using DragonEnvelopes.Application.Cqrs.Messaging;
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Application.Services;
@@ -8,8 +7,7 @@ namespace DragonEnvelopes.Application.Cqrs.Transactions;
 
 public sealed class CreateTransactionCommandHandler(
     ITransactionService transactionService,
-    ITransactionRepository transactionRepository,
-    IIntegrationEventPublisher integrationEventPublisher) : ICommandHandler<CreateTransactionCommand, TransactionDetails>
+    ITransactionRepository transactionRepository) : ICommandHandler<CreateTransactionCommand, TransactionDetails>
 {
     public async Task<TransactionDetails> HandleAsync(
         CreateTransactionCommand command,
@@ -31,24 +29,6 @@ public sealed class CreateTransactionCommandHandler(
             command.EnvelopeId,
             command.HasSplits,
             command.Splits,
-            cancellationToken);
-
-        var integrationEvent = new LedgerTransactionCreatedIntegrationEvent(
-            EventId: Guid.NewGuid(),
-            OccurredAtUtc: DateTimeOffset.UtcNow,
-            FamilyId: familyId.Value,
-            TransactionId: transaction.Id,
-            AccountId: transaction.AccountId,
-            Amount: transaction.Amount,
-            Description: transaction.Description,
-            Merchant: transaction.Merchant,
-            Category: transaction.Category,
-            EnvelopeId: transaction.EnvelopeId,
-            IsSplit: transaction.Splits.Count > 0);
-
-        await integrationEventPublisher.PublishAsync(
-            IntegrationEventRoutingKeys.LedgerTransactionCreatedV1,
-            integrationEvent,
             cancellationToken);
 
         return transaction;

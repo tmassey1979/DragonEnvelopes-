@@ -8,6 +8,12 @@ public static class IntegrationEventRoutingKeys
     public const string FamilyInviteAcceptedV1 = "family.invite.accepted.v1";
 
     public const string LedgerTransactionCreatedV1 = "ledger.transaction.created.v1";
+    public const string LedgerTransactionUpdatedV1 = "ledger.transaction.updated.v1";
+    public const string LedgerTransactionDeletedV1 = "ledger.transaction.deleted.v1";
+    public const string LedgerTransactionRestoredV1 = "ledger.transaction.restored.v1";
+    public const string LedgerApprovalRequestCreatedV1 = "ledger.approval-request.created.v1";
+    public const string LedgerApprovalRequestApprovedV1 = "ledger.approval-request.approved.v1";
+    public const string LedgerApprovalRequestDeniedV1 = "ledger.approval-request.denied.v1";
 }
 
 public sealed record LedgerTransactionCreatedIntegrationEvent(
