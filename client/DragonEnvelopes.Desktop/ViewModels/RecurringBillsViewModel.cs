@@ -7,7 +7,7 @@ using DragonEnvelopes.Desktop.Services;
 
 namespace DragonEnvelopes.Desktop.ViewModels;
 
-public sealed partial class RecurringBillsViewModel : ObservableObject
+public sealed partial class RecurringBillsViewModel : ObservableObject, IRoleAwareWorkspaceViewModel
 {
     private static readonly string[] Frequencies = ["Monthly", "Weekly", "BiWeekly"];
     private static readonly string[] ExecutionResults = ["All", "Posted", "Skipped", "Failed", "AlreadyProcessed"];
@@ -35,7 +35,7 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
         LoadProjectionCommand = new AsyncRelayCommand(LoadProjectionAsync);
         RefreshExecutionHistoryCommand = new AsyncRelayCommand(LoadExecutionHistoryAsync);
         ExportExecutionHistoryCommand = new AsyncRelayCommand(ExportExecutionHistoryAsync);
-        RunAutoPostNowCommand = new AsyncRelayCommand(RunAutoPostNowAsync);
+        RunAutoPostNowCommand = new AsyncRelayCommand(RunAutoPostNowAsync, () => CanRunAutoPostNow);
 
         _ = LoadCommand.ExecuteAsync(null);
     }
@@ -50,6 +50,7 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
     public IAsyncRelayCommand RunAutoPostNowCommand { get; }
     public IReadOnlyList<string> FrequencyOptions { get; } = Frequencies;
     public IReadOnlyList<string> ExecutionResultOptions { get; } = ExecutionResults;
+    public bool CanRunAutoPostNow => IsParentUser;
 
     [ObservableProperty]
     private ObservableCollection<RecurringBillItemViewModel> bills = [];
@@ -86,6 +87,9 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
 
     [ObservableProperty]
     private string autoPostRunSummary = "Manual auto-post has not been run in this session.";
+
+    [ObservableProperty]
+    private bool isParentUser;
 
     [ObservableProperty]
     private bool isLoading;
@@ -131,6 +135,21 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
 
     [ObservableProperty]
     private string saveActionLabel = "Create";
+
+    partial void OnIsParentUserChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanRunAutoPostNow));
+        RunAutoPostNowCommand.NotifyCanExecuteChanged();
+        if (!value)
+        {
+            AutoPostRunSummary = "Manual auto-post requires Parent role.";
+        }
+    }
+
+    public void ApplyRoleContext(bool isParentUser)
+    {
+        IsParentUser = isParentUser;
+    }
 
     partial void OnSelectedBillChanged(RecurringBillItemViewModel? value)
     {
@@ -437,6 +456,14 @@ public sealed partial class RecurringBillsViewModel : ObservableObject
 
     private async Task RunAutoPostNowAsync(CancellationToken cancellationToken)
     {
+        if (!CanRunAutoPostNow)
+        {
+            HasError = true;
+            ErrorMessage = "Parent role is required to run recurring auto-post.";
+            AutoPostRunSummary = "Manual auto-post requires Parent role.";
+            return;
+        }
+
         HasError = false;
         ErrorMessage = string.Empty;
 

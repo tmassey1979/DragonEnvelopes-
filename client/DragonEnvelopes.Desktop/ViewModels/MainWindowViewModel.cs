@@ -64,6 +64,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _navigationService.PropertyChanged += OnNavigationServiceChanged;
         _navigationService.Navigate("/dashboard");
         SyncFromNavigationService();
+        ApplyRoleGates();
         _ = RestoreSessionAsync();
     }
 
@@ -154,6 +155,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
             IsAuthenticated = false;
             AuthStatus = "Not signed in";
             _familyContext.SetFamilyId(null);
+            RoleSummary = "Role: unknown";
+            IsParentUser = false;
+            ApplyRoleGates();
             return;
         }
 
@@ -183,6 +187,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IsAuthenticated = false;
         AuthStatus = "Signed out";
         _familyContext.SetFamilyId(null);
+        RoleSummary = "Role: unknown";
+        IsParentUser = false;
+        ApplyRoleGates();
         AvailableFamilies.Clear();
         SelectedFamily = null;
         await _familySelectionStore.ClearAsync();
@@ -283,6 +290,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 SelectedFamily = null;
                 RoleSummary = "Role: unknown";
                 IsParentUser = false;
+                ApplyRoleGates();
                 return;
             }
 
@@ -293,7 +301,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                     .Where(static role => !string.IsNullOrWhiteSpace(role))
                     .ToArray()
                 : [];
-            IsParentUser = roles.Any(static role => string.Equals(role, "Parent", StringComparison.OrdinalIgnoreCase));
+            IsParentUser = roles.Any(IsParentRole);
             RoleSummary = roles.Length == 0
                 ? "Role: unknown"
                 : $"Roles: {string.Join(", ", roles)}";
@@ -454,6 +462,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             item.IsEnabled = string.IsNullOrWhiteSpace(item.RequiredRole)
                 || (string.Equals(item.RequiredRole, "Parent", StringComparison.OrdinalIgnoreCase) && IsParentUser);
+
+            if (item.Content is IRoleAwareWorkspaceViewModel roleAwareWorkspace)
+            {
+                roleAwareWorkspace.ApplyRoleContext(IsParentUser);
+            }
         }
 
         if (NavigationItems.FirstOrDefault(item => item.IsSelected) is { IsEnabled: false })
@@ -463,6 +476,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ApiStatus = "Access adjusted: parent role required for selected route.";
             _operationStatusCenter.ReportInfo(ApiStatus);
         }
+    }
+
+    private static bool IsParentRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role))
+        {
+            return false;
+        }
+
+        return string.Equals(role, "Parent", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(role, "Administrator", StringComparison.OrdinalIgnoreCase);
     }
 
     private void ClearOperationToasts()

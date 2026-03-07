@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#240 Role-aware command gating audit across desktop workspaces`.
+- Active task: `#236 Family member bulk import (CSV) with preview and validation`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#234` Family invite audit timeline (create/resend/cancel/redeem).
+- Previous completed task: `#240` Role-aware command gating audit across desktop workspaces.
 - Last updated: `2026-03-07`.

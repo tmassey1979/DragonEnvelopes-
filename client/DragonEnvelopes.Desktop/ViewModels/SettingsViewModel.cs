@@ -450,7 +450,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             new CapabilityMatrixItemViewModel("Family", "Family profile and budget preferences", "Available", "Settings profile and budget workflows are wired."),
             new CapabilityMatrixItemViewModel("Family", "Member add/list/update/remove", "Available", "Family workspace supports role update and member removal."),
             new CapabilityMatrixItemViewModel("Family", "Invites create/resend/cancel/redeem", "Available", "Family workspace + invite onboarding windows are wired."),
-            new CapabilityMatrixItemViewModel("Family", "Invite event timeline", "Not Wired", "Lifecycle timeline API/UI not implemented yet."),
+            new CapabilityMatrixItemViewModel("Family", "Invite event timeline", "Available", "Family workspace includes lifecycle timeline filters and event history."),
 
             new CapabilityMatrixItemViewModel("Ledger", "Accounts create/list", "Available", "Accounts workspace is fully wired."),
             new CapabilityMatrixItemViewModel("Ledger", "Transactions create/edit/delete/restore", "Available", "Transactions workspace supports active + deleted restore flows."),
@@ -465,7 +465,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             new CapabilityMatrixItemViewModel("Financial", "Webhook endpoint operations", "Partial", "Operational visibility is wired; direct webhook simulation UI is not."),
 
             new CapabilityMatrixItemViewModel("System", "Health/version/session diagnostics", "Available", "Settings includes health/version/session summaries."),
-            new CapabilityMatrixItemViewModel("System", "Per-route role command gating matrix", "Partial", "Parent-only route gating exists; full command audit pending.")
+            new CapabilityMatrixItemViewModel("System", "Per-route role command gating matrix", "Available", "Parent/Admin route and command gating is applied and documented in docs/qa/desktop-role-command-matrix.md.")
         ];
     }
 

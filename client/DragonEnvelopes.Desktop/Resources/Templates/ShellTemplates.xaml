@@ -1970,8 +1970,8 @@
                                     <Button Margin="0,10,0,0"
                                             Width="170"
                                             Content="Run Auto-Post Now"
-                                            IsEnabled="{Binding DataContext.IsParentUser, RelativeSource={RelativeSource AncestorType=Window}}"
-                                            ToolTip="Parent role required"
+                                            IsEnabled="{Binding CanRunAutoPostNow}"
+                                            ToolTip="Parent/Admin role required"
                                             Command="{Binding RunAutoPostNowCommand}" />
 
                                     <DataGrid Margin="0,10,0,0"
