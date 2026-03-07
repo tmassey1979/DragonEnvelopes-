@@ -21,5 +21,5 @@ Use this checklist at the start and end of every task.
 ## Session Run Log
 - Active task: `none` (awaiting next prioritized issue).
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#198` API modularization: split account/transaction/import endpoint mapping by domain.
+- Previous completed task: `#199` API startup SoC: extract Program.cs setup into bootstrap module.
 - Last updated: `2026-03-06`.
