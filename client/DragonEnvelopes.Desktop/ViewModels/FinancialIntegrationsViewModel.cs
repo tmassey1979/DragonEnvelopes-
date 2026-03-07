@@ -54,6 +54,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         ProviderHealthTraceId = "-";
         ProviderTimelineSummary = "No provider timeline events loaded.";
         NotificationRetrySummary = "No failed notification dispatch events loaded.";
+        StripeWebhookSimulationSummary = "No webhook simulation has been run.";
         ProviderSecretRewrapSummary = "Provider secret rewrap has not been run.";
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
@@ -63,6 +64,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         RefreshFailedNotificationEventsCommand = new AsyncRelayCommand(RefreshFailedNotificationEventsAsync);
         RetrySelectedFailedNotificationDispatchEventCommand = new AsyncRelayCommand(RetrySelectedFailedNotificationDispatchEventAsync);
         ReplaySelectedTimelineNotificationDispatchEventCommand = new AsyncRelayCommand(ReplaySelectedTimelineNotificationDispatchEventAsync);
+        SimulateStripeWebhookCommand = new AsyncRelayCommand(SimulateStripeWebhookAsync);
         RewrapProviderSecretsCommand = new AsyncRelayCommand(RewrapProviderSecretsAsync);
         SaveNotificationPreferenceCommand = new AsyncRelayCommand(SaveNotificationPreferenceAsync);
         CreatePlaidLinkTokenCommand = new AsyncRelayCommand(CreatePlaidLinkTokenAsync);
@@ -102,6 +104,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public IAsyncRelayCommand RefreshFailedNotificationEventsCommand { get; }
     public IAsyncRelayCommand RetrySelectedFailedNotificationDispatchEventCommand { get; }
     public IAsyncRelayCommand ReplaySelectedTimelineNotificationDispatchEventCommand { get; }
+    public IAsyncRelayCommand SimulateStripeWebhookCommand { get; }
     public IAsyncRelayCommand RewrapProviderSecretsCommand { get; }
     public IAsyncRelayCommand SaveNotificationPreferenceCommand { get; }
     public IAsyncRelayCommand CreatePlaidLinkTokenCommand { get; }
@@ -366,6 +369,15 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     private FailedNotificationDispatchEventItemViewModel? selectedFailedNotificationDispatchEvent;
 
     [ObservableProperty]
+    private string stripeWebhookSignature = string.Empty;
+
+    [ObservableProperty]
+    private string stripeWebhookPayload = string.Empty;
+
+    [ObservableProperty]
+    private string stripeWebhookSimulationSummary = string.Empty;
+
+    [ObservableProperty]
     private string providerSecretRewrapSummary = string.Empty;
 
     public bool HasEnvelopeSelection => SelectedEnvelope is not null;
@@ -612,6 +624,29 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             StatusMessage = replay.Status.Equals("Sent", StringComparison.OrdinalIgnoreCase)
                 ? "Timeline notification replay completed successfully."
                 : "Timeline notification replay completed with failure status.";
+        }, cancellationToken);
+    }
+
+    private async Task SimulateStripeWebhookAsync(CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(StripeWebhookPayload))
+        {
+            SetValidationError("Stripe webhook payload is required.");
+            return;
+        }
+
+        await RunOperationAsync("Processing Stripe webhook simulation...", async ct =>
+        {
+            var result = await _financialIntegrationDataService.ProcessStripeWebhookAsync(
+                StripeWebhookPayload.Trim(),
+                string.IsNullOrWhiteSpace(StripeWebhookSignature) ? null : StripeWebhookSignature.Trim(),
+                ct);
+
+            StripeWebhookSimulationSummary = FormatStripeWebhookSimulationSummary(result);
+            await LoadProviderActivityHealthCoreAsync(ct);
+            await LoadProviderTimelineCoreAsync(ct);
+            await LoadFailedNotificationDispatchEventsCoreAsync(ct);
+            StatusMessage = "Stripe webhook simulation processed.";
         }, cancellationToken);
     }
 
@@ -1579,6 +1614,14 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         var carrier = string.IsNullOrWhiteSpace(issuance.Shipment.Carrier) ? "pending carrier" : issuance.Shipment.Carrier;
         return
             $"Shipment {issuance.Shipment.Status} via {carrier}, tracking {tracking}, updated {FormatDate(issuance.Shipment.UpdatedAtUtc)}.";
+    }
+
+    private static string FormatStripeWebhookSimulationSummary(StripeWebhookProcessResponse result)
+    {
+        var eventType = string.IsNullOrWhiteSpace(result.EventType) ? "-" : result.EventType.Trim();
+        var eventId = string.IsNullOrWhiteSpace(result.EventId) ? "-" : result.EventId.Trim();
+        var message = string.IsNullOrWhiteSpace(result.Message) ? "-" : result.Message.Trim();
+        return $"Outcome: {result.Outcome}. Event: {eventType}. EventId: {eventId}. Message: {message}";
     }
 
     private static string FormatDate(DateTimeOffset value)

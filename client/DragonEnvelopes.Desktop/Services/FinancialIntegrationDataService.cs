@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using DragonEnvelopes.Contracts.Financial;
 using DragonEnvelopes.Desktop.Api;
@@ -110,6 +111,26 @@ public sealed class FinancialIntegrationDataService : IFinancialIntegrationDataS
             payload: null,
             "Replaying timeline notification dispatch event",
             cancellationToken);
+    }
+
+    public async Task<StripeWebhookProcessResponse> ProcessStripeWebhookAsync(
+        string payload,
+        string? stripeSignature,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "webhooks/stripe")
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+
+        if (!string.IsNullOrWhiteSpace(stripeSignature))
+        {
+            request.Headers.TryAddWithoutValidation("Stripe-Signature", stripeSignature.Trim());
+        }
+
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "Processing Stripe webhook", cancellationToken);
+        return await DeserializeAsync<StripeWebhookProcessResponse>(response, "Processing Stripe webhook", cancellationToken);
     }
 
     public Task<RewrapProviderSecretsResponse> RewrapProviderSecretsAsync(CancellationToken cancellationToken = default)

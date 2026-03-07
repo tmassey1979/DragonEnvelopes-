@@ -114,6 +114,38 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
     }
 
     [Fact]
+    public async Task SimulateStripeWebhookCommand_ValidatesPayload_AndProcessesWebhookResult()
+    {
+        var harness = CreateHarness();
+        await EnsureLoadedAsync(harness.ViewModel);
+
+        harness.ViewModel.StripeWebhookPayload = "   ";
+
+        await harness.ViewModel.SimulateStripeWebhookCommand.ExecuteAsync(null);
+
+        Assert.True(harness.ViewModel.HasError);
+        Assert.Equal("Stripe webhook payload is required.", harness.ViewModel.ErrorMessage);
+        Assert.Equal(0, harness.FinancialDataService.ProcessStripeWebhookCallCount);
+
+        harness.FinancialDataService.StripeWebhookProcessResponse = new StripeWebhookProcessResponse(
+            Outcome: "Processed",
+            EventId: "evt_live_123",
+            EventType: "issuing_transaction.created",
+            Message: "Processed for smoke test.");
+        harness.ViewModel.StripeWebhookPayload = "{\"id\":\"evt_live_123\"}";
+        harness.ViewModel.StripeWebhookSignature = "t=123,v1=abc";
+
+        await harness.ViewModel.SimulateStripeWebhookCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(harness.ViewModel);
+
+        Assert.False(harness.ViewModel.HasError);
+        Assert.Equal(1, harness.FinancialDataService.ProcessStripeWebhookCallCount);
+        Assert.Contains("Outcome: Processed", harness.ViewModel.StripeWebhookSimulationSummary);
+        Assert.Contains("issuing_transaction.created", harness.ViewModel.StripeWebhookSimulationSummary);
+        Assert.Equal("Stripe webhook simulation processed.", harness.ViewModel.StatusMessage);
+    }
+
+    [Fact]
     public async Task CardCommands_AndControlFlow_ExecuteWithDeterministicStateTransitions()
     {
         var harness = CreateHarness();

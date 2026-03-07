@@ -32,6 +32,11 @@ public interface IFinancialIntegrationDataService
         Guid eventId,
         CancellationToken cancellationToken = default);
 
+    Task<StripeWebhookProcessResponse> ProcessStripeWebhookAsync(
+        string payload,
+        string? stripeSignature,
+        CancellationToken cancellationToken = default);
+
     Task<RewrapProviderSecretsResponse> RewrapProviderSecretsAsync(CancellationToken cancellationToken = default);
 
     Task<CreatePlaidLinkTokenResponse> CreatePlaidLinkTokenAsync(

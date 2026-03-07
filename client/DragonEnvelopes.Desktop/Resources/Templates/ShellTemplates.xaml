@@ -2464,6 +2464,48 @@
                                            Text="{Binding ProviderSecretRewrapSummary}"
                                            Style="{StaticResource CaptionTextStyle}"
                                            TextWrapping="Wrap" />
+
+                                <Border Margin="0,10,0,0"
+                                        Padding="10"
+                                        CornerRadius="8"
+                                        Background="{StaticResource PanelMutedBackgroundBrush}"
+                                        BorderBrush="{StaticResource PanelOutlineBrush}"
+                                        BorderThickness="1">
+                                    <StackPanel>
+                                        <TextBlock Text="Stripe Webhook Simulation"
+                                                   Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Text="Submit test payloads to /api/v1/webhooks/stripe for operational debugging."
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   TextWrapping="Wrap" />
+
+                                        <TextBlock Margin="0,8,0,0"
+                                                   Text="Stripe-Signature Header (optional)"
+                                                   Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBox Margin="0,4,0,0"
+                                                 Text="{Binding StripeWebhookSignature, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <TextBlock Margin="0,8,0,0"
+                                                   Text="Webhook Payload"
+                                                   Style="{StaticResource CaptionTextStyle}" />
+                                        <TextBox Margin="0,4,0,0"
+                                                 Height="92"
+                                                 AcceptsReturn="True"
+                                                 TextWrapping="Wrap"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 Text="{Binding StripeWebhookPayload, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <Button Margin="0,8,0,0"
+                                                Width="200"
+                                                Content="Process Webhook Payload"
+                                                Command="{Binding SimulateStripeWebhookCommand}" />
+
+                                        <TextBlock Margin="0,8,0,0"
+                                                   Text="{Binding StripeWebhookSimulationSummary}"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
 
                             <TextBlock Grid.Row="1"

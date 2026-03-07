@@ -462,7 +462,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             new CapabilityMatrixItemViewModel("Financial", "Plaid link/sync/reconciliation", "Available", "Integrations workspace supports Plaid connect + refresh."),
             new CapabilityMatrixItemViewModel("Financial", "Stripe account and card lifecycle", "Available", "Integrations workspace supports setup, issuance, controls."),
             new CapabilityMatrixItemViewModel("Financial", "Provider timeline + notification replay", "Available", "Integrations workspace supports timeline and replay actions."),
-            new CapabilityMatrixItemViewModel("Financial", "Webhook endpoint operations", "Partial", "Operational visibility is wired; direct webhook simulation UI is not."),
+            new CapabilityMatrixItemViewModel("Financial", "Webhook endpoint operations", "Available", "Financial Integrations workspace includes Stripe webhook simulation and response diagnostics."),
 
             new CapabilityMatrixItemViewModel("System", "Health/version/session diagnostics", "Available", "Settings includes health/version/session summaries."),
             new CapabilityMatrixItemViewModel("System", "Per-route role command gating matrix", "Available", "Parent/Admin route and command gating is applied and documented in docs/qa/desktop-role-command-matrix.md.")

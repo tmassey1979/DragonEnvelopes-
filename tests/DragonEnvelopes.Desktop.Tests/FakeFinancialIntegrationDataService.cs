@@ -131,6 +131,11 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
                     NotificationDispatchEventId: Guid.Parse("00000000-0000-0000-0000-000000000060"))
             ],
             TraceId: "trace-test-002");
+        StripeWebhookProcessResponse = new StripeWebhookProcessResponse(
+            Outcome: "Processed",
+            EventId: "evt_test_001",
+            EventType: "issuing_authorization.request",
+            Message: "Webhook processed in test harness.");
         FailedNotificationDispatchEvents =
         [
             new FailedNotificationDispatchEventResponse(
@@ -218,6 +223,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
 
     public ProviderActivityTimelineResponse ProviderActivityTimelineResponse { get; set; }
 
+    public StripeWebhookProcessResponse StripeWebhookProcessResponse { get; set; }
+
     public IReadOnlyList<FailedNotificationDispatchEventResponse> FailedNotificationDispatchEvents { get; private set; }
 
     public IReadOnlyList<PlaidAccountLinkResponse> PlaidLinks { get; private set; }
@@ -235,6 +242,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
     public int DeletePlaidAccountLinkCallCount { get; private set; }
 
     public int RetryFailedNotificationDispatchEventCallCount { get; private set; }
+
+    public int ProcessStripeWebhookCallCount { get; private set; }
 
     public int RewrapProviderSecretsCallCount { get; private set; }
 
@@ -344,6 +353,15 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
                 .ToArray()
         };
         return replay;
+    }
+
+    public Task<StripeWebhookProcessResponse> ProcessStripeWebhookAsync(
+        string payload,
+        string? stripeSignature,
+        CancellationToken cancellationToken = default)
+    {
+        ProcessStripeWebhookCallCount += 1;
+        return Task.FromResult(StripeWebhookProcessResponse);
     }
 
     public Task<RewrapProviderSecretsResponse> RewrapProviderSecretsAsync(CancellationToken cancellationToken = default)
