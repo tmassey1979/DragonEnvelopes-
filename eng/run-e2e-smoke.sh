@@ -52,12 +52,35 @@ assert_status() {
   fi
 }
 
+wait_for_ready() {
+  local name="$1"
+  local url="$2"
+  local max_attempts="${3:-90}"
+  local sleep_seconds="${4:-2}"
+
+  local attempt
+  for attempt in $(seq 1 "${max_attempts}"); do
+    if curl -fsS "${url}" >/dev/null 2>&1; then
+      return 0
+    fi
+
+    if (( attempt % 10 == 0 )); then
+      log_step "Waiting for ${name} at ${url} (attempt ${attempt}/${max_attempts})..."
+    fi
+
+    sleep "${sleep_seconds}"
+  done
+
+  fail "${name} did not become ready at ${url}."
+}
+
 request_json() {
   local name="$1"
   local method="$2"
   local url="$3"
   local token="$4"
   local payload="${5:-}"
+  local extra_header="${6:-}"
   local prefix
   prefix="$(next_request_prefix)"
 
@@ -75,6 +98,10 @@ request_json() {
 
   if [[ -n "${token}" ]]; then
     curl_args+=(-H "Authorization: Bearer ${token}")
+  fi
+
+  if [[ -n "${extra_header}" ]]; then
+    curl_args+=(-H "${extra_header}")
   fi
 
   if [[ -n "${payload}" ]]; then
@@ -118,6 +145,10 @@ GUARDIAN_FIRST_NAME="Smoke"
 GUARDIAN_LAST_NAME="Owner"
 GUARDIAN_EMAIL="smoke-${SUFFIX}@test.dev"
 GUARDIAN_PASSWORD="SmokePass!${SUFFIX}"
+STRIPE_WEBHOOK_FAILURE_STATUS="not-run"
+
+log_step "Waiting for Keycloak readiness."
+wait_for_ready "Keycloak" "${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/.well-known/openid-configuration"
 
 log_step "Onboarding smoke family."
 ONBOARD_PAYLOAD="$(
@@ -179,6 +210,18 @@ fi
 
 request_json "auth-me-restored" "GET" "${API_BASE_URL}/auth/me" "${RESTORED_ACCESS_TOKEN}"
 assert_status "${LAST_STATUS}" "200" "GET /auth/me (restored session)"
+
+log_step "Exercising Stripe webhook invalid-signature behavior."
+WEBHOOK_PAYLOAD='{"id":"evt_smoke_invalid_signature","type":"issuing_authorization.request","data":{"object":{"id":"iauth_smoke"}}}'
+request_json \
+  "stripe-webhook-invalid-signature" \
+  "POST" \
+  "${API_BASE_URL}/webhooks/stripe" \
+  "" \
+  "${WEBHOOK_PAYLOAD}" \
+  "Stripe-Signature: t=1700000000,v1=invalid"
+assert_status "${LAST_STATUS}" "401" "POST /webhooks/stripe (invalid signature)"
+STRIPE_WEBHOOK_FAILURE_STATUS="${LAST_STATUS}"
 
 log_step "Reading family details and members."
 request_json "family-get" "GET" "${API_BASE_URL}/families/${FAMILY_ID}" "${RESTORED_ACCESS_TOKEN}"
@@ -268,6 +311,7 @@ cat > "${SUMMARY_FILE}" <<EOF
 - Family id: ${FAMILY_ID}
 - Account id: ${ACCOUNT_ID}
 - Imported rows inserted: ${INSERTED_COUNT}
+- Stripe webhook invalid-signature status: ${STRIPE_WEBHOOK_FAILURE_STATUS}
 EOF
 
 log_step "Smoke scenario completed successfully."

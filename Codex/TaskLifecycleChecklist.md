@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#241 Financial integrations: Stripe webhook simulation tool in desktop UI`.
+- Active task: `#242 CI smoke: cover Stripe webhook endpoint failure path`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#238` End-to-end smoke workflow in CI (auth -> family -> import -> report).
+- Previous completed task: `#241` Financial integrations: Stripe webhook simulation tool in desktop UI.
 - Last updated: `2026-03-07`.
