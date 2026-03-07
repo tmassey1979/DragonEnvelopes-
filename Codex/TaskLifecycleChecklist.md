@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#259 Reconciliation: drift threshold alerts and desktop surfacing`.
+- Active task: `none` (Phase 2B stories and epic are closed).
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#258`.
+- Previous completed task: `#259`.
 - Last updated: `2026-03-07`.
