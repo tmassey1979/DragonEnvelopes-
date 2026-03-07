@@ -1,9 +1,13 @@
 # Codex Task Lifecycle Checklist
 
 Use this checklist at the start and end of every task.
+This workflow is mandatory for both `feature` and `bug` issues.
 
 ## Required Workflow
 - [ ] Create a GitHub issue for the task before implementation starts.
+- [ ] Use the correct label set:
+  - [ ] Features: `feature`, `task`
+  - [ ] Bugs: `bug`, `task`
 - [ ] Add label `inprogress` when work begins.
 - [ ] Add a start comment with scope and planned deliverables.
 - [ ] Post progress comments during substantial work.
@@ -18,8 +22,12 @@ Use this checklist at the start and end of every task.
 - [ ] Remove label `inprogress`.
 - [ ] Close the GitHub issue.
 
+## Story Format
+- [ ] Write the story in user-value format: `As <x>, I would like <y>, so that <z>.`
+- [ ] Include acceptance criteria and dev notes.
+
 ## Session Run Log
-- Active task: `#272` (Large-Purchase Approval Workflow API - implementation complete, issue close in progress).
+- Active task: update before starting work.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#271`.
+- Previous completed task: update when closing work.
 - Last updated: `2026-03-07`.

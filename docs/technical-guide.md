@@ -128,12 +128,19 @@ Review these docs for advanced operations:
 
 Expected task lifecycle:
 1. Create issue.
-2. Add `inprogress` label.
-3. Start comment with scope.
-4. Implement + validate.
-5. Add changelog file under `changelog/`.
-6. Commit and push.
-7. Completion comment with validation + time spent.
-8. Remove `inprogress` and close issue.
+2. Add issue-type labels:
+   - feature work: `feature`, `task`
+   - bug work: `bug`, `task`
+3. Add `inprogress` label.
+4. Start comment with scope.
+5. Implement + validate.
+6. Add changelog file under `changelog/`.
+7. Commit and push.
+8. Completion comment with validation + time spent.
+9. Remove `inprogress` and close issue.
+
+Story format for both feature and bug issues:
+- `As <x>, I would like <y>, so that <z>.`
+- Include acceptance criteria and developer notes.
 
 Use `Codex/TaskLifecycleChecklist.md` as the process checklist.

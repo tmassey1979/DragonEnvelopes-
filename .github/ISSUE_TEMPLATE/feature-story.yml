@@ -1,0 +1,55 @@
+name: Feature Story
+description: Track new functionality using user-value story format.
+title: "Feature: "
+labels:
+  - feature
+  - task
+body:
+  - type: textarea
+    id: story
+    attributes:
+      label: Story
+      description: Use the required format.
+      placeholder: As <x>, I would like <y>, so that <z>.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Define testable outcomes.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: dev_notes
+    attributes:
+      label: Dev Notes
+      description: Implementation details, constraints, contracts, and dependencies.
+      placeholder: |
+        - API/domain notes
+        - UI notes
+        - Validation notes
+    validations:
+      required: true
+
+  - type: textarea
+    id: lifecycle
+    attributes:
+      label: Lifecycle Checklist
+      description: Required process steps.
+      value: |
+        - [ ] Add `inprogress` label when implementation starts.
+        - [ ] Add start comment with scope and plan.
+        - [ ] Add progress comments during work.
+        - [ ] Validate with build/tests/smoke checks.
+        - [ ] Add changelog file under `changelog/`.
+        - [ ] Add completion comment with validation, commit hash, and time spent.
+        - [ ] Remove `inprogress`.
+        - [ ] Close issue.
+    validations:
+      required: true

@@ -1,0 +1,82 @@
+name: Bug Story
+description: Track defects using the same lifecycle as feature stories.
+title: "Bug: "
+labels:
+  - bug
+  - task
+body:
+  - type: textarea
+    id: story
+    attributes:
+      label: Story
+      description: Use the required format.
+      placeholder: As <x>, I would like <y>, so that <z>.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_behavior
+    attributes:
+      label: Current Behavior
+      placeholder: What is happening now?
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expected Behavior
+      placeholder: What should happen instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction Steps
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Define objective conditions for bug closure.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: dev_notes
+    attributes:
+      label: Dev Notes
+      description: Root cause, impacted areas, and implementation details.
+      placeholder: |
+        - Root cause
+        - Fix approach
+        - Test/validation coverage
+    validations:
+      required: true
+
+  - type: textarea
+    id: lifecycle
+    attributes:
+      label: Lifecycle Checklist
+      description: Required process steps (same as feature workflow).
+      value: |
+        - [ ] Add `inprogress` label when implementation starts.
+        - [ ] Add start comment with scope and plan.
+        - [ ] Add progress comments during work.
+        - [ ] Validate with build/tests/smoke checks.
+        - [ ] Add changelog file under `changelog/`.
+        - [ ] Add completion comment with validation, commit hash, and time spent.
+        - [ ] Remove `inprogress`.
+        - [ ] Close issue.
+    validations:
+      required: true
