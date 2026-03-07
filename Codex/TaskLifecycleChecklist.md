@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `TBD (select next open issue after #244 closeout)`.
+- Active task: `TBD (select next open issue after #245 closeout)`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#244` Provider timeline UX: add take filter + clear filters action.
+- Previous completed task: `#245` Desktop auth session hardening: eliminate EnsureSessionAsync null-reference edge cases.
 - Last updated: `2026-03-07`.

@@ -60,8 +60,8 @@ public sealed class DesktopAuthService : IAuthService
     {
         try
         {
-            var session = await _sessionStore.LoadAsync(cancellationToken);
-            if (session is null || string.IsNullOrWhiteSpace(session.AccessToken))
+            var loadedSession = await _sessionStore.LoadAsync(cancellationToken);
+            if (!TryNormalizeSession(loadedSession, out var session))
             {
                 await SafeSignOutAsync(cancellationToken);
                 return null;
@@ -93,6 +93,11 @@ public sealed class DesktopAuthService : IAuthService
             };
 
             var result = await _oidcClient.LoginAsync(request, cancellationToken);
+            if (result is null)
+            {
+                return new AuthSignInResult(false, false, "Sign-in failed: empty provider response.");
+            }
+
             if (result.IsError)
             {
                 var cancelled = string.Equals(result.Error, "UserCancel", StringComparison.OrdinalIgnoreCase)
@@ -105,14 +110,22 @@ public sealed class DesktopAuthService : IAuthService
                 return new AuthSignInResult(false, cancelled, message);
             }
 
-            var subject = result.User.Identity?.Name
-                ?? result.User.Claims.FirstOrDefault(static claim => claim.Type == "preferred_username")?.Value;
+            if (string.IsNullOrWhiteSpace(result.AccessToken))
+            {
+                return new AuthSignInResult(false, false, "Sign-in failed: missing access token.");
+            }
+
+            var subject = result.User?.Identity?.Name
+                ?? result.User?.Claims.FirstOrDefault(static claim => claim.Type == "preferred_username")?.Value;
+            var expiresAtUtc = result.AccessTokenExpiration == default
+                ? DateTimeOffset.UtcNow.AddMinutes(5)
+                : result.AccessTokenExpiration.ToUniversalTime();
             var session = new AuthSession
             {
-                AccessToken = result.AccessToken,
-                RefreshToken = result.RefreshToken,
-                IdentityToken = result.IdentityToken,
-                ExpiresAtUtc = result.AccessTokenExpiration.ToUniversalTime(),
+                AccessToken = result.AccessToken.Trim(),
+                RefreshToken = NormalizeOptionalToken(result.RefreshToken),
+                IdentityToken = NormalizeOptionalToken(result.IdentityToken),
+                ExpiresAtUtc = expiresAtUtc,
                 Subject = subject
             };
 
@@ -241,12 +254,13 @@ public sealed class DesktopAuthService : IAuthService
         try
         {
             _currentSession ??= await _sessionStore.LoadAsync(cancellationToken);
-            var session = _currentSession;
-            if (session is null || string.IsNullOrWhiteSpace(session.AccessToken))
+            if (!TryNormalizeSession(_currentSession, out var session))
             {
                 await SafeSignOutAsync(cancellationToken);
                 return null;
             }
+
+            _currentSession = session;
 
             var nowUtc = DateTimeOffset.UtcNow;
             var shouldRefresh = forceRefresh || session.ExpiresAtUtc <= nowUtc.Add(RefreshSkew);
@@ -334,13 +348,13 @@ public sealed class DesktopAuthService : IAuthService
 
             refreshed = new AuthSession
             {
-                AccessToken = accessToken,
+                AccessToken = accessToken.Trim(),
                 RefreshToken = string.IsNullOrWhiteSpace(refreshResult.RefreshToken)
-                    ? session.RefreshToken
-                    : refreshResult.RefreshToken,
-                IdentityToken = refreshResult.IdentityToken,
+                    ? NormalizeOptionalToken(session.RefreshToken)
+                    : NormalizeOptionalToken(refreshResult.RefreshToken),
+                IdentityToken = NormalizeOptionalToken(refreshResult.IdentityToken),
                 ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(expiresInSeconds),
-                Subject = session.Subject
+                Subject = NormalizeOptionalToken(session.Subject)
             };
 
             return true;
@@ -349,6 +363,44 @@ public sealed class DesktopAuthService : IAuthService
         {
             return false;
         }
+    }
+
+    private static bool TryNormalizeSession(AuthSession? candidate, out AuthSession session)
+    {
+        session = null!;
+        if (candidate is null)
+        {
+            return false;
+        }
+
+        var accessToken = candidate.AccessToken?.Trim();
+        if (string.IsNullOrWhiteSpace(accessToken))
+        {
+            return false;
+        }
+
+        if (candidate.ExpiresAtUtc == default)
+        {
+            return false;
+        }
+
+        session = new AuthSession
+        {
+            AccessToken = accessToken,
+            RefreshToken = NormalizeOptionalToken(candidate.RefreshToken),
+            IdentityToken = NormalizeOptionalToken(candidate.IdentityToken),
+            ExpiresAtUtc = candidate.ExpiresAtUtc,
+            Subject = NormalizeOptionalToken(candidate.Subject)
+        };
+
+        return true;
+    }
+
+    private static string? NormalizeOptionalToken(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Trim();
     }
 
     private async Task SafeSignOutAsync(CancellationToken cancellationToken)
