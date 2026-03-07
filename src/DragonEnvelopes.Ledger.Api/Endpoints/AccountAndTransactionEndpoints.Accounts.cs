@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
-using DragonEnvelopes.Application.Services;
+using DragonEnvelopes.Application.Cqrs;
+using DragonEnvelopes.Application.Cqrs.Accounts;
 using DragonEnvelopes.Contracts.Accounts;
 using DragonEnvelopes.Infrastructure.Persistence;
 using DragonEnvelopes.Ledger.Api.CrossCutting.Auth;
@@ -15,7 +16,7 @@ internal static partial class AccountAndTransactionEndpoints
                 CreateAccountRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IAccountService accountService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, request.FamilyId, dbContext, cancellationToken))
@@ -23,11 +24,12 @@ internal static partial class AccountAndTransactionEndpoints
                     return Results.Forbid();
                 }
 
-                var account = await accountService.CreateAsync(
-                    request.FamilyId,
-                    request.Name,
-                    request.Type,
-                    request.OpeningBalance,
+                var account = await commandBus.SendAsync(
+                    new CreateAccountCommand(
+                        request.FamilyId,
+                        request.Name,
+                        request.Type,
+                        request.OpeningBalance),
                     cancellationToken);
 
                 return Results.Created($"/api/v1/accounts/{account.Id}", EndpointMappers.MapAccountResponse(account));
@@ -40,7 +42,7 @@ internal static partial class AccountAndTransactionEndpoints
                 Guid? familyId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IAccountService accountService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!familyId.HasValue)
@@ -53,7 +55,9 @@ internal static partial class AccountAndTransactionEndpoints
                     return Results.Forbid();
                 }
 
-                var accounts = await accountService.ListAsync(familyId, cancellationToken);
+                var accounts = await queryBus.QueryAsync(
+                    new ListAccountsQuery(familyId),
+                    cancellationToken);
                 return Results.Ok(accounts.Select(EndpointMappers.MapAccountResponse).ToArray());
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)

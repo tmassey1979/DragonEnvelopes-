@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
-using DragonEnvelopes.Application.Services;
+using DragonEnvelopes.Application.Cqrs;
+using DragonEnvelopes.Application.Cqrs.Imports;
 using DragonEnvelopes.Contracts.Imports;
 using DragonEnvelopes.Infrastructure.Persistence;
 using DragonEnvelopes.Ledger.Api.CrossCutting.Auth;
@@ -14,7 +15,7 @@ internal static partial class AccountAndTransactionEndpoints
                 ImportPreviewRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IImportService importService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, request.FamilyId, dbContext, cancellationToken))
@@ -22,12 +23,13 @@ internal static partial class AccountAndTransactionEndpoints
                     return Results.Forbid();
                 }
 
-                var preview = await importService.PreviewTransactionsAsync(
-                    request.FamilyId,
-                    request.AccountId,
-                    request.CsvContent,
-                    request.Delimiter,
-                    request.HeaderMappings,
+                var preview = await queryBus.QueryAsync(
+                    new PreviewTransactionImportQuery(
+                        request.FamilyId,
+                        request.AccountId,
+                        request.CsvContent,
+                        request.Delimiter,
+                        request.HeaderMappings),
                     cancellationToken);
                 return Results.Ok(EndpointMappers.MapImportPreviewResponse(preview));
             })
@@ -39,7 +41,7 @@ internal static partial class AccountAndTransactionEndpoints
                 ImportCommitRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IImportService importService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, request.FamilyId, dbContext, cancellationToken))
@@ -47,13 +49,14 @@ internal static partial class AccountAndTransactionEndpoints
                     return Results.Forbid();
                 }
 
-                var result = await importService.CommitTransactionsAsync(
-                    request.FamilyId,
-                    request.AccountId,
-                    request.CsvContent,
-                    request.Delimiter,
-                    request.HeaderMappings,
-                    request.AcceptedRowNumbers,
+                var result = await commandBus.SendAsync(
+                    new CommitTransactionImportCommand(
+                        request.FamilyId,
+                        request.AccountId,
+                        request.CsvContent,
+                        request.Delimiter,
+                        request.HeaderMappings,
+                        request.AcceptedRowNumbers),
                     cancellationToken);
                 return Results.Ok(EndpointMappers.MapImportCommitResponse(result));
             })

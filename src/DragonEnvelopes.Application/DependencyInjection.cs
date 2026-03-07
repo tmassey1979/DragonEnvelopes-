@@ -1,6 +1,9 @@
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Application.Mapping;
 using DragonEnvelopes.Application.Cqrs;
+using DragonEnvelopes.Application.Cqrs.Accounts;
+using DragonEnvelopes.Application.Cqrs.Imports;
+using DragonEnvelopes.Application.Cqrs.Transfers;
 using DragonEnvelopes.Application.Cqrs.Transactions;
 using DragonEnvelopes.Application.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,8 +47,17 @@ public static class DependencyInjection
         services.AddScoped<ISpendAnomalyService, SpendAnomalyService>();
         services.AddScoped<IReportingService, ReportingService>();
         services.AddScoped<IScenarioSimulationService, ScenarioSimulationService>();
+        services.AddScoped<ICommandHandler<CreateAccountCommand, DTOs.AccountDetails>, CreateAccountCommandHandler>();
+        services.AddScoped<IQueryHandler<ListAccountsQuery, IReadOnlyList<DTOs.AccountDetails>>, ListAccountsQueryHandler>();
+        services.AddScoped<IQueryHandler<PreviewTransactionImportQuery, DTOs.ImportPreviewDetails>, PreviewTransactionImportQueryHandler>();
+        services.AddScoped<ICommandHandler<CommitTransactionImportCommand, DTOs.ImportCommitDetails>, CommitTransactionImportCommandHandler>();
+        services.AddScoped<ICommandHandler<CreateEnvelopeTransferCommand, DTOs.EnvelopeTransferDetails>, CreateEnvelopeTransferCommandHandler>();
         services.AddScoped<ICommandHandler<CreateTransactionCommand, DTOs.TransactionDetails>, CreateTransactionCommandHandler>();
+        services.AddScoped<ICommandHandler<UpdateTransactionCommand, DTOs.TransactionDetails>, UpdateTransactionCommandHandler>();
+        services.AddScoped<ICommandHandler<DeleteTransactionCommand, bool>, DeleteTransactionCommandHandler>();
+        services.AddScoped<ICommandHandler<RestoreTransactionCommand, DTOs.TransactionDetails>, RestoreTransactionCommandHandler>();
         services.AddScoped<IQueryHandler<ListTransactionsByAccountQuery, IReadOnlyList<DTOs.TransactionDetails>>, ListTransactionsByAccountQueryHandler>();
+        services.AddScoped<IQueryHandler<ListDeletedTransactionsQuery, IReadOnlyList<DTOs.TransactionDetails>>, ListDeletedTransactionsQueryHandler>();
         services.AddSingleton<IImportDedupService, ImportDedupService>();
         services.AddSingleton<IRemainingBudgetCalculator, RemainingBudgetCalculator>();
         services.AddSingleton<IApplicationMapper, IdentityMapper>();
