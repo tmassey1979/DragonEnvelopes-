@@ -7,7 +7,8 @@ public sealed record FamilyFinancialProfileDetails(
     string? PlaidItemId,
     bool StripeConnected,
     string? StripeCustomerId,
-    DateTimeOffset? UpdatedAtUtc);
+    DateTimeOffset? UpdatedAtUtc,
+    decimal ReconciliationDriftThreshold = DragonEnvelopes.Domain.Entities.FamilyFinancialProfile.DefaultReconciliationDriftThreshold);
 
 public sealed record PlaidLinkTokenDetails(
     string LinkToken,

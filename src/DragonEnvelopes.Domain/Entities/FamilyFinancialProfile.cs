@@ -2,12 +2,15 @@ namespace DragonEnvelopes.Domain.Entities;
 
 public sealed class FamilyFinancialProfile
 {
+    public const decimal DefaultReconciliationDriftThreshold = 25m;
+
     public Guid Id { get; }
     public Guid FamilyId { get; }
     public string? PlaidItemId { get; private set; }
     public string? PlaidAccessToken { get; private set; }
     public string? StripeCustomerId { get; private set; }
     public string? StripeDefaultPaymentMethodId { get; private set; }
+    public decimal ReconciliationDriftThreshold { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; }
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
@@ -22,7 +25,8 @@ public sealed class FamilyFinancialProfile
         string? stripeCustomerId,
         string? stripeDefaultPaymentMethodId,
         DateTimeOffset createdAtUtc,
-        DateTimeOffset updatedAtUtc)
+        DateTimeOffset updatedAtUtc,
+        decimal reconciliationDriftThreshold = DefaultReconciliationDriftThreshold)
     {
         if (id == Guid.Empty)
         {
@@ -45,6 +49,7 @@ public sealed class FamilyFinancialProfile
         PlaidAccessToken = NormalizeNullable(plaidAccessToken);
         StripeCustomerId = NormalizeNullable(stripeCustomerId);
         StripeDefaultPaymentMethodId = NormalizeNullable(stripeDefaultPaymentMethodId);
+        ReconciliationDriftThreshold = ValidateDriftThreshold(reconciliationDriftThreshold);
         CreatedAtUtc = createdAtUtc;
         UpdatedAtUtc = updatedAtUtc;
     }
@@ -65,6 +70,12 @@ public sealed class FamilyFinancialProfile
     public void SetStripeDefaultPaymentMethod(string paymentMethodId, DateTimeOffset updatedAtUtc)
     {
         StripeDefaultPaymentMethodId = NormalizeRequired(paymentMethodId, "Stripe payment method id");
+        Touch(updatedAtUtc);
+    }
+
+    public void SetReconciliationDriftThreshold(decimal threshold, DateTimeOffset updatedAtUtc)
+    {
+        ReconciliationDriftThreshold = ValidateDriftThreshold(threshold);
         Touch(updatedAtUtc);
     }
 
@@ -91,5 +102,15 @@ public sealed class FamilyFinancialProfile
     private static string? NormalizeNullable(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static decimal ValidateDriftThreshold(decimal threshold)
+    {
+        if (threshold < 0m)
+        {
+            throw new DomainValidationException("Reconciliation drift threshold cannot be negative.");
+        }
+
+        return threshold;
     }
 }

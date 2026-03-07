@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#258 Recurring bills: scheduled auto-post background worker`.
+- Active task: `#259 Reconciliation: drift threshold alerts and desktop surfacing`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#257`.
+- Previous completed task: `#258`.
 - Last updated: `2026-03-07`.

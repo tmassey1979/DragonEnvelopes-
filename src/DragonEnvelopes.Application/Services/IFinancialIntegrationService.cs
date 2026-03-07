@@ -25,6 +25,11 @@ public interface IFinancialIntegrationService
         string? name,
         CancellationToken cancellationToken = default);
 
+    Task<FamilyFinancialProfileDetails> UpdateReconciliationDriftThresholdAsync(
+        Guid familyId,
+        decimal reconciliationDriftThreshold,
+        CancellationToken cancellationToken = default);
+
     Task<ProviderSecretsRewrapDetails> RewrapProviderSecretsAsync(
         Guid familyId,
         CancellationToken cancellationToken = default);

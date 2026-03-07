@@ -7,4 +7,5 @@ public sealed record PlaidReconciliationAccountItemViewModel(
     string InternalBalance,
     string ProviderBalance,
     string DriftAmount,
-    bool IsDrifted);
+    bool IsDrifted,
+    bool IsDriftAlert);

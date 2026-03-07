@@ -52,6 +52,24 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
     }
 
     [Fact]
+    public async Task SaveReconciliationDriftThresholdCommand_UpdatesThreshold_AndAlertHighlighting()
+    {
+        var harness = CreateHarness();
+        await EnsureLoadedAsync(harness.ViewModel);
+
+        harness.ViewModel.ReconciliationDriftThresholdInput = "3";
+        await harness.ViewModel.SaveReconciliationDriftThresholdCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(harness.ViewModel);
+
+        Assert.False(harness.ViewModel.HasError);
+        Assert.Equal(1, harness.FinancialDataService.UpdateReconciliationDriftThresholdCallCount);
+        Assert.Equal("Reconciliation drift threshold saved.", harness.ViewModel.StatusMessage);
+        Assert.Contains("$3.00", harness.ViewModel.ReconciliationDriftThresholdSummary);
+        Assert.Contains("Unresolved drift alerts: 1", harness.ViewModel.ReconciliationAlertSummary);
+        Assert.True(Assert.Single(harness.ViewModel.PlaidReconciliationAccounts).IsDriftAlert);
+    }
+
+    [Fact]
     public async Task RefreshProviderTimelineCommand_AppliesSourceAndStatusFilters()
     {
         var harness = CreateHarness();

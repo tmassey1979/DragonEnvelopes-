@@ -10,6 +10,9 @@ namespace DragonEnvelopes.Api.Endpoints;
 
 internal static partial class FinancialIntegrationEndpoints
 {
+    private const decimal DefaultReconciliationDriftThreshold = 25m;
+    private static readonly TimeSpan ReconciliationAlertCoalesceWindow = TimeSpan.FromHours(6);
+
     private static void MapProviderActivityEndpoints(RouteGroupBuilder v1)
     {
         v1.MapGet("/families/{familyId:guid}/financial/provider-activity", async (
@@ -23,6 +26,13 @@ internal static partial class FinancialIntegrationEndpoints
                 {
                     return Results.Forbid();
                 }
+
+                var reconciliationDriftThreshold = await dbContext.FamilyFinancialProfiles
+                    .AsNoTracking()
+                    .Where(profile => profile.FamilyId == familyId)
+                    .Select(profile => (decimal?)profile.ReconciliationDriftThreshold)
+                    .FirstOrDefaultAsync(cancellationToken)
+                    ?? DefaultReconciliationDriftThreshold;
 
                 var plaidSyncCursor = await dbContext.PlaidSyncCursors
                     .AsNoTracking()
@@ -46,8 +56,10 @@ internal static partial class FinancialIntegrationEndpoints
                             && snapshot.RefreshedAtUtc == latestPlaidBalanceRefreshAtUtc.Value)
                         .ToArrayAsync(cancellationToken);
 
-                    driftedAccountCount = latestSnapshots.Count(snapshot => snapshot.DriftAmount != 0m);
-                    totalAbsoluteDrift = latestSnapshots.Sum(snapshot => decimal.Abs(snapshot.DriftAmount));
+                    driftedAccountCount = latestSnapshots.Count(snapshot => Math.Abs(snapshot.DriftAmount) > reconciliationDriftThreshold);
+                    totalAbsoluteDrift = latestSnapshots
+                        .Where(snapshot => Math.Abs(snapshot.DriftAmount) > reconciliationDriftThreshold)
+                        .Sum(snapshot => Math.Abs(snapshot.DriftAmount));
                 }
 
                 var lastWebhook = await dbContext.StripeWebhookEvents
@@ -124,9 +136,10 @@ internal static partial class FinancialIntegrationEndpoints
                 if (!string.IsNullOrWhiteSpace(normalizedSource)
                     && !normalizedSource.Equals("StripeWebhook", StringComparison.OrdinalIgnoreCase)
                     && !normalizedSource.Equals("PlaidWebhook", StringComparison.OrdinalIgnoreCase)
-                    && !normalizedSource.Equals("NotificationDispatch", StringComparison.OrdinalIgnoreCase))
+                    && !normalizedSource.Equals("NotificationDispatch", StringComparison.OrdinalIgnoreCase)
+                    && !normalizedSource.Equals("PlaidReconciliation", StringComparison.OrdinalIgnoreCase))
                 {
-                    return Results.BadRequest("source must be StripeWebhook, PlaidWebhook, or NotificationDispatch.");
+                    return Results.BadRequest("source must be StripeWebhook, PlaidWebhook, NotificationDispatch, or PlaidReconciliation.");
                 }
 
                 var includeWebhooks = string.IsNullOrWhiteSpace(normalizedSource)
@@ -135,10 +148,19 @@ internal static partial class FinancialIntegrationEndpoints
                     || normalizedSource.Equals("PlaidWebhook", StringComparison.OrdinalIgnoreCase);
                 var includeNotifications = string.IsNullOrWhiteSpace(normalizedSource)
                     || normalizedSource.Equals("NotificationDispatch", StringComparison.OrdinalIgnoreCase);
+                var includePlaidReconciliation = string.IsNullOrWhiteSpace(normalizedSource)
+                    || normalizedSource.Equals("PlaidReconciliation", StringComparison.OrdinalIgnoreCase);
                 var normalizedStatus = string.IsNullOrWhiteSpace(status)
                     ? null
                     : status.Trim();
                 var normalizedStatusLower = normalizedStatus?.ToLowerInvariant();
+
+                var reconciliationDriftThreshold = await dbContext.FamilyFinancialProfiles
+                    .AsNoTracking()
+                    .Where(profile => profile.FamilyId == familyId)
+                    .Select(profile => (decimal?)profile.ReconciliationDriftThreshold)
+                    .FirstOrDefaultAsync(cancellationToken)
+                    ?? DefaultReconciliationDriftThreshold;
 
                 ProviderTimelineEventResponse[] webhooks = [];
                 if (includeWebhooks)
@@ -231,9 +253,63 @@ internal static partial class FinancialIntegrationEndpoints
                         .ToArrayAsync(cancellationToken);
                 }
 
+                ProviderTimelineEventResponse[] reconciliationAlerts = [];
+                if (includePlaidReconciliation)
+                {
+                    var coalesceWindowStart = DateTimeOffset.UtcNow - ReconciliationAlertCoalesceWindow;
+                    var driftSnapshots = await dbContext.PlaidBalanceSnapshots
+                        .AsNoTracking()
+                        .Where(snapshot =>
+                            snapshot.FamilyId == familyId
+                            && snapshot.RefreshedAtUtc >= coalesceWindowStart
+                            && Math.Abs(snapshot.DriftAmount) > reconciliationDriftThreshold)
+                        .OrderByDescending(snapshot => snapshot.RefreshedAtUtc)
+                        .ToArrayAsync(cancellationToken);
+
+                    var coalesced = driftSnapshots
+                        .GroupBy(snapshot => snapshot.AccountId)
+                        .Select(static group => group.First())
+                        .OrderByDescending(snapshot => snapshot.RefreshedAtUtc)
+                        .ToArray();
+
+                    var accountNames = await dbContext.Accounts
+                        .AsNoTracking()
+                        .Where(account => account.FamilyId == familyId)
+                        .ToDictionaryAsync(account => account.Id, account => account.Name, cancellationToken);
+
+                    reconciliationAlerts = coalesced
+                        .Where(snapshot =>
+                            string.IsNullOrWhiteSpace(normalizedStatus)
+                            || "Open".Equals(normalizedStatus, StringComparison.OrdinalIgnoreCase))
+                        .Select(snapshot =>
+                        {
+                            var accountName = accountNames.TryGetValue(snapshot.AccountId, out var resolvedAccountName)
+                                ? resolvedAccountName
+                                : snapshot.AccountId.ToString("D");
+                            var driftAmount = snapshot.DriftAmount.ToString("$#,##0.00");
+                            var expectedBalance = snapshot.InternalBalanceBefore.ToString("$#,##0.00");
+                            var providerBalance = snapshot.ProviderBalance.ToString("$#,##0.00");
+                            var thresholdValue = reconciliationDriftThreshold.ToString("$#,##0.00");
+
+                            return new ProviderTimelineEventResponse(
+                                "PlaidReconciliation",
+                                "DriftAlert",
+                                "Open",
+                                snapshot.RefreshedAtUtc,
+                                $"Drift alert for {accountName}: expected {expectedBalance}, provider {providerBalance}, drift {driftAmount}.",
+                                $"Threshold {thresholdValue}. Snapshot captured at {snapshot.RefreshedAtUtc:yyyy-MM-dd HH:mm} UTC.",
+                                StripeWebhookEventId: null,
+                                PlaidWebhookEventId: snapshot.Id,
+                                NotificationDispatchEventId: null);
+                        })
+                        .Take(normalizedTake)
+                        .ToArray();
+                }
+
                 var timeline = webhooks
                     .Concat(plaidWebhooks)
                     .Concat(notifications)
+                    .Concat(reconciliationAlerts)
                     .OrderByDescending(static item => item.OccurredAtUtc)
                     .Select(item => item with { Detail = TrimActivityError(item.Detail) })
                     .Take(normalizedTake)
@@ -340,7 +416,46 @@ internal static partial class FinancialIntegrationEndpoints
                         PayloadTruncated: false));
                 }
 
-                return Results.BadRequest("source must be StripeWebhook, PlaidWebhook, or NotificationDispatch.");
+                if (normalizedSource.Equals("PlaidReconciliation", StringComparison.OrdinalIgnoreCase))
+                {
+                    var snapshot = await dbContext.PlaidBalanceSnapshots
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(x => x.Id == eventId && x.FamilyId == familyId, cancellationToken);
+                    if (snapshot is null)
+                    {
+                        return Results.NotFound();
+                    }
+
+                    var accountName = await dbContext.Accounts
+                        .AsNoTracking()
+                        .Where(account => account.Id == snapshot.AccountId && account.FamilyId == familyId)
+                        .Select(account => account.Name)
+                        .FirstOrDefaultAsync(cancellationToken)
+                        ?? snapshot.AccountId.ToString("D");
+                    var threshold = await dbContext.FamilyFinancialProfiles
+                        .AsNoTracking()
+                        .Where(profile => profile.FamilyId == familyId)
+                        .Select(profile => (decimal?)profile.ReconciliationDriftThreshold)
+                        .FirstOrDefaultAsync(cancellationToken)
+                        ?? DefaultReconciliationDriftThreshold;
+                    var statusValue = Math.Abs(snapshot.DriftAmount) > threshold ? "Open" : "Resolved";
+
+                    return Results.Ok(new ProviderTimelineEventDetailResponse(
+                        FamilyId: familyId,
+                        Source: "PlaidReconciliation",
+                        EventId: snapshot.Id,
+                        EventType: "DriftAlert",
+                        Status: statusValue,
+                        OccurredAtUtc: snapshot.RefreshedAtUtc,
+                        Summary:
+                        $"Drift alert for {accountName}: expected {snapshot.InternalBalanceBefore.ToString("$#,##0.00")}, provider {snapshot.ProviderBalance.ToString("$#,##0.00")}, drift {snapshot.DriftAmount.ToString("$#,##0.00")}.",
+                        Detail:
+                        $"Threshold {threshold.ToString("$#,##0.00")}. Internal after refresh {snapshot.InternalBalanceAfter.ToString("$#,##0.00")}.",
+                        PayloadPreviewJson: null,
+                        PayloadTruncated: false));
+                }
+
+                return Results.BadRequest("source must be StripeWebhook, PlaidWebhook, NotificationDispatch, or PlaidReconciliation.");
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
             .WithName("GetProviderActivityTimelineEventDetail")

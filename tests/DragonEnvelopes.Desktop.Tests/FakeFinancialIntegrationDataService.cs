@@ -31,14 +31,16 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
             PlaidItemId: "plaid_item_test_001",
             StripeConnected: true,
             StripeCustomerId: "cus_initial_001",
-            UpdatedAtUtc: now);
+            UpdatedAtUtc: now,
+            ReconciliationDriftThreshold: 25m);
         ExchangeStatusResponse = new FamilyFinancialStatusResponse(
             familyId,
             PlaidConnected: true,
             PlaidItemId: "plaid_item_after_exchange",
             StripeConnected: true,
             StripeCustomerId: "cus_initial_001",
-            UpdatedAtUtc: now.AddMinutes(1));
+            UpdatedAtUtc: now.AddMinutes(1),
+            ReconciliationDriftThreshold: 25m);
         NotificationPreferenceResponse = new NotificationPreferenceResponse(
             familyId,
             "test-user",
@@ -275,6 +277,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
     public int CreateStripeSetupIntentCallCount { get; private set; }
 
     public int DeletePlaidAccountLinkCallCount { get; private set; }
+
+    public int UpdateReconciliationDriftThresholdCallCount { get; private set; }
 
     public int RetryFailedNotificationDispatchEventCallCount { get; private set; }
 
@@ -515,6 +519,19 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
         ExchangePlaidPublicTokenCallCount += 1;
         StatusResponse = ExchangeStatusResponse;
         return Task.FromResult(ExchangeStatusResponse);
+    }
+
+    public Task<FamilyFinancialStatusResponse> UpdateReconciliationDriftThresholdAsync(
+        decimal reconciliationDriftThreshold,
+        CancellationToken cancellationToken = default)
+    {
+        UpdateReconciliationDriftThresholdCallCount += 1;
+        StatusResponse = StatusResponse with
+        {
+            ReconciliationDriftThreshold = reconciliationDriftThreshold,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        };
+        return Task.FromResult(StatusResponse);
     }
 
     public Task<PlaidAccountLinkResponse> UpsertPlaidAccountLinkAsync(

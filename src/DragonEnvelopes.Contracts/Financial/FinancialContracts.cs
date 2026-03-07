@@ -26,7 +26,11 @@ public sealed record FamilyFinancialStatusResponse(
     string? PlaidItemId,
     bool StripeConnected,
     string? StripeCustomerId,
-    DateTimeOffset? UpdatedAtUtc);
+    DateTimeOffset? UpdatedAtUtc,
+    decimal ReconciliationDriftThreshold = 25m);
+
+public sealed record UpdateReconciliationDriftThresholdRequest(
+    decimal ReconciliationDriftThreshold);
 
 public sealed record RewrapProviderSecretsResponse(
     Guid FamilyId,

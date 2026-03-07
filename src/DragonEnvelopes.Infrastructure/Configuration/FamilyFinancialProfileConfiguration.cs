@@ -34,6 +34,11 @@ public sealed class FamilyFinancialProfileConfiguration : IEntityTypeConfigurati
             .HasMaxLength(128)
             .IsRequired(false);
 
+        builder.Property(x => x.ReconciliationDriftThreshold)
+            .HasPrecision(18, 2)
+            .HasDefaultValue(FamilyFinancialProfile.DefaultReconciliationDriftThreshold)
+            .IsRequired();
+
         builder.Property(x => x.CreatedAtUtc)
             .IsRequired();
 

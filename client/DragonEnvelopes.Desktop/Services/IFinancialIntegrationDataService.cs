@@ -62,6 +62,10 @@ public interface IFinancialIntegrationDataService
         string publicToken,
         CancellationToken cancellationToken = default);
 
+    Task<FamilyFinancialStatusResponse> UpdateReconciliationDriftThresholdAsync(
+        decimal reconciliationDriftThreshold,
+        CancellationToken cancellationToken = default);
+
     Task<PlaidAccountLinkResponse> UpsertPlaidAccountLinkAsync(
         Guid accountId,
         string plaidAccountId,

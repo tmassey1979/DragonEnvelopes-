@@ -26,7 +26,8 @@ public sealed class FinancialIntegrationService(
                 PlaidItemId: null,
                 StripeConnected: false,
                 StripeCustomerId: null,
-                UpdatedAtUtc: null)
+                UpdatedAtUtc: null,
+                ReconciliationDriftThreshold: FamilyFinancialProfile.DefaultReconciliationDriftThreshold)
             : Map(profile);
     }
 
@@ -91,6 +92,17 @@ public sealed class FinancialIntegrationService(
             profile.StripeCustomerId!,
             setupIntent.SetupIntentId,
             setupIntent.ClientSecret);
+    }
+
+    public async Task<FamilyFinancialProfileDetails> UpdateReconciliationDriftThresholdAsync(
+        Guid familyId,
+        decimal reconciliationDriftThreshold,
+        CancellationToken cancellationToken = default)
+    {
+        var profile = await GetOrCreateProfileForUpdateAsync(familyId, cancellationToken);
+        profile.SetReconciliationDriftThreshold(reconciliationDriftThreshold, clock.UtcNow);
+        await financialProfileRepository.SaveChangesAsync(cancellationToken);
+        return Map(profile);
     }
 
     public async Task<ProviderSecretsRewrapDetails> RewrapProviderSecretsAsync(
@@ -177,6 +189,7 @@ public sealed class FinancialIntegrationService(
             profile.PlaidItemId,
             profile.StripeConnected,
             profile.StripeCustomerId,
-            profile.UpdatedAtUtc);
+            profile.UpdatedAtUtc,
+            profile.ReconciliationDriftThreshold);
     }
 }

@@ -222,6 +222,15 @@ public sealed class ExchangePlaidPublicTokenRequestValidator : AbstractValidator
     }
 }
 
+public sealed class UpdateReconciliationDriftThresholdRequestValidator : AbstractValidator<UpdateReconciliationDriftThresholdRequest>
+{
+    public UpdateReconciliationDriftThresholdRequestValidator()
+    {
+        RuleFor(static request => request.ReconciliationDriftThreshold)
+            .GreaterThanOrEqualTo(0m);
+    }
+}
+
 public sealed class CreatePlaidAccountLinkRequestValidator : AbstractValidator<CreatePlaidAccountLinkRequest>
 {
     public CreatePlaidAccountLinkRequestValidator()

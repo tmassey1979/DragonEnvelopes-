@@ -1789,6 +1789,7 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.Equal(TestApiFactory.FamilyAId, payload!.FamilyId);
         Assert.False(payload.PlaidConnected);
         Assert.False(payload.StripeConnected);
+        Assert.Equal(25m, payload.ReconciliationDriftThreshold);
         Assert.True(response.Headers.TryGetValues("X-Trace-Id", out var traceHeaderValues));
         Assert.False(string.IsNullOrWhiteSpace(traceHeaderValues!.FirstOrDefault()));
     }
@@ -1802,6 +1803,48 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         var response = await client.GetAsync($"/api/v1/families/{TestApiFactory.FamilyBId}/financial/status");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Parent_Can_Update_Reconciliation_Drift_Threshold()
+    {
+        var familyId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.Families.Add(new Family(familyId, "Threshold Update Family", now));
+            dbContext.FamilyMembers.Add(new FamilyMember(
+                Guid.NewGuid(),
+                familyId,
+                TestApiFactory.UserAId,
+                "User A Threshold",
+                EmailAddress.Parse($"threshold-{familyId:N}@test.dev"),
+                MemberRole.Parent));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/v1/families/{familyId}/financial/reconciliation-threshold",
+            new UpdateReconciliationDriftThresholdRequest(9.50m));
+
+        var responseBody = await response.Content.ReadAsStringAsync();
+        Assert.True(response.StatusCode == HttpStatusCode.OK, responseBody);
+        var payload = await response.Content.ReadFromJsonAsync<FamilyFinancialStatusResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(familyId, payload!.FamilyId);
+        Assert.Equal(9.50m, payload.ReconciliationDriftThreshold);
+
+        await using var verifyScope = _factory.Services.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+        var profile = await verifyDb.FamilyFinancialProfiles
+            .AsNoTracking()
+            .SingleAsync(x => x.FamilyId == familyId);
+        Assert.Equal(9.50m, profile.ReconciliationDriftThreshold);
     }
 
     [Fact]
@@ -1940,6 +1983,88 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task Provider_Activity_Health_Uses_Reconciliation_Threshold_For_Drift_Counts()
+    {
+        var familyId = Guid.NewGuid();
+        var account1Id = Guid.NewGuid();
+        var account2Id = Guid.NewGuid();
+        var snapshotTime = new DateTimeOffset(2026, 3, 7, 12, 30, 0, TimeSpan.Zero);
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+
+            dbContext.Families.Add(new Family(familyId, "Provider Health Threshold Family", snapshotTime));
+            dbContext.FamilyMembers.Add(new FamilyMember(
+                Guid.NewGuid(),
+                familyId,
+                TestApiFactory.UserAId,
+                "User A Provider Health",
+                EmailAddress.Parse($"provider-health-{familyId:N}@test.dev"),
+                MemberRole.Parent));
+            dbContext.Accounts.Add(new Account(
+                account1Id,
+                familyId,
+                "Provider Drift Account 1",
+                AccountType.Checking,
+                Money.FromDecimal(1000m)));
+
+            dbContext.Accounts.Add(new Account(
+                account2Id,
+                familyId,
+                "Provider Drift Account 2",
+                AccountType.Checking,
+                Money.FromDecimal(1000m)));
+
+            dbContext.FamilyFinancialProfiles.Add(new FamilyFinancialProfile(
+                Guid.NewGuid(),
+                familyId,
+                plaidItemId: null,
+                plaidAccessToken: null,
+                stripeCustomerId: null,
+                stripeDefaultPaymentMethodId: null,
+                createdAtUtc: snapshotTime,
+                updatedAtUtc: snapshotTime,
+                reconciliationDriftThreshold: 10m));
+
+            dbContext.PlaidBalanceSnapshots.AddRange(
+                new PlaidBalanceSnapshot(
+                    Guid.NewGuid(),
+                    familyId,
+                    account1Id,
+                    "plaid_account_health_a",
+                    internalBalanceBefore: 100m,
+                    providerBalance: 106m,
+                    internalBalanceAfter: 106m,
+                    driftAmount: 6m,
+                    refreshedAtUtc: snapshotTime),
+                new PlaidBalanceSnapshot(
+                    Guid.NewGuid(),
+                    familyId,
+                    account2Id,
+                    "plaid_account_health_b",
+                    internalBalanceBefore: 100m,
+                    providerBalance: 112m,
+                    internalBalanceAfter: 112m,
+                    driftAmount: 12m,
+                    refreshedAtUtc: snapshotTime));
+
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync($"/api/v1/families/{familyId}/financial/provider-activity");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<ProviderActivityHealthResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal(1, payload!.DriftedAccountCount);
+        Assert.Equal(12m, payload.TotalAbsoluteDrift);
+    }
+
+    [Fact]
     public async Task UserA_Cannot_Get_FamilyB_Provider_Activity_Health()
     {
         using var client = _factory.CreateClient();
@@ -2006,6 +2131,117 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.All(payload.Events, timelineEvent => Assert.Equal("PlaidWebhook", timelineEvent.Source));
         Assert.Contains(payload.Events, timelineEvent => timelineEvent.EventType == "TRANSACTIONS.SYNC_UPDATES_AVAILABLE");
         Assert.DoesNotContain(payload.Events, timelineEvent => timelineEvent.EventType == "BALANCE.DEFAULT_UPDATE");
+    }
+
+    [Fact]
+    public async Task Provider_Activity_Timeline_Coalesces_Reconciliation_Drift_Alerts_And_Suppresses_Within_Threshold()
+    {
+        var familyId = Guid.NewGuid();
+        var account1Id = Guid.NewGuid();
+        var account2Id = Guid.NewGuid();
+        var snapshotTime = new DateTimeOffset(2026, 3, 7, 13, 0, 0, TimeSpan.Zero);
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+
+            dbContext.Families.Add(new Family(familyId, "Provider Timeline Threshold Family", snapshotTime));
+            dbContext.FamilyMembers.Add(new FamilyMember(
+                Guid.NewGuid(),
+                familyId,
+                TestApiFactory.UserAId,
+                "User A Provider Timeline",
+                EmailAddress.Parse($"provider-timeline-{familyId:N}@test.dev"),
+                MemberRole.Parent));
+            dbContext.Accounts.Add(new Account(
+                account1Id,
+                familyId,
+                "Provider Drift Account Timeline A",
+                AccountType.Checking,
+                Money.FromDecimal(1000m)));
+
+            dbContext.FamilyFinancialProfiles.Add(new FamilyFinancialProfile(
+                Guid.NewGuid(),
+                familyId,
+                plaidItemId: null,
+                plaidAccessToken: null,
+                stripeCustomerId: null,
+                stripeDefaultPaymentMethodId: null,
+                createdAtUtc: snapshotTime,
+                updatedAtUtc: snapshotTime,
+                reconciliationDriftThreshold: 5m));
+
+            dbContext.Accounts.Add(new Account(
+                account2Id,
+                familyId,
+                "Provider Drift Account Timeline",
+                AccountType.Checking,
+                Money.FromDecimal(1000m)));
+
+            dbContext.PlaidBalanceSnapshots.AddRange(
+                new PlaidBalanceSnapshot(
+                    Guid.NewGuid(),
+                    familyId,
+                    account1Id,
+                    "plaid_account_timeline_a",
+                    internalBalanceBefore: 100m,
+                    providerBalance: 110m,
+                    internalBalanceAfter: 110m,
+                    driftAmount: 10m,
+                    refreshedAtUtc: snapshotTime.AddMinutes(-1)),
+                new PlaidBalanceSnapshot(
+                    Guid.NewGuid(),
+                    familyId,
+                    account1Id,
+                    "plaid_account_timeline_a",
+                    internalBalanceBefore: 110m,
+                    providerBalance: 121m,
+                    internalBalanceAfter: 121m,
+                    driftAmount: 11m,
+                    refreshedAtUtc: snapshotTime),
+                new PlaidBalanceSnapshot(
+                    Guid.NewGuid(),
+                    familyId,
+                    account2Id,
+                    "plaid_account_timeline_b",
+                    internalBalanceBefore: 100m,
+                    providerBalance: 103m,
+                    internalBalanceAfter: 103m,
+                    driftAmount: 3m,
+                    refreshedAtUtc: snapshotTime));
+
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var response = await client.GetAsync(
+            $"/api/v1/families/{familyId}/financial/provider-activity/timeline?take=20&source=PlaidReconciliation");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<ProviderActivityTimelineResponse>();
+        Assert.NotNull(payload);
+        Assert.Single(payload!.Events);
+
+        var alertEvent = payload.Events[0];
+        Assert.Equal("PlaidReconciliation", alertEvent.Source);
+        Assert.Equal("DriftAlert", alertEvent.EventType);
+        Assert.Equal("Open", alertEvent.Status);
+        Assert.Contains("expected", alertEvent.Summary, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("provider", alertEvent.Summary, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("drift", alertEvent.Summary, StringComparison.OrdinalIgnoreCase);
+        Assert.True(alertEvent.PlaidWebhookEventId.HasValue);
+
+        var detailResponse = await client.GetAsync(
+            $"/api/v1/families/{familyId}/financial/provider-activity/timeline/events/PlaidReconciliation/{alertEvent.PlaidWebhookEventId.Value}");
+        Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
+        var detail = await detailResponse.Content.ReadFromJsonAsync<ProviderTimelineEventDetailResponse>();
+        Assert.NotNull(detail);
+        Assert.Equal("PlaidReconciliation", detail!.Source);
+        Assert.Equal("DriftAlert", detail.EventType);
+        Assert.Equal("Open", detail.Status);
+        Assert.Contains("Threshold", detail.Detail!, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

@@ -230,6 +230,20 @@ public sealed class FinancialIntegrationDataService : IFinancialIntegrationDataS
             cancellationToken);
     }
 
+    public Task<FamilyFinancialStatusResponse> UpdateReconciliationDriftThresholdAsync(
+        decimal reconciliationDriftThreshold,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var payload = new UpdateReconciliationDriftThresholdRequest(reconciliationDriftThreshold);
+        return SendAsync<FamilyFinancialStatusResponse>(
+            HttpMethod.Put,
+            $"families/{familyId}/financial/reconciliation-threshold",
+            payload,
+            "Updating reconciliation drift threshold",
+            cancellationToken);
+    }
+
     public Task<PlaidAccountLinkResponse> UpsertPlaidAccountLinkAsync(
         Guid accountId,
         string plaidAccountId,

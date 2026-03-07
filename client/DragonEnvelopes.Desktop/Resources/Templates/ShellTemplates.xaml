@@ -2803,11 +2803,28 @@
                                 </StackPanel>
                                 <TextBlock Margin="0,8,0,0" Text="{Binding PlaidSyncSummary}" Style="{StaticResource CaptionTextStyle}" />
                                 <TextBlock Margin="0,4,0,0" Text="{Binding PlaidBalanceRefreshSummary}" Style="{StaticResource CaptionTextStyle}" />
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding ReconciliationDriftThresholdInput, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Grid.Column="2"
+                                            Content="Save Alert Threshold"
+                                            Command="{Binding SaveReconciliationDriftThresholdCommand}" />
+                                </Grid>
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding ReconciliationDriftThresholdSummary}"
+                                           Style="{StaticResource CaptionTextStyle}" />
                             </StackPanel>
 
                             <Grid Grid.Column="2">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="150" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="200" />
                                 </Grid.RowDefinitions>
@@ -2835,7 +2852,11 @@
                                            Margin="0,8,0,8"
                                            Text="{Binding PlaidReconciliationGeneratedAt, StringFormat=Generated: {0}}"
                                            Style="{StaticResource CaptionTextStyle}" />
-                                <DataGrid Grid.Row="2"
+                                <TextBlock Grid.Row="2"
+                                           Margin="0,0,0,8"
+                                           Text="{Binding ReconciliationAlertSummary}"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <DataGrid Grid.Row="4"
                                           ItemsSource="{Binding PlaidReconciliationAccounts}"
                                           AutoGenerateColumns="False"
                                           CanUserAddRows="False"
@@ -2846,12 +2867,23 @@
                                           Background="{StaticResource PanelMutedBackgroundBrush}"
                                           BorderBrush="{StaticResource PanelOutlineBrush}"
                                           BorderThickness="1">
+                                    <DataGrid.RowStyle>
+                                        <Style TargetType="{x:Type DataGridRow}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsDriftAlert}" Value="True">
+                                                    <Setter Property="Background" Value="#2B120E" />
+                                                    <Setter Property="Foreground" Value="#FFD2A8" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.RowStyle>
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Account" Binding="{Binding AccountName}" Width="*" />
                                         <DataGridTextColumn Header="Internal" Binding="{Binding InternalBalance}" Width="100" />
                                         <DataGridTextColumn Header="Provider" Binding="{Binding ProviderBalance}" Width="100" />
                                         <DataGridTextColumn Header="Drift" Binding="{Binding DriftAmount}" Width="100" />
                                         <DataGridCheckBoxColumn Header="Flag" Binding="{Binding IsDrifted}" Width="55" />
+                                        <DataGridCheckBoxColumn Header="Alert" Binding="{Binding IsDriftAlert}" Width="55" />
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </Grid>

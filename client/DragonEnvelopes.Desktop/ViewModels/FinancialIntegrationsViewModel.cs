@@ -32,6 +32,9 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         PlaidSyncSummary = "Plaid sync has not been run.";
         PlaidBalanceRefreshSummary = "Plaid balance refresh has not been run.";
         PlaidReconciliationGeneratedAt = "-";
+        ReconciliationDriftThresholdInput = "25";
+        ReconciliationDriftThresholdSummary = "Alerts trigger when absolute drift exceeds $25.00.";
+        ReconciliationAlertSummary = "No unresolved drift alerts.";
         StripeSetupIntentId = "-";
         StripeSetupCustomerId = "-";
         StripeClientSecret = "-";
@@ -87,6 +90,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         SyncPlaidTransactionsCommand = new AsyncRelayCommand(SyncPlaidTransactionsAsync);
         RefreshPlaidBalancesCommand = new AsyncRelayCommand(RefreshPlaidBalancesAsync);
         LoadPlaidReconciliationCommand = new AsyncRelayCommand(LoadPlaidReconciliationAsync);
+        SaveReconciliationDriftThresholdCommand = new AsyncRelayCommand(SaveReconciliationDriftThresholdAsync);
         CreateStripeSetupIntentCommand = new AsyncRelayCommand(CreateStripeSetupIntentAsync);
         RefreshFinancialAccountsCommand = new AsyncRelayCommand(RefreshFinancialAccountsAsync);
         RefreshSelectedEnvelopeCommand = new AsyncRelayCommand(RefreshSelectedEnvelopeAsync);
@@ -130,6 +134,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public IAsyncRelayCommand SyncPlaidTransactionsCommand { get; }
     public IAsyncRelayCommand RefreshPlaidBalancesCommand { get; }
     public IAsyncRelayCommand LoadPlaidReconciliationCommand { get; }
+    public IAsyncRelayCommand SaveReconciliationDriftThresholdCommand { get; }
     public IAsyncRelayCommand CreateStripeSetupIntentCommand { get; }
     public IAsyncRelayCommand RefreshFinancialAccountsCommand { get; }
     public IAsyncRelayCommand RefreshSelectedEnvelopeCommand { get; }
@@ -147,7 +152,8 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         "All Sources",
         "Stripe Webhooks",
         "Plaid Webhooks",
-        "Notification Dispatch"
+        "Notification Dispatch",
+        "Reconciliation Alerts"
     ];
 
     [ObservableProperty]
@@ -212,6 +218,18 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
 
     [ObservableProperty]
     private string plaidReconciliationGeneratedAt = string.Empty;
+
+    [ObservableProperty]
+    private decimal reconciliationDriftThreshold = 25m;
+
+    [ObservableProperty]
+    private string reconciliationDriftThresholdInput = string.Empty;
+
+    [ObservableProperty]
+    private string reconciliationDriftThresholdSummary = string.Empty;
+
+    [ObservableProperty]
+    private string reconciliationAlertSummary = string.Empty;
 
     [ObservableProperty]
     private ObservableCollection<PlaidReconciliationAccountItemViewModel> plaidReconciliationAccounts = [];
@@ -1005,6 +1023,27 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         }, cancellationToken);
     }
 
+    private async Task SaveReconciliationDriftThresholdAsync(CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(ReconciliationDriftThresholdInput)
+            || !decimal.TryParse(ReconciliationDriftThresholdInput.Trim(), out var threshold)
+            || threshold < 0m)
+        {
+            SetValidationError("Reconciliation drift threshold must be a non-negative number.");
+            return;
+        }
+
+        await RunOperationAsync("Saving reconciliation drift threshold...", async ct =>
+        {
+            var status = await _financialIntegrationDataService.UpdateReconciliationDriftThresholdAsync(threshold, ct);
+            ApplyFinancialStatus(status);
+            await LoadPlaidReconciliationCoreAsync(ct);
+            await LoadProviderActivityHealthCoreAsync(ct);
+            await LoadProviderTimelineCoreAsync(ct);
+            StatusMessage = "Reconciliation drift threshold saved.";
+        }, cancellationToken);
+    }
+
     private async Task CreateStripeSetupIntentAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(StripeSetupEmail) || !StripeSetupEmail.Contains('@', StringComparison.Ordinal))
@@ -1460,19 +1499,28 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     private async Task LoadPlaidReconciliationCoreAsync(CancellationToken cancellationToken)
     {
         var report = await _financialIntegrationDataService.GetPlaidReconciliationReportAsync(cancellationToken);
+        var driftThreshold = ReconciliationDriftThreshold;
         PlaidReconciliationGeneratedAt = FormatDate(report.GeneratedAtUtc);
-        PlaidReconciliationAccounts = new ObservableCollection<PlaidReconciliationAccountItemViewModel>(
-            report.Accounts
-                .OrderByDescending(static account => Math.Abs(account.DriftAmount))
-                .ThenBy(static account => account.AccountName, StringComparer.OrdinalIgnoreCase)
-                .Select(static account => new PlaidReconciliationAccountItemViewModel(
-                    account.AccountId,
-                    account.AccountName,
-                    account.PlaidAccountId,
-                    account.InternalBalance.ToString("$#,##0.00"),
-                    account.ProviderBalance.ToString("$#,##0.00"),
-                    account.DriftAmount.ToString("$#,##0.00"),
-                    account.IsDrifted)));
+        var mappedAccounts = report.Accounts
+            .OrderByDescending(static account => Math.Abs(account.DriftAmount))
+            .ThenBy(static account => account.AccountName, StringComparer.OrdinalIgnoreCase)
+            .Select(account => new PlaidReconciliationAccountItemViewModel(
+                account.AccountId,
+                account.AccountName,
+                account.PlaidAccountId,
+                account.InternalBalance.ToString("$#,##0.00"),
+                account.ProviderBalance.ToString("$#,##0.00"),
+                account.DriftAmount.ToString("$#,##0.00"),
+                account.IsDrifted,
+                Math.Abs(account.DriftAmount) > driftThreshold))
+            .ToArray();
+
+        PlaidReconciliationAccounts = new ObservableCollection<PlaidReconciliationAccountItemViewModel>(mappedAccounts);
+
+        var unresolvedCount = mappedAccounts.Count(static account => account.IsDriftAlert);
+        ReconciliationAlertSummary = unresolvedCount == 0
+            ? "No unresolved drift alerts."
+            : $"Unresolved drift alerts: {unresolvedCount}.";
     }
 
     private async Task LoadProviderActivityHealthCoreAsync(CancellationToken cancellationToken)
@@ -1618,6 +1666,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             "Stripe Webhooks" => "StripeWebhook",
             "Plaid Webhooks" => "PlaidWebhook",
             "Notification Dispatch" => "NotificationDispatch",
+            "Reconciliation Alerts" => "PlaidReconciliation",
             _ => null
         };
     }
@@ -1749,6 +1798,10 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         PlaidItemIdentifier = string.IsNullOrWhiteSpace(status.PlaidItemId) ? "-" : status.PlaidItemId;
         StripeCustomerIdentifier = string.IsNullOrWhiteSpace(status.StripeCustomerId) ? "-" : status.StripeCustomerId;
         FinancialStatusUpdatedAt = status.UpdatedAtUtc.HasValue ? FormatDate(status.UpdatedAtUtc.Value) : "-";
+        ReconciliationDriftThreshold = status.ReconciliationDriftThreshold;
+        ReconciliationDriftThresholdInput = status.ReconciliationDriftThreshold.ToString("0.##");
+        ReconciliationDriftThresholdSummary =
+            $"Alerts trigger when absolute drift exceeds {status.ReconciliationDriftThreshold.ToString("$#,##0.00")}.";
     }
 
     private void ApplyNotificationPreference(NotificationPreferenceResponse preference)

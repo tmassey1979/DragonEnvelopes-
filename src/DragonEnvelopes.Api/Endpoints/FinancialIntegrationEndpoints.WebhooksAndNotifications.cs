@@ -455,10 +455,42 @@ internal static partial class FinancialIntegrationEndpoints
                     status.PlaidItemId,
                     status.StripeConnected,
                     status.StripeCustomerId,
-                    status.UpdatedAtUtc));
+                    status.UpdatedAtUtc,
+                    status.ReconciliationDriftThreshold));
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
             .WithName("GetFamilyFinancialStatus")
+            .WithOpenApi();
+
+        v1.MapPut("/families/{familyId:guid}/financial/reconciliation-threshold", async (
+                Guid familyId,
+                UpdateReconciliationDriftThresholdRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IFinancialIntegrationService financialIntegrationService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var status = await financialIntegrationService.UpdateReconciliationDriftThresholdAsync(
+                    familyId,
+                    request.ReconciliationDriftThreshold,
+                    cancellationToken);
+
+                return Results.Ok(new FamilyFinancialStatusResponse(
+                    status.FamilyId,
+                    status.PlaidConnected,
+                    status.PlaidItemId,
+                    status.StripeConnected,
+                    status.StripeCustomerId,
+                    status.UpdatedAtUtc,
+                    status.ReconciliationDriftThreshold));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
+            .WithName("UpdateReconciliationDriftThreshold")
             .WithOpenApi();
 
         v1.MapPost("/families/{familyId:guid}/financial/security/rewrap-provider-secrets", async (

@@ -84,7 +84,8 @@ public sealed class FamilyFinancialProfileRepository(
             DecryptNullable(profile.StripeCustomerId),
             DecryptNullable(profile.StripeDefaultPaymentMethodId),
             profile.CreatedAtUtc,
-            profile.UpdatedAtUtc);
+            profile.UpdatedAtUtc,
+            profile.ReconciliationDriftThreshold);
     }
 
     private void DecryptInPlace(FamilyFinancialProfile profile)

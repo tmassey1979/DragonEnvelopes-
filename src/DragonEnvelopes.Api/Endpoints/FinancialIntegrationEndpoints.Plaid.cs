@@ -60,7 +60,8 @@ internal static partial class FinancialIntegrationEndpoints
                     status.PlaidItemId,
                     status.StripeConnected,
                     status.StripeCustomerId,
-                    status.UpdatedAtUtc));
+                    status.UpdatedAtUtc,
+                    status.ReconciliationDriftThreshold));
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
             .WithName("ExchangePlaidPublicToken")
