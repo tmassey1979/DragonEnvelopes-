@@ -2361,6 +2361,84 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Plaid_Webhook_With_InvalidJson_Returns400()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/plaid")
+        {
+            Content = new StringContent("{\"webhook_type\":\"TRANSACTIONS\"", Encoding.UTF8, "application/json")
+        };
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Plaid_Webhook_With_Unknown_Item_ReturnsIgnored()
+    {
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/plaid")
+        {
+            Content = new StringContent(
+                "{\"webhook_type\":\"TRANSACTIONS\",\"webhook_code\":\"SYNC_UPDATES_AVAILABLE\",\"item_id\":\"item_unknown\"}",
+                Encoding.UTF8,
+                "application/json")
+        };
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<PlaidWebhookProcessResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("Ignored", payload!.Outcome);
+        Assert.Null(payload.FamilyId);
+        Assert.Equal("item_unknown", payload.ItemId);
+    }
+
+    [Fact]
+    public async Task Plaid_Webhook_With_UnsupportedType_ReturnsIgnored_WithFamilyContext()
+    {
+        var familyId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        const string itemId = "item_webhook_test_supported";
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            dbContext.Families.Add(new Family(familyId, "Plaid Webhook Family", now));
+            dbContext.FamilyFinancialProfiles.Add(new FamilyFinancialProfile(
+                Guid.NewGuid(),
+                familyId,
+                plaidItemId: itemId,
+                plaidAccessToken: "token_webhook_test",
+                stripeCustomerId: null,
+                stripeDefaultPaymentMethodId: null,
+                createdAtUtc: now,
+                updatedAtUtc: now));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/webhooks/plaid")
+        {
+            Content = new StringContent(
+                $"{{\"webhook_type\":\"ITEM\",\"webhook_code\":\"WEBHOOK_UPDATE_ACKNOWLEDGED\",\"item_id\":\"{itemId}\"}}",
+                Encoding.UTF8,
+                "application/json")
+        };
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<PlaidWebhookProcessResponse>();
+        Assert.NotNull(payload);
+        Assert.Equal("Ignored", payload!.Outcome);
+        Assert.Equal(familyId, payload.FamilyId);
+        Assert.Equal("ITEM", payload.WebhookType);
+    }
 }
 
 public sealed class TestApiFactory : WebApplicationFactory<Program>

@@ -147,6 +147,20 @@ public sealed class FinancialIntegrationDataService : IFinancialIntegrationDataS
         return await DeserializeAsync<StripeWebhookProcessResponse>(response, "Processing Stripe webhook", cancellationToken);
     }
 
+    public async Task<PlaidWebhookProcessResponse> ProcessPlaidWebhookAsync(
+        string payload,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "webhooks/plaid")
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "Processing Plaid webhook", cancellationToken);
+        return await DeserializeAsync<PlaidWebhookProcessResponse>(response, "Processing Plaid webhook", cancellationToken);
+    }
+
     public Task<RewrapProviderSecretsResponse> RewrapProviderSecretsAsync(CancellationToken cancellationToken = default)
     {
         var familyId = RequireFamilyId();

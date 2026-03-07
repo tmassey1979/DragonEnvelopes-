@@ -180,6 +180,14 @@ public sealed record StripeWebhookProcessResponse(
     string? EventType,
     string? Message);
 
+public sealed record PlaidWebhookProcessResponse(
+    string Outcome,
+    string? WebhookType,
+    string? WebhookCode,
+    string? ItemId,
+    Guid? FamilyId,
+    string? Message);
+
 public sealed record UpdateNotificationPreferenceRequest(
     bool EmailEnabled,
     bool InAppEnabled,

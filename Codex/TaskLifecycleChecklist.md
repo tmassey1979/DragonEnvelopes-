@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `TBD (select next open issue after #246 closeout)`.
+- Active task: `TBD (select next open issue after #247 closeout)`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#246` Desktop auth concurrency: serialize session refresh/sign-out state transitions.
+- Previous completed task: `#247` Plaid webhook simulation: API endpoint and desktop tooling.
 - Last updated: `2026-03-07`.

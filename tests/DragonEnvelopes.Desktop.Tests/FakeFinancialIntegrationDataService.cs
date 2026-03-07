@@ -136,6 +136,13 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
             EventId: "evt_test_001",
             EventType: "issuing_authorization.request",
             Message: "Webhook processed in test harness.");
+        PlaidWebhookProcessResponse = new PlaidWebhookProcessResponse(
+            Outcome: "Processed",
+            WebhookType: "TRANSACTIONS",
+            WebhookCode: "SYNC_UPDATES_AVAILABLE",
+            ItemId: "plaid_item_test_001",
+            FamilyId: familyId,
+            Message: "Plaid webhook processed in test harness.");
         FailedNotificationDispatchEvents =
         [
             new FailedNotificationDispatchEventResponse(
@@ -225,6 +232,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
 
     public StripeWebhookProcessResponse StripeWebhookProcessResponse { get; set; }
 
+    public PlaidWebhookProcessResponse PlaidWebhookProcessResponse { get; set; }
+
     public IReadOnlyList<FailedNotificationDispatchEventResponse> FailedNotificationDispatchEvents { get; private set; }
 
     public IReadOnlyList<PlaidAccountLinkResponse> PlaidLinks { get; private set; }
@@ -244,6 +253,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
     public int RetryFailedNotificationDispatchEventCallCount { get; private set; }
 
     public int ProcessStripeWebhookCallCount { get; private set; }
+
+    public int ProcessPlaidWebhookCallCount { get; private set; }
 
     public int RewrapProviderSecretsCallCount { get; private set; }
 
@@ -387,6 +398,14 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
     {
         ProcessStripeWebhookCallCount += 1;
         return Task.FromResult(StripeWebhookProcessResponse);
+    }
+
+    public Task<PlaidWebhookProcessResponse> ProcessPlaidWebhookAsync(
+        string payload,
+        CancellationToken cancellationToken = default)
+    {
+        ProcessPlaidWebhookCallCount += 1;
+        return Task.FromResult(PlaidWebhookProcessResponse);
     }
 
     public Task<RewrapProviderSecretsResponse> RewrapProviderSecretsAsync(CancellationToken cancellationToken = default)

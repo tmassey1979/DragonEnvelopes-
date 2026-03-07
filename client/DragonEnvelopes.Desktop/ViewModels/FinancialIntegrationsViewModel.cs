@@ -55,6 +55,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         ProviderTimelineSummary = "No provider timeline events loaded.";
         NotificationRetrySummary = "No failed notification dispatch events loaded.";
         StripeWebhookSimulationSummary = "No webhook simulation has been run.";
+        PlaidWebhookSimulationSummary = "No Plaid webhook simulation has been run.";
         ProviderSecretRewrapSummary = "Provider secret rewrap has not been run.";
 
         LoadCommand = new AsyncRelayCommand(LoadAsync);
@@ -66,6 +67,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         RetrySelectedFailedNotificationDispatchEventCommand = new AsyncRelayCommand(RetrySelectedFailedNotificationDispatchEventAsync);
         ReplaySelectedTimelineNotificationDispatchEventCommand = new AsyncRelayCommand(ReplaySelectedTimelineNotificationDispatchEventAsync);
         SimulateStripeWebhookCommand = new AsyncRelayCommand(SimulateStripeWebhookAsync);
+        SimulatePlaidWebhookCommand = new AsyncRelayCommand(SimulatePlaidWebhookAsync);
         RewrapProviderSecretsCommand = new AsyncRelayCommand(RewrapProviderSecretsAsync);
         SaveNotificationPreferenceCommand = new AsyncRelayCommand(SaveNotificationPreferenceAsync);
         CreatePlaidLinkTokenCommand = new AsyncRelayCommand(CreatePlaidLinkTokenAsync);
@@ -107,6 +109,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public IAsyncRelayCommand RetrySelectedFailedNotificationDispatchEventCommand { get; }
     public IAsyncRelayCommand ReplaySelectedTimelineNotificationDispatchEventCommand { get; }
     public IAsyncRelayCommand SimulateStripeWebhookCommand { get; }
+    public IAsyncRelayCommand SimulatePlaidWebhookCommand { get; }
     public IAsyncRelayCommand RewrapProviderSecretsCommand { get; }
     public IAsyncRelayCommand SaveNotificationPreferenceCommand { get; }
     public IAsyncRelayCommand CreatePlaidLinkTokenCommand { get; }
@@ -393,6 +396,12 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
 
     [ObservableProperty]
     private string stripeWebhookSimulationSummary = string.Empty;
+
+    [ObservableProperty]
+    private string plaidWebhookPayload = string.Empty;
+
+    [ObservableProperty]
+    private string plaidWebhookSimulationSummary = string.Empty;
 
     [ObservableProperty]
     private string providerSecretRewrapSummary = string.Empty;
@@ -682,6 +691,28 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             await LoadProviderTimelineCoreAsync(ct);
             await LoadFailedNotificationDispatchEventsCoreAsync(ct);
             StatusMessage = "Stripe webhook simulation processed.";
+        }, cancellationToken);
+    }
+
+    private async Task SimulatePlaidWebhookAsync(CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(PlaidWebhookPayload))
+        {
+            SetValidationError("Plaid webhook payload is required.");
+            return;
+        }
+
+        await RunOperationAsync("Processing Plaid webhook simulation...", async ct =>
+        {
+            var result = await _financialIntegrationDataService.ProcessPlaidWebhookAsync(
+                PlaidWebhookPayload.Trim(),
+                ct);
+
+            PlaidWebhookSimulationSummary = FormatPlaidWebhookSimulationSummary(result);
+            await LoadProviderActivityHealthCoreAsync(ct);
+            await LoadProviderTimelineCoreAsync(ct);
+            await LoadFailedNotificationDispatchEventsCoreAsync(ct);
+            StatusMessage = "Plaid webhook simulation processed.";
         }, cancellationToken);
     }
 
@@ -1723,6 +1754,16 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         var eventId = string.IsNullOrWhiteSpace(result.EventId) ? "-" : result.EventId.Trim();
         var message = string.IsNullOrWhiteSpace(result.Message) ? "-" : result.Message.Trim();
         return $"Outcome: {result.Outcome}. Event: {eventType}. EventId: {eventId}. Message: {message}";
+    }
+
+    private static string FormatPlaidWebhookSimulationSummary(PlaidWebhookProcessResponse result)
+    {
+        var webhookType = string.IsNullOrWhiteSpace(result.WebhookType) ? "-" : result.WebhookType.Trim();
+        var webhookCode = string.IsNullOrWhiteSpace(result.WebhookCode) ? "-" : result.WebhookCode.Trim();
+        var itemId = string.IsNullOrWhiteSpace(result.ItemId) ? "-" : result.ItemId.Trim();
+        var familyId = result.FamilyId.HasValue ? result.FamilyId.Value.ToString() : "-";
+        var message = string.IsNullOrWhiteSpace(result.Message) ? "-" : result.Message.Trim();
+        return $"Outcome: {result.Outcome}. Type: {webhookType}. Code: {webhookCode}. Item: {itemId}. Family: {familyId}. Message: {message}";
     }
 
     private static string FormatDate(DateTimeOffset value)

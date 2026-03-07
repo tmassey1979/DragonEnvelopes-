@@ -213,6 +213,39 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
     }
 
     [Fact]
+    public async Task SimulatePlaidWebhookCommand_ValidatesPayload_AndProcessesWebhookResult()
+    {
+        var harness = CreateHarness();
+        await EnsureLoadedAsync(harness.ViewModel);
+
+        harness.ViewModel.PlaidWebhookPayload = "   ";
+
+        await harness.ViewModel.SimulatePlaidWebhookCommand.ExecuteAsync(null);
+
+        Assert.True(harness.ViewModel.HasError);
+        Assert.Equal("Plaid webhook payload is required.", harness.ViewModel.ErrorMessage);
+        Assert.Equal(0, harness.FinancialDataService.ProcessPlaidWebhookCallCount);
+
+        harness.FinancialDataService.PlaidWebhookProcessResponse = new PlaidWebhookProcessResponse(
+            Outcome: "Processed",
+            WebhookType: "TRANSACTIONS",
+            WebhookCode: "SYNC_UPDATES_AVAILABLE",
+            ItemId: "item_live_123",
+            FamilyId: Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            Message: "Sync triggered for smoke test.");
+        harness.ViewModel.PlaidWebhookPayload = "{\"webhook_type\":\"TRANSACTIONS\",\"item_id\":\"item_live_123\"}";
+
+        await harness.ViewModel.SimulatePlaidWebhookCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(harness.ViewModel);
+
+        Assert.False(harness.ViewModel.HasError);
+        Assert.Equal(1, harness.FinancialDataService.ProcessPlaidWebhookCallCount);
+        Assert.Contains("Outcome: Processed", harness.ViewModel.PlaidWebhookSimulationSummary);
+        Assert.Contains("TRANSACTIONS", harness.ViewModel.PlaidWebhookSimulationSummary);
+        Assert.Equal("Plaid webhook simulation processed.", harness.ViewModel.StatusMessage);
+    }
+
+    [Fact]
     public async Task CardCommands_AndControlFlow_ExecuteWithDeterministicStateTransitions()
     {
         var harness = CreateHarness();
