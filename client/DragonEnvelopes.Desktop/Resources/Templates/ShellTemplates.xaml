@@ -499,13 +499,28 @@
                                     <TextBlock Margin="0,8,0,4" Text="Total Income" Style="{StaticResource CaptionTextStyle}" />
                                     <TextBox Width="240"
                                              Text="{Binding DraftTotalIncome, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               Text="{Binding RolloverPreviewSummary}"
+                                               Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               Text="{Binding RolloverApplySummary}"
+                                               Style="{StaticResource CaptionTextStyle}" />
                                 </StackPanel>
 
                                 <Button Grid.Column="2"
                                         Margin="12,0,0,0"
-                                        VerticalAlignment="Bottom"
-                                        Content="{Binding BudgetActionLabel}"
-                                        Command="{Binding SaveBudgetCommand}" />
+                                        VerticalAlignment="Center"
+                                        Content="Preview Rollover"
+                                        Command="{Binding PreviewMonthEndRolloverCommand}" />
+                                <StackPanel Grid.Column="2"
+                                            Margin="12,60,0,0"
+                                            VerticalAlignment="Bottom">
+                                    <Button Margin="0,0,0,8"
+                                            Content="Apply Rollover"
+                                            Command="{Binding ApplyMonthEndRolloverCommand}" />
+                                    <Button Content="{Binding BudgetActionLabel}"
+                                            Command="{Binding SaveBudgetCommand}" />
+                                </StackPanel>
                             </Grid>
                         </Border>
                     </StackPanel>
@@ -517,7 +532,7 @@
                               HeadersVisibility="Column"
                               CanUserAddRows="False"
                               CanUserDeleteRows="False"
-                              IsReadOnly="True"
+                              IsReadOnly="False"
                               RowHeight="34"
                               GridLinesVisibility="Horizontal"
                               Background="{StaticResource PanelMutedBackgroundBrush}"
@@ -531,7 +546,31 @@
                             <DataGridTextColumn Header="Current Balance" Binding="{Binding CurrentBalance}" Width="140" />
                             <DataGridTextColumn Header="% of Income" Binding="{Binding AllocationPercent}" Width="110" />
                             <DataGridTextColumn Header="% of Envelope Left" Binding="{Binding BalancePercent}" Width="130" />
+                            <DataGridTemplateColumn Header="Rollover Mode" Width="120">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding DataContext.RolloverModes, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  SelectedItem="{Binding DraftRolloverMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Rollover Cap" Width="120">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding DraftRolloverCap, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridCheckBoxColumn Header="Archived" Binding="{Binding IsArchived}" Width="80" />
+                            <DataGridTemplateColumn Header="Action" Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="Save"
+                                                Command="{Binding DataContext.SaveEnvelopeRolloverPolicyCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

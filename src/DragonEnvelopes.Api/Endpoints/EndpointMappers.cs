@@ -184,8 +184,35 @@ internal static class EndpointMappers
             envelope.Name,
             envelope.MonthlyBudget,
             envelope.CurrentBalance,
+            envelope.RolloverMode,
+            envelope.RolloverCap,
             envelope.LastActivityAt,
             envelope.IsArchived);
+    }
+
+    public static EnvelopeRolloverPreviewResponse MapEnvelopeRolloverPreviewResponse(EnvelopeRolloverPreviewDetails details)
+    {
+        return new EnvelopeRolloverPreviewResponse(
+            details.FamilyId,
+            details.Month,
+            details.GeneratedAtUtc,
+            details.TotalSourceBalance,
+            details.TotalRolloverBalance,
+            details.Items.Select(MapEnvelopeRolloverItemResponse).ToArray());
+    }
+
+    public static EnvelopeRolloverApplyResponse MapEnvelopeRolloverApplyResponse(EnvelopeRolloverApplyDetails details)
+    {
+        return new EnvelopeRolloverApplyResponse(
+            details.RunId,
+            details.FamilyId,
+            details.Month,
+            details.AlreadyApplied,
+            details.AppliedAtUtc,
+            details.AppliedByUserId,
+            details.EnvelopeCount,
+            details.TotalRolloverBalance,
+            details.Items.Select(MapEnvelopeRolloverItemResponse).ToArray());
     }
 
     public static BudgetResponse MapBudgetResponse(BudgetDetails budget)
@@ -312,5 +339,17 @@ internal static class EndpointMappers
             rule.ActionJson,
             rule.CreatedAt,
             rule.UpdatedAt);
+    }
+
+    private static EnvelopeRolloverItemResponse MapEnvelopeRolloverItemResponse(EnvelopeRolloverItemDetails details)
+    {
+        return new EnvelopeRolloverItemResponse(
+            details.EnvelopeId,
+            details.EnvelopeName,
+            details.CurrentBalance,
+            details.RolloverMode,
+            details.RolloverCap,
+            details.RolloverBalance,
+            details.AdjustmentAmount);
     }
 }

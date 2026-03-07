@@ -6,5 +6,7 @@ public sealed record EnvelopeDetails(
     string Name,
     decimal MonthlyBudget,
     decimal CurrentBalance,
+    string RolloverMode,
+    decimal? RolloverCap,
     DateTimeOffset? LastActivityAt,
     bool IsArchived);

@@ -27,6 +27,8 @@ internal static partial class PlanningEndpoints
                     request.FamilyId,
                     request.Name,
                     request.MonthlyBudget,
+                    request.RolloverMode,
+                    request.RolloverCap,
                     cancellationToken);
                 return Results.Created($"/api/v1/envelopes/{envelope.Id}", EndpointMappers.MapEnvelopeResponse(envelope));
             })
@@ -102,11 +104,42 @@ internal static partial class PlanningEndpoints
                     request.Name,
                     request.MonthlyBudget,
                     request.IsArchived,
+                    request.RolloverMode,
+                    request.RolloverCap,
                     cancellationToken);
                 return Results.Ok(EndpointMappers.MapEnvelopeResponse(envelope));
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
             .WithName("UpdateEnvelope")
+            .WithOpenApi();
+
+        v1.MapPut("/envelopes/{envelopeId:guid}/rollover-policy", async (
+                Guid envelopeId,
+                UpdateEnvelopeRolloverPolicyRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopeService envelopeService,
+                CancellationToken cancellationToken) =>
+            {
+                var familyId = await dbContext.Envelopes
+                    .AsNoTracking()
+                    .Where(x => x.Id == envelopeId)
+                    .Select(x => (Guid?)x.FamilyId)
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (!familyId.HasValue || !await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var envelope = await envelopeService.UpdateRolloverPolicyAsync(
+                    envelopeId,
+                    request.RolloverMode,
+                    request.RolloverCap,
+                    cancellationToken);
+                return Results.Ok(EndpointMappers.MapEnvelopeResponse(envelope));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("UpdateEnvelopeRolloverPolicy")
             .WithOpenApi();
 
         v1.MapPost("/envelopes/{envelopeId:guid}/archive", async (

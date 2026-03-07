@@ -9,6 +9,8 @@ public sealed class Envelope
     public string Name { get; private set; }
     public Money MonthlyBudget { get; private set; }
     public Money CurrentBalance { get; private set; }
+    public EnvelopeRolloverMode RolloverMode { get; private set; }
+    public Money? RolloverCap { get; private set; }
     public DateTimeOffset? LastActivityAt { get; private set; }
     public bool IsArchived { get; private set; }
 
@@ -17,7 +19,9 @@ public sealed class Envelope
         Guid familyId,
         string name,
         Money monthlyBudget,
-        Money currentBalance)
+        Money currentBalance,
+        EnvelopeRolloverMode rolloverMode = EnvelopeRolloverMode.Full,
+        Money? rolloverCap = null)
     {
         if (id == Guid.Empty)
         {
@@ -34,6 +38,7 @@ public sealed class Envelope
         Name = ValidateText(name, "Envelope name");
         MonthlyBudget = monthlyBudget.EnsureNonNegative("Monthly budget");
         CurrentBalance = currentBalance.EnsureNonNegative("Current balance");
+        ApplyRolloverPolicy(rolloverMode, rolloverCap);
     }
 
     public void Rename(string name)
@@ -82,6 +87,32 @@ public sealed class Envelope
         IsArchived = true;
     }
 
+    public void UpdateRolloverPolicy(EnvelopeRolloverMode rolloverMode, Money? rolloverCap)
+    {
+        EnsureNotArchived();
+        ApplyRolloverPolicy(rolloverMode, rolloverCap);
+    }
+
+    public Money CalculateRolloverBalance()
+    {
+        return Money.FromDecimal(
+            EnvelopeRolloverCalculator.Calculate(
+                CurrentBalance.Amount,
+                RolloverMode,
+                RolloverCap?.Amount));
+    }
+
+    public void ApplyMonthEndRollover(Money rolloverBalance, DateTimeOffset occurredAtUtc)
+    {
+        if (rolloverBalance < Money.Zero)
+        {
+            throw new DomainValidationException("Rollover balance cannot be negative.");
+        }
+
+        CurrentBalance = rolloverBalance;
+        LastActivityAt = occurredAtUtc;
+    }
+
     private void EnsureNotArchived()
     {
         if (IsArchived)
@@ -99,5 +130,28 @@ public sealed class Envelope
 
         return value.Trim();
     }
-}
 
+    private void ApplyRolloverPolicy(EnvelopeRolloverMode rolloverMode, Money? rolloverCap)
+    {
+        if (!Enum.IsDefined(rolloverMode))
+        {
+            throw new DomainValidationException("Envelope rollover mode is invalid.");
+        }
+
+        if (rolloverMode == EnvelopeRolloverMode.Cap)
+        {
+            if (!rolloverCap.HasValue)
+            {
+                throw new DomainValidationException("Rollover cap is required for capped rollover mode.");
+            }
+
+            RolloverCap = rolloverCap.Value.EnsureNonNegative("Rollover cap");
+        }
+        else
+        {
+            RolloverCap = null;
+        }
+
+        RolloverMode = rolloverMode;
+    }
+}

@@ -20,5 +20,7 @@ public interface IEnvelopeRepository
 
     Task<IReadOnlyList<Envelope>> ListByFamilyAsync(Guid familyId, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<Envelope>> ListByFamilyForUpdateAsync(Guid familyId, CancellationToken cancellationToken = default);
+
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

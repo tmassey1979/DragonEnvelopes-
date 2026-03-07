@@ -182,6 +182,8 @@ internal static class EndpointMappers
             envelope.Name,
             envelope.MonthlyBudget,
             envelope.CurrentBalance,
+            envelope.RolloverMode,
+            envelope.RolloverCap,
             envelope.LastActivityAt,
             envelope.IsArchived);
     }

@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Net.Http;
 using System.Net.Http.Json;
 using DragonEnvelopes.Contracts.Budgets;
+using DragonEnvelopes.Contracts.Envelopes;
 using DragonEnvelopes.Contracts.Reports;
 using DragonEnvelopes.Desktop.Api;
 
@@ -62,16 +63,37 @@ public sealed class BudgetsDataService : IBudgetsDataService
             SerializerOptions,
             cancellationToken) ?? [];
 
+        using var envelopePolicyResponse = await _apiClient.GetAsync(
+            $"envelopes?familyId={familyId}",
+            cancellationToken);
+        if (!envelopePolicyResponse.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Envelope policy request failed with status {(int)envelopePolicyResponse.StatusCode}.");
+        }
+
+        await using var envelopePolicyStream = await envelopePolicyResponse.Content.ReadAsStreamAsync(cancellationToken);
+        var envelopePolicies = await JsonSerializer.DeserializeAsync<List<EnvelopeResponse>>(
+            envelopePolicyStream,
+            SerializerOptions,
+            cancellationToken) ?? [];
+        var policyLookup = envelopePolicies.ToDictionary(static item => item.Id);
+
         var envelopes = envelopeBalances
             .Where(envelope => includeArchived || !envelope.IsArchived)
             .OrderByDescending(static envelope => envelope.MonthlyBudget)
             .ThenBy(static envelope => envelope.EnvelopeName, StringComparer.OrdinalIgnoreCase)
-            .Select(static envelope => new BudgetAllocationEnvelopeData(
-                envelope.EnvelopeId,
-                envelope.EnvelopeName,
-                envelope.MonthlyBudget,
-                envelope.CurrentBalance,
-                envelope.IsArchived))
+            .Select(envelope =>
+            {
+                policyLookup.TryGetValue(envelope.EnvelopeId, out var policy);
+                return new BudgetAllocationEnvelopeData(
+                    envelope.EnvelopeId,
+                    envelope.EnvelopeName,
+                    envelope.MonthlyBudget,
+                    envelope.CurrentBalance,
+                    policy?.RolloverMode ?? "Full",
+                    policy?.RolloverCap,
+                    envelope.IsArchived);
+            })
             .ToArray();
 
         return new BudgetAllocationWorkspaceData(
@@ -172,6 +194,91 @@ public sealed class BudgetsDataService : IBudgetsDataService
             budget.TotalIncome,
             budget.AllocatedAmount,
             budget.RemainingAmount);
+    }
+
+    public async Task UpdateEnvelopeRolloverPolicyAsync(
+        Guid envelopeId,
+        string rolloverMode,
+        decimal? rolloverCap,
+        CancellationToken cancellationToken = default)
+    {
+        var payload = new UpdateEnvelopeRolloverPolicyRequest(rolloverMode, rolloverCap);
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"envelopes/{envelopeId}/rollover-policy")
+        {
+            Content = JsonContent.Create(payload, options: SerializerOptions)
+        };
+
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Update envelope rollover policy failed with status {(int)response.StatusCode}.");
+        }
+    }
+
+    public async Task<EnvelopeRolloverPreviewData> PreviewEnvelopeRolloverAsync(
+        string month,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var encodedMonth = Uri.EscapeDataString(month);
+        using var response = await _apiClient.GetAsync(
+            $"budgets/rollover/preview?familyId={familyId}&month={encodedMonth}",
+            cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Envelope rollover preview failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var preview = await JsonSerializer.DeserializeAsync<EnvelopeRolloverPreviewResponse>(stream, SerializerOptions, cancellationToken)
+            ?? throw new InvalidOperationException("Envelope rollover preview response was invalid.");
+
+        return new EnvelopeRolloverPreviewData(
+            preview.FamilyId,
+            preview.Month,
+            preview.GeneratedAtUtc,
+            preview.TotalSourceBalance,
+            preview.TotalRolloverBalance,
+            preview.Items.Select(static item => new EnvelopeRolloverPreviewItemData(
+                item.EnvelopeId,
+                item.EnvelopeName,
+                item.CurrentBalance,
+                item.RolloverMode,
+                item.RolloverCap,
+                item.RolloverBalance,
+                item.AdjustmentAmount))
+                .ToArray());
+    }
+
+    public async Task<EnvelopeRolloverApplyData> ApplyEnvelopeRolloverAsync(
+        string month,
+        CancellationToken cancellationToken = default)
+    {
+        var familyId = RequireFamilyId();
+        var payload = new ApplyEnvelopeRolloverRequest(familyId, month);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "budgets/rollover/apply")
+        {
+            Content = JsonContent.Create(payload, options: SerializerOptions)
+        };
+
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Envelope rollover apply failed with status {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var applied = await JsonSerializer.DeserializeAsync<EnvelopeRolloverApplyResponse>(stream, SerializerOptions, cancellationToken)
+            ?? throw new InvalidOperationException("Envelope rollover apply response was invalid.");
+
+        return new EnvelopeRolloverApplyData(
+            applied.RunId,
+            applied.FamilyId,
+            applied.Month,
+            applied.AlreadyApplied,
+            applied.AppliedAtUtc,
+            applied.EnvelopeCount,
+            applied.TotalRolloverBalance);
     }
 
     private Guid RequireFamilyId()

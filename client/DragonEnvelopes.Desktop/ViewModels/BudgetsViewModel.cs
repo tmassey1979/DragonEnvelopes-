@@ -18,6 +18,9 @@ public sealed partial class BudgetsViewModel : ObservableObject
         LoadCommand = new AsyncRelayCommand(LoadAsync);
         ApplyFiltersCommand = new AsyncRelayCommand(LoadAsync);
         SaveBudgetCommand = new AsyncRelayCommand(SaveBudgetAsync);
+        SaveEnvelopeRolloverPolicyCommand = new AsyncRelayCommand<BudgetAllocationEnvelopeViewModel>(SaveEnvelopeRolloverPolicyAsync);
+        PreviewMonthEndRolloverCommand = new AsyncRelayCommand(PreviewMonthEndRolloverAsync);
+        ApplyMonthEndRolloverCommand = new AsyncRelayCommand(ApplyMonthEndRolloverAsync);
 
         _ = LoadCommand.ExecuteAsync(null);
     }
@@ -26,6 +29,9 @@ public sealed partial class BudgetsViewModel : ObservableObject
 
     public IAsyncRelayCommand ApplyFiltersCommand { get; }
     public IAsyncRelayCommand SaveBudgetCommand { get; }
+    public IAsyncRelayCommand<BudgetAllocationEnvelopeViewModel> SaveEnvelopeRolloverPolicyCommand { get; }
+    public IAsyncRelayCommand PreviewMonthEndRolloverCommand { get; }
+    public IAsyncRelayCommand ApplyMonthEndRolloverCommand { get; }
 
     [ObservableProperty]
     private string selectedMonth = string.Empty;
@@ -72,6 +78,15 @@ public sealed partial class BudgetsViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<BudgetAllocationEnvelopeViewModel> envelopeAllocations = [];
 
+    [ObservableProperty]
+    private ObservableCollection<string> rolloverModes = ["None", "Full", "Cap"];
+
+    [ObservableProperty]
+    private string rolloverPreviewSummary = "Month-end rollover preview not loaded.";
+
+    [ObservableProperty]
+    private string rolloverApplySummary = "Month-end rollover has not been applied.";
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         IsLoading = true;
@@ -111,12 +126,15 @@ public sealed partial class BudgetsViewModel : ObservableObject
                         : decimal.Round((envelope.CurrentBalance / envelope.MonthlyBudget) * 100m, 1, MidpointRounding.AwayFromZero);
 
                     return new BudgetAllocationEnvelopeViewModel(
+                        envelope.EnvelopeId,
                         envelope.EnvelopeName,
                         FormatCurrency(envelope.MonthlyBudget),
                         FormatCurrency(envelope.CurrentBalance),
                         $"{budgetPercent:0.0}%",
                         $"{balancePercent:0.0}%",
-                        envelope.IsArchived);
+                        envelope.IsArchived,
+                        envelope.RolloverMode,
+                        envelope.RolloverCap);
                 }));
 
             IsEmpty = EnvelopeAllocations.Count == 0;
@@ -196,6 +214,114 @@ public sealed partial class BudgetsViewModel : ObservableObject
         {
             HasError = true;
             ErrorMessage = $"Unable to save budget: {ex.Message}";
+        }
+    }
+
+    private async Task SaveEnvelopeRolloverPolicyAsync(
+        BudgetAllocationEnvelopeViewModel? envelope,
+        CancellationToken cancellationToken)
+    {
+        if (envelope is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select an envelope row to update rollover policy.";
+            return;
+        }
+
+        if (!RolloverModes.Contains(envelope.DraftRolloverMode))
+        {
+            HasError = true;
+            ErrorMessage = "Rollover mode is invalid.";
+            return;
+        }
+
+        var requiresCap = string.Equals(envelope.DraftRolloverMode, "Cap", StringComparison.OrdinalIgnoreCase);
+        if (requiresCap && !envelope.DraftRolloverCap.HasValue)
+        {
+            HasError = true;
+            ErrorMessage = "Rollover cap is required for Cap mode.";
+            return;
+        }
+
+        if (!requiresCap && envelope.DraftRolloverCap.HasValue)
+        {
+            envelope.DraftRolloverCap = null;
+        }
+
+        if (envelope.DraftRolloverCap is < 0m)
+        {
+            HasError = true;
+            ErrorMessage = "Rollover cap cannot be negative.";
+            return;
+        }
+
+        try
+        {
+            await _budgetsDataService.UpdateEnvelopeRolloverPolicyAsync(
+                envelope.EnvelopeId,
+                envelope.DraftRolloverMode,
+                envelope.DraftRolloverCap,
+                cancellationToken);
+
+            BudgetEditorMessage = $"Updated rollover policy for '{envelope.Name}'.";
+            await LoadAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to update rollover policy: {ex.Message}";
+        }
+    }
+
+    private async Task PreviewMonthEndRolloverAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(SelectedMonth) || !System.Text.RegularExpressions.Regex.IsMatch(SelectedMonth, @"^\d{4}-(0[1-9]|1[0-2])$"))
+        {
+            HasError = true;
+            ErrorMessage = "Month must be in yyyy-MM format.";
+            return;
+        }
+
+        try
+        {
+            var preview = await _budgetsDataService.PreviewEnvelopeRolloverAsync(SelectedMonth, cancellationToken);
+            RolloverPreviewSummary =
+                $"Preview {preview.Month}: {FormatCurrency(preview.TotalSourceBalance)} -> {FormatCurrency(preview.TotalRolloverBalance)} ({preview.Items.Count} envelopes).";
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to preview month-end rollover: {ex.Message}";
+        }
+    }
+
+    private async Task ApplyMonthEndRolloverAsync(CancellationToken cancellationToken)
+    {
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(SelectedMonth) || !System.Text.RegularExpressions.Regex.IsMatch(SelectedMonth, @"^\d{4}-(0[1-9]|1[0-2])$"))
+        {
+            HasError = true;
+            ErrorMessage = "Month must be in yyyy-MM format.";
+            return;
+        }
+
+        try
+        {
+            var result = await _budgetsDataService.ApplyEnvelopeRolloverAsync(SelectedMonth, cancellationToken);
+            var applyVerb = result.AlreadyApplied ? "Already applied" : "Applied";
+            RolloverApplySummary =
+                $"{applyVerb} {result.Month}: {FormatCurrency(result.TotalRolloverBalance)} across {result.EnvelopeCount} envelopes at {result.AppliedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm}.";
+            await LoadAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = $"Unable to apply month-end rollover: {ex.Message}";
         }
     }
 }

@@ -31,6 +31,8 @@ public class EnvelopeServiceTests
         Assert.Equal(familyId, envelope.FamilyId);
         Assert.Equal("Groceries", envelope.Name);
         Assert.Equal(500m, envelope.MonthlyBudget);
+        Assert.Equal("Full", envelope.RolloverMode);
+        Assert.Null(envelope.RolloverCap);
         Assert.False(envelope.IsArchived);
     }
 
@@ -63,6 +65,31 @@ public class EnvelopeServiceTests
 
         Assert.Equal(250m, updated.MonthlyBudget);
         Assert.True(updated.IsArchived);
+    }
+
+    [Fact]
+    public async Task UpdateRolloverPolicyAsync_UpdatesModeAndCap()
+    {
+        var familyId = Guid.NewGuid();
+        var envelopeId = Guid.NewGuid();
+        var envelope = new Envelope(
+            envelopeId,
+            familyId,
+            "Groceries",
+            Money.FromDecimal(300m),
+            Money.FromDecimal(200m));
+
+        var repository = new Mock<IEnvelopeRepository>();
+        repository.Setup(x => x.GetByIdForUpdateAsync(envelopeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(envelope);
+        repository.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = new EnvelopeService(repository.Object);
+        var updated = await service.UpdateRolloverPolicyAsync(envelopeId, "Cap", 100m);
+
+        Assert.Equal("Cap", updated.RolloverMode);
+        Assert.Equal(100m, updated.RolloverCap);
     }
 
     [Fact]

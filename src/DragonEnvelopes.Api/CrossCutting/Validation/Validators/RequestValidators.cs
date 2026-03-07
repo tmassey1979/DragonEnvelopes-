@@ -478,6 +478,8 @@ public sealed class CreateAccountRequestValidator : AbstractValidator<CreateAcco
 
 public sealed class CreateEnvelopeRequestValidator : AbstractValidator<CreateEnvelopeRequest>
 {
+    private static readonly string[] AllowedRolloverModes = ["None", "Full", "Cap"];
+
     public CreateEnvelopeRequestValidator()
     {
         RuleFor(static request => request.FamilyId)
@@ -489,11 +491,31 @@ public sealed class CreateEnvelopeRequestValidator : AbstractValidator<CreateEnv
 
         RuleFor(static request => request.MonthlyBudget)
             .GreaterThanOrEqualTo(0m);
+
+        RuleFor(static request => request.RolloverMode)
+            .Must(static mode => string.IsNullOrWhiteSpace(mode) || AllowedRolloverModes.Contains(mode, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"RolloverMode must be one of: {string.Join(", ", AllowedRolloverModes)}.");
+
+        RuleFor(static request => request)
+            .Must(static request => IsValidRolloverCap(request.RolloverMode, request.RolloverCap))
+            .WithMessage("RolloverCap must be provided for Cap mode and omitted for other modes.");
+
+        RuleFor(static request => request.RolloverCap)
+            .GreaterThanOrEqualTo(0m)
+            .When(static request => request.RolloverCap.HasValue);
+    }
+
+    private static bool IsValidRolloverCap(string? rolloverMode, decimal? rolloverCap)
+    {
+        var isCap = string.Equals(rolloverMode, "Cap", StringComparison.OrdinalIgnoreCase);
+        return isCap ? rolloverCap.HasValue : !rolloverCap.HasValue;
     }
 }
 
 public sealed class UpdateEnvelopeRequestValidator : AbstractValidator<UpdateEnvelopeRequest>
 {
+    private static readonly string[] AllowedRolloverModes = ["None", "Full", "Cap"];
+
     public UpdateEnvelopeRequestValidator()
     {
         RuleFor(static request => request.Name)
@@ -502,6 +524,51 @@ public sealed class UpdateEnvelopeRequestValidator : AbstractValidator<UpdateEnv
 
         RuleFor(static request => request.MonthlyBudget)
             .GreaterThanOrEqualTo(0m);
+
+        RuleFor(static request => request.RolloverMode)
+            .Must(static mode => string.IsNullOrWhiteSpace(mode) || AllowedRolloverModes.Contains(mode, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"RolloverMode must be one of: {string.Join(", ", AllowedRolloverModes)}.");
+
+        RuleFor(static request => request)
+            .Must(static request => IsValidRolloverCap(request.RolloverMode, request.RolloverCap))
+            .WithMessage("RolloverCap must be provided for Cap mode and omitted for other modes.");
+
+        RuleFor(static request => request.RolloverCap)
+            .GreaterThanOrEqualTo(0m)
+            .When(static request => request.RolloverCap.HasValue);
+    }
+
+    private static bool IsValidRolloverCap(string? rolloverMode, decimal? rolloverCap)
+    {
+        var isCap = string.Equals(rolloverMode, "Cap", StringComparison.OrdinalIgnoreCase);
+        return isCap ? rolloverCap.HasValue : !rolloverCap.HasValue;
+    }
+}
+
+public sealed class UpdateEnvelopeRolloverPolicyRequestValidator : AbstractValidator<UpdateEnvelopeRolloverPolicyRequest>
+{
+    private static readonly string[] AllowedRolloverModes = ["None", "Full", "Cap"];
+
+    public UpdateEnvelopeRolloverPolicyRequestValidator()
+    {
+        RuleFor(static request => request.RolloverMode)
+            .NotEmpty()
+            .Must(static mode => AllowedRolloverModes.Contains(mode, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"RolloverMode must be one of: {string.Join(", ", AllowedRolloverModes)}.");
+
+        RuleFor(static request => request)
+            .Must(static request => IsValidRolloverCap(request.RolloverMode, request.RolloverCap))
+            .WithMessage("RolloverCap must be provided for Cap mode and omitted for other modes.");
+
+        RuleFor(static request => request.RolloverCap)
+            .GreaterThanOrEqualTo(0m)
+            .When(static request => request.RolloverCap.HasValue);
+    }
+
+    private static bool IsValidRolloverCap(string rolloverMode, decimal? rolloverCap)
+    {
+        var isCap = string.Equals(rolloverMode, "Cap", StringComparison.OrdinalIgnoreCase);
+        return isCap ? rolloverCap.HasValue : !rolloverCap.HasValue;
     }
 }
 
@@ -621,6 +688,19 @@ public sealed class UpdateBudgetRequestValidator : AbstractValidator<UpdateBudge
     {
         RuleFor(static request => request.TotalIncome)
             .GreaterThanOrEqualTo(0m);
+    }
+}
+
+public sealed class ApplyEnvelopeRolloverRequestValidator : AbstractValidator<ApplyEnvelopeRolloverRequest>
+{
+    public ApplyEnvelopeRolloverRequestValidator()
+    {
+        RuleFor(static request => request.FamilyId)
+            .NotEmpty();
+
+        RuleFor(static request => request.Month)
+            .NotEmpty()
+            .Matches(@"^\d{4}-(0[1-9]|1[0-2])$");
     }
 }
 

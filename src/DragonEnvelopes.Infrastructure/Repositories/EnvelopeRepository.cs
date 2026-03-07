@@ -59,6 +59,16 @@ public sealed class EnvelopeRepository(DragonEnvelopesDbContext dbContext) : IEn
             .ToArrayAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Envelope>> ListByFamilyForUpdateAsync(
+        Guid familyId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Envelopes
+            .Where(x => x.FamilyId == familyId)
+            .OrderBy(x => x.Name)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return dbContext.SaveChangesAsync(cancellationToken);

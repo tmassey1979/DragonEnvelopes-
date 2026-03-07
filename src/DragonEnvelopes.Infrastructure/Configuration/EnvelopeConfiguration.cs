@@ -37,6 +37,18 @@ public sealed class EnvelopeConfiguration : IEntityTypeConfiguration<Envelope>
             .HasPrecision(18, 2)
             .IsRequired();
 
+        builder.Property(x => x.RolloverMode)
+            .HasConversion<string>()
+            .HasMaxLength(16)
+            .IsRequired();
+
+        builder.Property(x => x.RolloverCap)
+            .HasConversion(
+                value => value.HasValue ? value.Value.Amount : (decimal?)null,
+                value => value.HasValue ? Money.FromDecimal(value.Value) : null)
+            .HasPrecision(18, 2)
+            .IsRequired(false);
+
         builder.Property(x => x.LastActivityAt)
             .IsRequired(false);
 
@@ -52,4 +64,3 @@ public sealed class EnvelopeConfiguration : IEntityTypeConfiguration<Envelope>
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
-

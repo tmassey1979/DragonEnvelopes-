@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `TBD (select next open phase 2B issue after #255 closeout)`.
+- Active task: `#257 Ledger: envelope-to-envelope transfer workflow`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#255` Provider activity: event detail drilldown with payload redaction.
+- Previous completed task: `#256` Budgeting: configurable month-end envelope rollover.
 - Last updated: `2026-03-07`.

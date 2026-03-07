@@ -12,6 +12,8 @@ public sealed class EnvelopeService(IEnvelopeRepository envelopeRepository) : IE
         Guid familyId,
         string name,
         decimal monthlyBudget,
+        string? rolloverMode = null,
+        decimal? rolloverCap = null,
         CancellationToken cancellationToken = default)
     {
         if (!await envelopeRepository.FamilyExistsAsync(familyId, cancellationToken))
@@ -30,7 +32,9 @@ public sealed class EnvelopeService(IEnvelopeRepository envelopeRepository) : IE
             familyId,
             normalizedName,
             Money.FromDecimal(monthlyBudget).EnsureNonNegative("MonthlyBudget"),
-            Money.Zero);
+            Money.Zero,
+            ResolveRolloverMode(rolloverMode, EnvelopeRolloverMode.Full),
+            ParseRolloverCap(rolloverCap));
 
         await envelopeRepository.AddEnvelopeAsync(envelope, cancellationToken);
         return Map(envelope);
@@ -55,6 +59,8 @@ public sealed class EnvelopeService(IEnvelopeRepository envelopeRepository) : IE
         string name,
         decimal monthlyBudget,
         bool isArchived,
+        string? rolloverMode = null,
+        decimal? rolloverCap = null,
         CancellationToken cancellationToken = default)
     {
         var envelope = await envelopeRepository.GetByIdForUpdateAsync(envelopeId, cancellationToken);
@@ -89,6 +95,16 @@ public sealed class EnvelopeService(IEnvelopeRepository envelopeRepository) : IE
         {
             envelope.Archive();
         }
+        else if (!isArchived)
+        {
+            var parsedRolloverMode = ResolveRolloverMode(rolloverMode, envelope.RolloverMode);
+            var parsedRolloverCap = ResolveRolloverCap(parsedRolloverMode, rolloverCap, envelope.RolloverCap);
+            if (envelope.RolloverMode != parsedRolloverMode
+                || envelope.RolloverCap?.Amount != parsedRolloverCap?.Amount)
+            {
+                envelope.UpdateRolloverPolicy(parsedRolloverMode, parsedRolloverCap);
+            }
+        }
 
         await envelopeRepository.SaveChangesAsync(cancellationToken);
         return Map(envelope);
@@ -111,6 +127,25 @@ public sealed class EnvelopeService(IEnvelopeRepository envelopeRepository) : IE
         return Map(envelope);
     }
 
+    public async Task<EnvelopeDetails> UpdateRolloverPolicyAsync(
+        Guid envelopeId,
+        string rolloverMode,
+        decimal? rolloverCap,
+        CancellationToken cancellationToken = default)
+    {
+        var envelope = await envelopeRepository.GetByIdForUpdateAsync(envelopeId, cancellationToken);
+        if (envelope is null)
+        {
+            throw new DomainValidationException("Envelope was not found.");
+        }
+
+        envelope.UpdateRolloverPolicy(
+            ParseRolloverMode(rolloverMode),
+            ParseRolloverCap(rolloverCap));
+        await envelopeRepository.SaveChangesAsync(cancellationToken);
+        return Map(envelope);
+    }
+
     private static EnvelopeDetails Map(Envelope envelope)
     {
         return new EnvelopeDetails(
@@ -119,7 +154,52 @@ public sealed class EnvelopeService(IEnvelopeRepository envelopeRepository) : IE
             envelope.Name,
             envelope.MonthlyBudget.Amount,
             envelope.CurrentBalance.Amount,
+            envelope.RolloverMode.ToString(),
+            envelope.RolloverCap?.Amount,
             envelope.LastActivityAt,
             envelope.IsArchived);
+    }
+
+    private static EnvelopeRolloverMode ParseRolloverMode(string mode)
+    {
+        if (!Enum.TryParse<EnvelopeRolloverMode>(mode, ignoreCase: true, out var parsedMode)
+            || !Enum.IsDefined(parsedMode))
+        {
+            throw new DomainValidationException("Rollover mode is invalid.");
+        }
+
+        return parsedMode;
+    }
+
+    private static EnvelopeRolloverMode ResolveRolloverMode(string? mode, EnvelopeRolloverMode fallback)
+    {
+        if (string.IsNullOrWhiteSpace(mode))
+        {
+            return fallback;
+        }
+
+        return ParseRolloverMode(mode);
+    }
+
+    private static Money? ParseRolloverCap(decimal? rolloverCap)
+    {
+        return rolloverCap.HasValue
+            ? Money.FromDecimal(rolloverCap.Value).EnsureNonNegative("RolloverCap")
+            : null;
+    }
+
+    private static Money? ResolveRolloverCap(
+        EnvelopeRolloverMode mode,
+        decimal? requestedCap,
+        Money? fallbackCap)
+    {
+        if (mode != EnvelopeRolloverMode.Cap)
+        {
+            return null;
+        }
+
+        return requestedCap.HasValue
+            ? ParseRolloverCap(requestedCap)
+            : fallbackCap;
     }
 }

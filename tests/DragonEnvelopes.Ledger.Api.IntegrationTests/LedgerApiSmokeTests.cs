@@ -253,6 +253,45 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
         Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task Authenticated_User_Can_Preview_And_Apply_Own_Family_Rollover_But_Not_Other_Family()
+    {
+        var userId = "ledger-user-rollover-a";
+        var ownFamilyId = Guid.Parse("e5000000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e5000000-0000-0000-0000-000000000002");
+        const string month = "2026-03";
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAndRolloverEnvelopesAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var ownPreviewResponse = await client.GetAsync($"/api/v1/budgets/rollover/preview?familyId={ownFamilyId}&month={month}");
+        var ownPreviewPayload = await ownPreviewResponse.Content.ReadFromJsonAsync<EnvelopeRolloverPreviewResponse>();
+
+        var otherPreviewResponse = await client.GetAsync($"/api/v1/budgets/rollover/preview?familyId={otherFamilyId}&month={month}");
+
+        Assert.Equal(HttpStatusCode.OK, ownPreviewResponse.StatusCode);
+        Assert.NotNull(ownPreviewPayload);
+        Assert.Equal(2, ownPreviewPayload!.Items.Count);
+        Assert.Equal(HttpStatusCode.Forbidden, otherPreviewResponse.StatusCode);
+
+        var ownApplyResponse = await client.PostAsJsonAsync(
+            "/api/v1/budgets/rollover/apply",
+            new ApplyEnvelopeRolloverRequest(ownFamilyId, month));
+        var ownApplyPayload = await ownApplyResponse.Content.ReadFromJsonAsync<EnvelopeRolloverApplyResponse>();
+        Assert.Equal(HttpStatusCode.OK, ownApplyResponse.StatusCode);
+        Assert.NotNull(ownApplyPayload);
+        Assert.False(ownApplyPayload!.AlreadyApplied);
+
+        var secondApplyResponse = await client.PostAsJsonAsync(
+            "/api/v1/budgets/rollover/apply",
+            new ApplyEnvelopeRolloverRequest(ownFamilyId, month));
+        var secondApplyPayload = await secondApplyResponse.Content.ReadFromJsonAsync<EnvelopeRolloverApplyResponse>();
+        Assert.Equal(HttpStatusCode.OK, secondApplyResponse.StatusCode);
+        Assert.NotNull(secondApplyPayload);
+        Assert.True(secondApplyPayload!.AlreadyApplied);
+    }
+
     private async Task SeedFamilyMembershipAndAccountAsync(string userId, Guid ownFamilyId, Guid otherFamilyId)
     {
         using var scope = _factory.Services.CreateScope();
@@ -442,6 +481,61 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
                 startDate: DateOnly.FromDateTime(DateTime.UtcNow.Date),
                 endDate: null,
                 isActive: true));
+
+        await dbContext.SaveChangesAsync();
+    }
+
+    private async Task SeedFamilyMembershipAndRolloverEnvelopesAsync(
+        string userId,
+        Guid ownFamilyId,
+        Guid otherFamilyId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+
+        dbContext.EnvelopeRolloverRuns.RemoveRange(dbContext.EnvelopeRolloverRuns);
+        dbContext.Envelopes.RemoveRange(dbContext.Envelopes);
+        dbContext.FamilyMembers.RemoveRange(dbContext.FamilyMembers);
+        dbContext.Families.RemoveRange(dbContext.Families);
+
+        var now = DateTimeOffset.UtcNow;
+        dbContext.Families.AddRange(
+            new Family(ownFamilyId, "Authorized Ledger Family", now),
+            new Family(otherFamilyId, "Forbidden Ledger Family", now));
+
+        dbContext.FamilyMembers.Add(new FamilyMember(
+            Guid.NewGuid(),
+            ownFamilyId,
+            userId,
+            "Ledger Parent User",
+            EmailAddress.Parse("ledger.parent@test.local"),
+            MemberRole.Parent));
+
+        dbContext.Envelopes.AddRange(
+            new Envelope(
+                Guid.NewGuid(),
+                ownFamilyId,
+                "Groceries",
+                Money.FromDecimal(300m),
+                Money.FromDecimal(120m),
+                EnvelopeRolloverMode.Cap,
+                Money.FromDecimal(100m)),
+            new Envelope(
+                Guid.NewGuid(),
+                ownFamilyId,
+                "Fun",
+                Money.FromDecimal(200m),
+                Money.FromDecimal(80m),
+                EnvelopeRolloverMode.None,
+                rolloverCap: null),
+            new Envelope(
+                Guid.NewGuid(),
+                otherFamilyId,
+                "Other Family Envelope",
+                Money.FromDecimal(300m),
+                Money.FromDecimal(250m),
+                EnvelopeRolloverMode.Full,
+                rolloverCap: null));
 
         await dbContext.SaveChangesAsync();
     }

@@ -12,6 +12,7 @@ public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbC
     public DbSet<EnvelopePaymentCardShipment> EnvelopePaymentCardShipments => Set<EnvelopePaymentCardShipment>();
     public DbSet<EnvelopePaymentCardControl> EnvelopePaymentCardControls => Set<EnvelopePaymentCardControl>();
     public DbSet<EnvelopePaymentCardControlAudit> EnvelopePaymentCardControlAudits => Set<EnvelopePaymentCardControlAudit>();
+    public DbSet<EnvelopeRolloverRun> EnvelopeRolloverRuns => Set<EnvelopeRolloverRun>();
     public DbSet<StripeWebhookEvent> StripeWebhookEvents => Set<StripeWebhookEvent>();
     public DbSet<PlaidWebhookEvent> PlaidWebhookEvents => Set<PlaidWebhookEvent>();
     public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();

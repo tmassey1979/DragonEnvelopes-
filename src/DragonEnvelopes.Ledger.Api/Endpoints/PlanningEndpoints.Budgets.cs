@@ -83,5 +83,49 @@ internal static partial class PlanningEndpoints
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
             .WithName("UpdateBudget")
             .WithOpenApi();
+
+        v1.MapGet("/budgets/rollover/preview", async (
+                Guid familyId,
+                string month,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopeRolloverService envelopeRolloverService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var preview = await envelopeRolloverService.PreviewAsync(familyId, month, cancellationToken);
+                return Results.Ok(EndpointMappers.MapEnvelopeRolloverPreviewResponse(preview));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
+            .WithName("PreviewEnvelopeRollover")
+            .WithOpenApi();
+
+        v1.MapPost("/budgets/rollover/apply", async (
+                ApplyEnvelopeRolloverRequest request,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IEnvelopeRolloverService envelopeRolloverService,
+                CancellationToken cancellationToken) =>
+            {
+                if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, request.FamilyId, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var applied = await envelopeRolloverService.ApplyAsync(
+                    request.FamilyId,
+                    request.Month,
+                    user.FindFirstValue("sub"),
+                    cancellationToken);
+
+                return Results.Ok(EndpointMappers.MapEnvelopeRolloverApplyResponse(applied));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
+            .WithName("ApplyEnvelopeRollover")
+            .WithOpenApi();
     }
 }
