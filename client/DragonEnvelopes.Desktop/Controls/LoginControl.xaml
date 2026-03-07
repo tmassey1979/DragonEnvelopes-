@@ -81,6 +81,12 @@
                             Content="Back"
                             AutomationProperties.Name="Back to welcome"
                             Click="OnBackClicked" />
+                    <Button x:Name="CreateFamilyButton"
+                            MinWidth="130"
+                            Margin="0,0,10,0"
+                            Content="Create Family"
+                            AutomationProperties.Name="Create family account"
+                            Click="OnCreateFamilyClicked" />
                     <Button x:Name="CancelButton"
                             MinWidth="92"
                             Margin="0,0,10,0"

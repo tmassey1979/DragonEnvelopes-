@@ -22,6 +22,7 @@ public partial class LoginControl : UserControl
     public LoginControl()
     {
         InitializeComponent();
+        _entryState.ShowSignInView();
         ApplyEntryState();
     }
 
@@ -69,6 +70,7 @@ public partial class LoginControl : UserControl
         GetStartedButton.IsEnabled = !busy;
         RouteToSignInButton.IsEnabled = !busy;
         BackButton.IsEnabled = !busy;
+        CreateFamilyButton.IsEnabled = !busy;
         UsernameBox.IsEnabled = !busy;
         PasswordBox.IsEnabled = !busy;
         SignInButton.IsEnabled = !busy;
@@ -99,6 +101,11 @@ public partial class LoginControl : UserControl
     private void OnBackClicked(object sender, RoutedEventArgs e)
     {
         ShowWelcomeView();
+    }
+
+    private void OnCreateFamilyClicked(object sender, RoutedEventArgs e)
+    {
+        GetStartedRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnCancelClicked(object sender, RoutedEventArgs e)
