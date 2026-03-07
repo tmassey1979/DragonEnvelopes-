@@ -12,6 +12,8 @@ public sealed partial class TransactionsViewModel : ObservableObject
     private IReadOnlyList<TransactionListItemViewModel> _allTransactions = [];
     private string _sortBy = "Date";
     private bool _sortAscending;
+    private const string CreatePanelTitle = "Create Transaction";
+    private const string EditPanelTitle = "Edit Transaction";
 
     public TransactionsViewModel(ITransactionsDataService transactionsDataService)
     {
@@ -21,6 +23,8 @@ public sealed partial class TransactionsViewModel : ObservableObject
         SortByCommand = new RelayCommand<string>(SortBy);
         AddSplitRowCommand = new RelayCommand(AddSplitRow);
         RemoveSplitRowCommand = new RelayCommand<TransactionSplitDraftViewModel?>(RemoveSplitRow);
+        BeginEditSelectedTransactionCommand = new RelayCommand(BeginEditSelectedTransaction);
+        CancelEditCommand = new RelayCommand(CancelEdit);
         SubmitTransactionCommand = new AsyncRelayCommand(SubmitTransactionAsync);
         ResetEditorCommand = new RelayCommand(ResetEditor);
         _ = LoadAccountsCommand.ExecuteAsync(null);
@@ -31,6 +35,8 @@ public sealed partial class TransactionsViewModel : ObservableObject
     public IRelayCommand<string> SortByCommand { get; }
     public IRelayCommand AddSplitRowCommand { get; }
     public IRelayCommand<TransactionSplitDraftViewModel?> RemoveSplitRowCommand { get; }
+    public IRelayCommand BeginEditSelectedTransactionCommand { get; }
+    public IRelayCommand CancelEditCommand { get; }
     public IAsyncRelayCommand SubmitTransactionCommand { get; }
     public IRelayCommand ResetEditorCommand { get; }
 
@@ -48,6 +54,9 @@ public sealed partial class TransactionsViewModel : ObservableObject
 
     [ObservableProperty]
     private ObservableCollection<TransactionListItemViewModel> transactions = [];
+
+    [ObservableProperty]
+    private TransactionListItemViewModel? selectedTransaction;
 
     [ObservableProperty]
     private bool isLoading;
@@ -102,6 +111,18 @@ public sealed partial class TransactionsViewModel : ObservableObject
 
     [ObservableProperty]
     private string editorStatusMessage = "Create a transaction, optionally with splits.";
+
+    [ObservableProperty]
+    private bool isEditMode;
+
+    [ObservableProperty]
+    private string editorPanelTitle = CreatePanelTitle;
+
+    [ObservableProperty]
+    private string submitButtonText = "Create";
+
+    [ObservableProperty]
+    private bool replaceAllocationOnEdit;
 
     private async Task LoadAccountsAsync(CancellationToken cancellationToken)
     {
@@ -173,6 +194,11 @@ public sealed partial class TransactionsViewModel : ObservableObject
             return;
         }
 
+        if (IsEditMode)
+        {
+            ExitEditMode();
+        }
+
         _ = ReloadTransactionsCommand.ExecuteAsync(null);
     }
 
@@ -186,6 +212,11 @@ public sealed partial class TransactionsViewModel : ObservableObject
         if (value && SplitDrafts.Count == 0)
         {
             AddSplitRow();
+        }
+
+        if (value && IsEditMode)
+        {
+            ReplaceAllocationOnEdit = true;
         }
 
         RecalculateSplitTotal();
@@ -291,6 +322,80 @@ public sealed partial class TransactionsViewModel : ObservableObject
         IsSplitTotalValid = !UseSplitEditor || SplitTotal == roundedAmount;
     }
 
+    private void BeginEditSelectedTransaction()
+    {
+        if (SelectedTransaction is null)
+        {
+            HasError = true;
+            ErrorMessage = "Select a transaction to edit.";
+            return;
+        }
+
+        HasError = false;
+        ErrorMessage = string.Empty;
+
+        IsEditMode = true;
+        EditorPanelTitle = EditPanelTitle;
+        SubmitButtonText = "Save";
+        DraftDescription = SelectedTransaction.Description;
+        DraftMerchant = SelectedTransaction.Merchant;
+        DraftAmount = SelectedTransaction.Amount;
+        DraftCategory = SelectedTransaction.Category ?? string.Empty;
+        DraftOccurredOn = SelectedTransaction.OccurredAt.ToString("yyyy-MM-dd");
+        DraftEnvelopeId = SelectedTransaction.EnvelopeId;
+
+        foreach (var row in SplitDrafts)
+        {
+            row.PropertyChanged -= OnSplitDraftChanged;
+        }
+
+        UseSplitEditor = false;
+        SplitDrafts.Clear();
+
+        if (SelectedTransaction.HasSplits)
+        {
+            foreach (var split in SelectedTransaction.Splits)
+            {
+                var row = new TransactionSplitDraftViewModel
+                {
+                    EnvelopeId = split.EnvelopeId,
+                    Amount = split.Amount,
+                    Category = split.Category ?? string.Empty,
+                    Notes = split.Notes ?? string.Empty
+                };
+                row.PropertyChanged += OnSplitDraftChanged;
+                SplitDrafts.Add(row);
+            }
+
+            UseSplitEditor = true;
+            ReplaceAllocationOnEdit = true;
+        }
+        else
+        {
+            UseSplitEditor = false;
+            ReplaceAllocationOnEdit = false;
+        }
+
+        RecalculateSplitTotal();
+        EditorStatusMessage = $"Editing transaction {SelectedTransaction.OccurredDateDisplay} {SelectedTransaction.Merchant}.";
+    }
+
+    private void CancelEdit()
+    {
+        ExitEditMode();
+        ResetEditor();
+        EditorStatusMessage = "Edit canceled.";
+    }
+
+    private void ExitEditMode()
+    {
+        IsEditMode = false;
+        EditorPanelTitle = CreatePanelTitle;
+        SubmitButtonText = "Create";
+        ReplaceAllocationOnEdit = false;
+        SelectedTransaction = null;
+    }
+
     private async Task SubmitTransactionAsync(CancellationToken cancellationToken)
     {
         HasError = false;
@@ -350,30 +455,72 @@ public sealed partial class TransactionsViewModel : ObservableObject
 
         try
         {
-            await _transactionsDataService.CreateTransactionAsync(
-                SelectedAccount.Id,
-                DraftAmount,
-                DraftDescription.Trim(),
-                DraftMerchant.Trim(),
-                new DateTimeOffset(occurredDate.Date, TimeSpan.Zero),
-                DraftCategory,
-                UseSplitEditor ? null : DraftEnvelopeId,
-                UseSplitEditor ? SplitDrafts.ToArray() : null,
-                cancellationToken);
+            if (IsEditMode)
+            {
+                if (SelectedTransaction is null)
+                {
+                    HasError = true;
+                    ErrorMessage = "Select a transaction to edit.";
+                    return;
+                }
 
-            EditorStatusMessage = "Transaction created.";
-            ResetEditor();
-            await LoadTransactionsAsync(cancellationToken);
+                var replaceAllocation = UseSplitEditor || ReplaceAllocationOnEdit;
+                await _transactionsDataService.UpdateTransactionAsync(
+                    SelectedTransaction.Id,
+                    DraftDescription.Trim(),
+                    DraftMerchant.Trim(),
+                    DraftCategory,
+                    replaceAllocation,
+                    replaceAllocation && !UseSplitEditor ? DraftEnvelopeId : null,
+                    replaceAllocation && UseSplitEditor ? SplitDrafts.ToArray() : null,
+                    cancellationToken);
+
+                await LoadTransactionsAsync(cancellationToken);
+                ExitEditMode();
+                ResetEditor();
+                EditorStatusMessage = "Transaction updated.";
+            }
+            else
+            {
+                await _transactionsDataService.CreateTransactionAsync(
+                    SelectedAccount.Id,
+                    DraftAmount,
+                    DraftDescription.Trim(),
+                    DraftMerchant.Trim(),
+                    new DateTimeOffset(occurredDate.Date, TimeSpan.Zero),
+                    DraftCategory,
+                    UseSplitEditor ? null : DraftEnvelopeId,
+                    UseSplitEditor ? SplitDrafts.ToArray() : null,
+                    cancellationToken);
+
+                EditorStatusMessage = "Transaction created.";
+                ResetEditor();
+                await LoadTransactionsAsync(cancellationToken);
+            }
         }
         catch (Exception ex)
         {
             HasError = true;
-            ErrorMessage = $"Unable to create transaction: {ex.Message}";
+            ErrorMessage = IsEditMode
+                ? $"Unable to update transaction: {ex.Message}"
+                : $"Unable to create transaction: {ex.Message}";
         }
     }
 
     private void ResetEditor()
     {
+        if (IsEditMode)
+        {
+            if (SelectedTransaction is not null)
+            {
+                BeginEditSelectedTransaction();
+                EditorStatusMessage = "Edit values reset.";
+                return;
+            }
+
+            ExitEditMode();
+        }
+
         DraftDescription = string.Empty;
         DraftMerchant = string.Empty;
         DraftAmount = 0m;

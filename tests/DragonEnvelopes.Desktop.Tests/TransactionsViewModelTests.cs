@@ -1,0 +1,180 @@
+using DragonEnvelopes.Desktop.Services;
+using DragonEnvelopes.Desktop.ViewModels;
+
+namespace DragonEnvelopes.Desktop.Tests;
+
+public sealed class TransactionsViewModelTests
+{
+    [Fact]
+    public async Task Submit_WhenEditingAndPreservingAllocation_CallsUpdateWithoutAllocationPayload()
+    {
+        var accountId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+        var envelopeId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var transactionId = Guid.Parse("30000000-0000-0000-0000-000000000001");
+        var dataService = new FakeTransactionsDataService(accountId, envelopeId, transactionId);
+        var viewModel = new TransactionsViewModel(dataService);
+        await viewModel.LoadAccountsCommand.ExecuteAsync(null);
+
+        viewModel.SelectedTransaction = viewModel.Transactions.Single();
+        viewModel.BeginEditSelectedTransactionCommand.Execute(null);
+        viewModel.DraftMerchant = "Updated Merchant";
+        viewModel.DraftDescription = "Updated Description";
+        viewModel.DraftCategory = "Updated Category";
+        viewModel.ReplaceAllocationOnEdit = false;
+        viewModel.UseSplitEditor = false;
+
+        await viewModel.SubmitTransactionCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.HasError);
+        Assert.Equal("Transaction updated.", viewModel.EditorStatusMessage);
+        Assert.False(viewModel.IsEditMode);
+        Assert.Equal("Create", viewModel.SubmitButtonText);
+        Assert.Single(dataService.UpdateCalls);
+        var update = dataService.UpdateCalls[0];
+        Assert.Equal(transactionId, update.TransactionId);
+        Assert.False(update.ReplaceAllocation);
+        Assert.Null(update.EnvelopeId);
+        Assert.Null(update.Splits);
+    }
+
+    [Fact]
+    public async Task Submit_WhenEditingWithSplitEditor_CallsUpdateWithAllocationReplacement()
+    {
+        var accountId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+        var envelopeId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var transactionId = Guid.Parse("30000000-0000-0000-0000-000000000001");
+        var dataService = new FakeTransactionsDataService(accountId, envelopeId, transactionId);
+        var viewModel = new TransactionsViewModel(dataService);
+        await viewModel.LoadAccountsCommand.ExecuteAsync(null);
+
+        viewModel.SelectedTransaction = viewModel.Transactions.Single();
+        viewModel.BeginEditSelectedTransactionCommand.Execute(null);
+        var expectedAmount = viewModel.DraftAmount;
+        viewModel.UseSplitEditor = true;
+        var split = viewModel.SplitDrafts.Single();
+        split.EnvelopeId = envelopeId;
+        split.Amount = expectedAmount;
+        split.Category = "Food";
+        split.Notes = "Split update";
+
+        await viewModel.SubmitTransactionCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.HasError);
+        Assert.Single(dataService.UpdateCalls);
+        var update = dataService.UpdateCalls[0];
+        Assert.True(update.ReplaceAllocation);
+        Assert.Null(update.EnvelopeId);
+        Assert.NotNull(update.Splits);
+        Assert.Single(update.Splits!);
+        Assert.Equal(envelopeId, update.Splits[0].EnvelopeId);
+        Assert.Equal(expectedAmount, update.Splits[0].Amount);
+    }
+
+    private sealed class FakeTransactionsDataService : ITransactionsDataService
+    {
+        private readonly Guid _accountId;
+        private readonly Guid _envelopeId;
+        private readonly Guid _transactionId;
+
+        public FakeTransactionsDataService(Guid accountId, Guid envelopeId, Guid transactionId)
+        {
+            _accountId = accountId;
+            _envelopeId = envelopeId;
+            _transactionId = transactionId;
+        }
+
+        public List<UpdateCall> UpdateCalls { get; } = [];
+
+        public Task<IReadOnlyList<AccountListItemViewModel>> GetAccountsAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<AccountListItemViewModel>>(
+            [
+                new AccountListItemViewModel(_accountId, "Checking", "Bank", "$2,000.00")
+            ]);
+        }
+
+        public Task<IReadOnlyList<EnvelopeOptionViewModel>> GetEnvelopesAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<EnvelopeOptionViewModel>>(
+            [
+                new EnvelopeOptionViewModel(_envelopeId, "Groceries")
+            ]);
+        }
+
+        public Task<IReadOnlyList<TransactionListItemViewModel>> GetTransactionsAsync(
+            Guid accountId,
+            CancellationToken cancellationToken = default)
+        {
+            Assert.Equal(_accountId, accountId);
+            return Task.FromResult<IReadOnlyList<TransactionListItemViewModel>>(
+            [
+                new TransactionListItemViewModel(
+                    _transactionId,
+                    _accountId,
+                    new DateTimeOffset(new DateTime(2026, 3, 1), TimeSpan.Zero),
+                    "Original Merchant",
+                    "Original Description",
+                    -42.50m,
+                    "Dining",
+                    _envelopeId,
+                    "Groceries",
+                    [])
+            ]);
+        }
+
+        public Task CreateTransactionAsync(
+            Guid accountId,
+            decimal amount,
+            string description,
+            string merchant,
+            DateTimeOffset occurredAt,
+            string? category,
+            Guid? envelopeId,
+            IReadOnlyList<TransactionSplitDraftViewModel>? splits,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateTransactionAsync(
+            Guid transactionId,
+            string description,
+            string merchant,
+            string? category,
+            bool replaceAllocation,
+            Guid? envelopeId,
+            IReadOnlyList<TransactionSplitDraftViewModel>? splits,
+            CancellationToken cancellationToken = default)
+        {
+            UpdateCalls.Add(new UpdateCall(
+                transactionId,
+                description,
+                merchant,
+                category,
+                replaceAllocation,
+                envelopeId,
+                splits?.Select(static split => new SplitCall(
+                        split.EnvelopeId,
+                        split.Amount,
+                        split.Category,
+                        split.Notes))
+                    .ToArray()));
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed record UpdateCall(
+        Guid TransactionId,
+        string Description,
+        string Merchant,
+        string? Category,
+        bool ReplaceAllocation,
+        Guid? EnvelopeId,
+        IReadOnlyList<SplitCall>? Splits);
+
+    private sealed record SplitCall(
+        Guid? EnvelopeId,
+        decimal Amount,
+        string Category,
+        string Notes);
+}

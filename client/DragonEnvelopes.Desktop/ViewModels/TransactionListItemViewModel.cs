@@ -10,7 +10,9 @@ public sealed class TransactionListItemViewModel
         string description,
         decimal amount,
         string? category,
-        string envelope)
+        Guid? envelopeId,
+        string envelope,
+        IReadOnlyList<TransactionSplitSnapshotViewModel> splits)
     {
         Id = id;
         AccountId = accountId;
@@ -19,7 +21,9 @@ public sealed class TransactionListItemViewModel
         Description = description;
         Amount = amount;
         Category = category;
+        EnvelopeId = envelopeId;
         Envelope = envelope;
+        Splits = splits;
     }
 
     public Guid Id { get; }
@@ -29,9 +33,18 @@ public sealed class TransactionListItemViewModel
     public string Description { get; }
     public decimal Amount { get; }
     public string? Category { get; }
+    public Guid? EnvelopeId { get; }
     public string Envelope { get; }
+    public IReadOnlyList<TransactionSplitSnapshotViewModel> Splits { get; }
+    public bool HasSplits => Splits.Count > 0;
 
     public string OccurredDateDisplay => OccurredAt.ToString("yyyy-MM-dd");
     public string AmountDisplay => Amount.ToString("$#,##0.00");
     public string CategoryDisplay => string.IsNullOrWhiteSpace(Category) ? "Uncategorized" : Category!;
 }
+
+public sealed record TransactionSplitSnapshotViewModel(
+    Guid EnvelopeId,
+    decimal Amount,
+    string? Category,
+    string? Notes);

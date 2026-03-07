@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#219` API cleanup: remove sample weatherforecast endpoint and stale docs.
+- Active task: `none (ready for next issue)`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#218` CI hardening: run split integration test suites on Linux.
-- Last updated: `2026-03-07`.
+- Previous completed task: `#220` Desktop transactions: add edit/save flow with allocation-preserve option.
+- Last updated: `2026-03-06`.

@@ -649,6 +649,7 @@
                         <DataGrid Grid.Row="1"
                                   Margin="0,12,0,0"
                                   ItemsSource="{Binding Transactions}"
+                                  SelectedItem="{Binding SelectedTransaction, Mode=TwoWay}"
                                   AutoGenerateColumns="False"
                                   HeadersVisibility="Column"
                                   CanUserAddRows="False"
@@ -674,7 +675,7 @@
                 </controls:CardControl>
 
                 <controls:CardControl Grid.Column="2"
-                                      Header="Create Transaction"
+                                      Header="{Binding EditorPanelTitle}"
                                       Subheader="Supports single envelope or split entries"
                                       EmptyMessage="Editor unavailable."
                                       IsLoading="False"
@@ -682,6 +683,25 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <TextBlock Text="{Binding EditorStatusMessage}" Style="{StaticResource CaptionTextStyle}" />
+
+                            <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                                <Button Margin="0,0,8,0"
+                                        Content="Edit Selected"
+                                        Command="{Binding BeginEditSelectedTransactionCommand}" />
+                                <Button Content="Cancel Edit"
+                                        Command="{Binding CancelEditCommand}">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsEditMode}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
 
                             <TextBlock Margin="0,14,0,6" Text="Merchant" Style="{StaticResource CaptionTextStyle}" />
                             <TextBox Text="{Binding DraftMerchant, UpdateSourceTrigger=PropertyChanged}" />
@@ -698,12 +718,34 @@
 
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Margin="0,0,0,6" Text="Amount" Style="{StaticResource CaptionTextStyle}" />
-                                    <TextBox Text="{Binding DraftAmount, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Text="{Binding DraftAmount, UpdateSourceTrigger=PropertyChanged}">
+                                        <TextBox.Style>
+                                            <Style TargetType="TextBox">
+                                                <Setter Property="IsEnabled" Value="True" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsEditMode}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBox.Style>
+                                    </TextBox>
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Margin="0,0,0,6" Text="Occurred On (yyyy-MM-dd)" Style="{StaticResource CaptionTextStyle}" />
-                                    <TextBox Text="{Binding DraftOccurredOn, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Text="{Binding DraftOccurredOn, UpdateSourceTrigger=PropertyChanged}">
+                                        <TextBox.Style>
+                                            <Style TargetType="TextBox">
+                                                <Setter Property="IsEnabled" Value="True" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsEditMode}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBox.Style>
+                                    </TextBox>
                                 </StackPanel>
                             </Grid>
 
@@ -719,6 +761,21 @@
                             <CheckBox Margin="0,14,0,0"
                                       Content="Use split editor"
                                       IsChecked="{Binding UseSplitEditor}" />
+
+                            <CheckBox Margin="0,8,0,0"
+                                      Content="Replace allocation when saving edit"
+                                      IsChecked="{Binding ReplaceAllocationOnEdit}">
+                                <CheckBox.Style>
+                                    <Style TargetType="CheckBox">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsEditMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </CheckBox.Style>
+                            </CheckBox>
 
                             <StackPanel Margin="0,10,0,0">
                                 <StackPanel.Style>
@@ -812,7 +869,7 @@
 
                             <StackPanel Margin="0,18,0,0" Orientation="Horizontal">
                                 <Button Margin="0,0,8,0"
-                                        Content="Create"
+                                        Content="{Binding SubmitButtonText}"
                                         Command="{Binding SubmitTransactionCommand}" />
                                 <Button Content="Reset"
                                         Command="{Binding ResetEditorCommand}" />

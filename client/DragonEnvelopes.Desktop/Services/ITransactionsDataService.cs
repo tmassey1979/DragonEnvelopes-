@@ -22,4 +22,14 @@ public interface ITransactionsDataService
         Guid? envelopeId,
         IReadOnlyList<TransactionSplitDraftViewModel>? splits,
         CancellationToken cancellationToken = default);
+
+    Task UpdateTransactionAsync(
+        Guid transactionId,
+        string description,
+        string merchant,
+        string? category,
+        bool replaceAllocation,
+        Guid? envelopeId,
+        IReadOnlyList<TransactionSplitDraftViewModel>? splits,
+        CancellationToken cancellationToken = default);
 }

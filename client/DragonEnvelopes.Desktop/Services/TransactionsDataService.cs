@@ -78,9 +78,16 @@ public sealed class TransactionsDataService : ITransactionsDataService
                 transaction.Description,
                 transaction.Amount,
                 transaction.Category,
+                transaction.EnvelopeId,
                 transaction.EnvelopeId.HasValue && envelopeLookup.TryGetValue(transaction.EnvelopeId.Value, out var envelopeName)
                     ? envelopeName
-                    : "-"))
+                    : "-",
+                transaction.Splits.Select(static split => new TransactionSplitSnapshotViewModel(
+                        split.EnvelopeId,
+                        split.Amount,
+                        split.Category,
+                        split.Notes))
+                    .ToArray()))
             .ToArray();
     }
 
@@ -140,6 +147,43 @@ public sealed class TransactionsDataService : ITransactionsDataService
         if (!response.IsSuccessStatusCode)
         {
             throw new InvalidOperationException($"Create transaction failed with status {(int)response.StatusCode}.");
+        }
+    }
+
+    public async Task UpdateTransactionAsync(
+        Guid transactionId,
+        string description,
+        string merchant,
+        string? category,
+        bool replaceAllocation,
+        Guid? envelopeId,
+        IReadOnlyList<TransactionSplitDraftViewModel>? splits,
+        CancellationToken cancellationToken = default)
+    {
+        var payload = new UpdateTransactionRequest(
+            description,
+            merchant,
+            string.IsNullOrWhiteSpace(category) ? null : category.Trim(),
+            replaceAllocation,
+            replaceAllocation && (splits is null || splits.Count == 0) ? envelopeId : null,
+            replaceAllocation && splits is { Count: > 0 }
+                ? splits.Select(static split => new TransactionSplitRequest(
+                        split.EnvelopeId!.Value,
+                        split.Amount,
+                        string.IsNullOrWhiteSpace(split.Category) ? null : split.Category.Trim(),
+                        string.IsNullOrWhiteSpace(split.Notes) ? null : split.Notes.Trim()))
+                    .ToArray()
+                : null);
+
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"transactions/{transactionId}")
+        {
+            Content = JsonContent.Create(payload, options: SerializerOptions)
+        };
+
+        using var response = await _apiClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Update transaction failed with status {(int)response.StatusCode}.");
         }
     }
 
