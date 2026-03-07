@@ -3,7 +3,9 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using DragonEnvelopes.Contracts.Accounts;
+using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
+using DragonEnvelopes.Contracts.Reports;
 using DragonEnvelopes.Ledger.Api.CrossCutting.Auth;
 using DragonEnvelopes.Domain.Entities;
 using DragonEnvelopes.Domain.ValueObjects;
@@ -92,6 +94,52 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
         Assert.NotNull(ownPayload);
         Assert.Single(ownPayload!);
         Assert.Equal("Groceries", ownPayload[0].Name);
+        Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Can_Get_Own_Budget_By_Month_But_Not_Other_Family()
+    {
+        var userId = "ledger-user-a";
+        var ownFamilyId = Guid.Parse("e1000000-0000-0000-0000-000000000021");
+        var otherFamilyId = Guid.Parse("e1000000-0000-0000-0000-000000000022");
+        const string month = "2026-03";
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAndBudgetsAsync(userId, ownFamilyId, otherFamilyId, month);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var ownResponse = await client.GetAsync($"/api/v1/budgets/{ownFamilyId}/{month}");
+        var ownPayload = await ownResponse.Content.ReadFromJsonAsync<BudgetResponse>();
+
+        var otherResponse = await client.GetAsync($"/api/v1/budgets/{otherFamilyId}/{month}");
+
+        Assert.Equal(HttpStatusCode.OK, ownResponse.StatusCode);
+        Assert.NotNull(ownPayload);
+        Assert.Equal(ownFamilyId, ownPayload!.FamilyId);
+        Assert.Equal(month, ownPayload.Month);
+        Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Can_Get_Own_EnvelopeBalances_Report_But_Not_Other_Family()
+    {
+        var userId = "ledger-user-a";
+        var ownFamilyId = Guid.Parse("e1000000-0000-0000-0000-000000000031");
+        var otherFamilyId = Guid.Parse("e1000000-0000-0000-0000-000000000032");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAndAccountAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var ownResponse = await client.GetAsync($"/api/v1/reports/envelope-balances?familyId={ownFamilyId}");
+        var ownPayload = await ownResponse.Content.ReadFromJsonAsync<List<EnvelopeBalanceReportResponse>>();
+
+        var otherResponse = await client.GetAsync($"/api/v1/reports/envelope-balances?familyId={otherFamilyId}");
+
+        Assert.Equal(HttpStatusCode.OK, ownResponse.StatusCode);
+        Assert.NotNull(ownPayload);
+        Assert.NotEmpty(ownPayload!);
         Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
     }
 
@@ -237,6 +285,39 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
 
         await dbContext.SaveChangesAsync();
         return (ownTransactionId, otherTransactionId);
+    }
+
+    private async Task SeedFamilyMembershipAndBudgetsAsync(
+        string userId,
+        Guid ownFamilyId,
+        Guid otherFamilyId,
+        string month)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+
+        dbContext.Budgets.RemoveRange(dbContext.Budgets);
+        dbContext.FamilyMembers.RemoveRange(dbContext.FamilyMembers);
+        dbContext.Families.RemoveRange(dbContext.Families);
+
+        var now = DateTimeOffset.UtcNow;
+        dbContext.Families.AddRange(
+            new Family(ownFamilyId, "Authorized Ledger Family", now),
+            new Family(otherFamilyId, "Forbidden Ledger Family", now));
+
+        dbContext.FamilyMembers.Add(new FamilyMember(
+            Guid.NewGuid(),
+            ownFamilyId,
+            userId,
+            "Ledger Parent User",
+            EmailAddress.Parse("ledger.parent@test.local"),
+            MemberRole.Parent));
+
+        dbContext.Budgets.AddRange(
+            new Budget(Guid.NewGuid(), ownFamilyId, BudgetMonth.Parse(month), Money.FromDecimal(5000m)),
+            new Budget(Guid.NewGuid(), otherFamilyId, BudgetMonth.Parse(month), Money.FromDecimal(7000m)));
+
+        await dbContext.SaveChangesAsync();
     }
 }
 
