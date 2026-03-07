@@ -2514,6 +2514,13 @@
                                 <WrapPanel>
                                     <TextBlock Margin="0,0,8,0"
                                                VerticalAlignment="Center"
+                                               Text="Take"
+                                               Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBox Width="64"
+                                             Margin="0,0,10,6"
+                                             Text="{Binding ProviderTimelineTake, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Margin="0,0,8,0"
+                                               VerticalAlignment="Center"
                                                Text="Source"
                                                Style="{StaticResource CaptionTextStyle}" />
                                     <ComboBox Width="180"
@@ -2530,6 +2537,9 @@
                                     <Button Margin="0,0,0,6"
                                             Content="Apply Filters"
                                             Command="{Binding RefreshProviderTimelineCommand}" />
+                                    <Button Margin="8,0,0,6"
+                                            Content="Clear Filters"
+                                            Command="{Binding ClearProviderTimelineFiltersCommand}" />
                                 </WrapPanel>
 
                                 <TextBlock Text="{Binding ProviderTimelineSummary}"

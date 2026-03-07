@@ -257,6 +257,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
 
     public string? LastProviderTimelineStatusFilter { get; private set; }
 
+    public int LastProviderTimelineTake { get; private set; } = 25;
+
     public Task<FamilyFinancialStatusResponse> GetFamilyFinancialStatusAsync(CancellationToken cancellationToken = default)
     {
         return Task.FromResult(StatusResponse);
@@ -277,6 +279,7 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
         LastProviderTimelineStatusFilter = statusFilter;
 
         var bounded = take <= 0 ? ProviderActivityTimelineResponse.RequestedTake : take;
+        LastProviderTimelineTake = bounded;
         var timelineEvents = ProviderActivityTimelineResponse.Events.AsEnumerable();
         if (!string.IsNullOrWhiteSpace(sourceFilter))
         {

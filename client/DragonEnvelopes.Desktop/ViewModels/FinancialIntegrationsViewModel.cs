@@ -61,6 +61,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         RefreshStatusCommand = new AsyncRelayCommand(RefreshStatusAsync);
         RefreshProviderActivityCommand = new AsyncRelayCommand(RefreshProviderActivityAsync);
         RefreshProviderTimelineCommand = new AsyncRelayCommand(RefreshProviderTimelineAsync);
+        ClearProviderTimelineFiltersCommand = new AsyncRelayCommand(ClearProviderTimelineFiltersAsync);
         RefreshFailedNotificationEventsCommand = new AsyncRelayCommand(RefreshFailedNotificationEventsAsync);
         RetrySelectedFailedNotificationDispatchEventCommand = new AsyncRelayCommand(RetrySelectedFailedNotificationDispatchEventAsync);
         ReplaySelectedTimelineNotificationDispatchEventCommand = new AsyncRelayCommand(ReplaySelectedTimelineNotificationDispatchEventAsync);
@@ -101,6 +102,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     public IAsyncRelayCommand RefreshStatusCommand { get; }
     public IAsyncRelayCommand RefreshProviderActivityCommand { get; }
     public IAsyncRelayCommand RefreshProviderTimelineCommand { get; }
+    public IAsyncRelayCommand ClearProviderTimelineFiltersCommand { get; }
     public IAsyncRelayCommand RefreshFailedNotificationEventsCommand { get; }
     public IAsyncRelayCommand RetrySelectedFailedNotificationDispatchEventCommand { get; }
     public IAsyncRelayCommand ReplaySelectedTimelineNotificationDispatchEventCommand { get; }
@@ -366,6 +368,9 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
     private string providerTimelineStatusFilter = string.Empty;
 
     [ObservableProperty]
+    private string providerTimelineTake = "25";
+
+    [ObservableProperty]
     private ObservableCollection<ProviderTimelineEventItemViewModel> providerTimelineEvents = [];
 
     [ObservableProperty]
@@ -525,11 +530,29 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
 
     private Task RefreshProviderTimelineAsync(CancellationToken cancellationToken)
     {
+        if (!TryNormalizeProviderTimelineTake(strictValidation: true, out _))
+        {
+            return Task.CompletedTask;
+        }
+
         return RunOperationAsync("Refreshing provider activity timeline...", async ct =>
         {
-            await LoadProviderTimelineCoreAsync(ct);
+            await LoadProviderTimelineCoreAsync(ct, strictTakeValidation: true);
             await LoadFailedNotificationDispatchEventsCoreAsync(ct);
             StatusMessage = "Provider activity timeline refreshed.";
+        }, cancellationToken);
+    }
+
+    private Task ClearProviderTimelineFiltersAsync(CancellationToken cancellationToken)
+    {
+        return RunOperationAsync("Clearing provider activity timeline filters...", async ct =>
+        {
+            SelectedProviderTimelineSourceFilter = "All Sources";
+            ProviderTimelineStatusFilter = string.Empty;
+            ProviderTimelineTake = "25";
+            await LoadProviderTimelineCoreAsync(ct);
+            await LoadFailedNotificationDispatchEventsCoreAsync(ct);
+            StatusMessage = "Provider activity timeline filters cleared.";
         }, cancellationToken);
     }
 
@@ -1369,13 +1392,19 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         ProviderHealthStatusSummary = $"Generated {ProviderActivityGeneratedAt}.";
     }
 
-    private async Task LoadProviderTimelineCoreAsync(CancellationToken cancellationToken)
+    private async Task LoadProviderTimelineCoreAsync(CancellationToken cancellationToken, bool strictTakeValidation = false)
     {
+        if (!TryNormalizeProviderTimelineTake(strictTakeValidation, out var take))
+        {
+            return;
+        }
+
         var sourceFilter = ResolveProviderTimelineSourceFilter();
         var statusFilter = string.IsNullOrWhiteSpace(ProviderTimelineStatusFilter)
             ? null
             : ProviderTimelineStatusFilter.Trim();
         var timeline = await _financialIntegrationDataService.GetProviderActivityTimelineAsync(
+            take: take,
             sourceFilter: sourceFilter,
             statusFilter: statusFilter,
             cancellationToken: cancellationToken);
@@ -1408,6 +1437,47 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         {
             ProviderHealthTraceId = timeline.TraceId.Trim();
         }
+    }
+
+    private bool TryNormalizeProviderTimelineTake(bool strictValidation, out int take)
+    {
+        if (string.IsNullOrWhiteSpace(ProviderTimelineTake))
+        {
+            ProviderTimelineTake = "25";
+            take = 25;
+            return true;
+        }
+
+        if (!int.TryParse(ProviderTimelineTake.Trim(), out var parsedTake))
+        {
+            if (strictValidation)
+            {
+                SetValidationError("Timeline take must be a whole number between 1 and 100.");
+                take = 0;
+                return false;
+            }
+
+            ProviderTimelineTake = "25";
+            take = 25;
+            return true;
+        }
+
+        if (parsedTake is < 1 or > 100)
+        {
+            if (strictValidation)
+            {
+                SetValidationError("Timeline take must be between 1 and 100.");
+                take = 0;
+                return false;
+            }
+
+            ProviderTimelineTake = "25";
+            take = 25;
+            return true;
+        }
+
+        take = parsedTake;
+        return true;
     }
 
     private string? ResolveProviderTimelineSourceFilter()

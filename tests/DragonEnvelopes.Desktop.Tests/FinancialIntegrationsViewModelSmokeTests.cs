@@ -59,6 +59,7 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
 
         harness.ViewModel.SelectedProviderTimelineSourceFilter = "Notification Dispatch";
         harness.ViewModel.ProviderTimelineStatusFilter = "failed";
+        harness.ViewModel.ProviderTimelineTake = "1";
 
         await harness.ViewModel.RefreshProviderTimelineCommand.ExecuteAsync(null);
         await WaitForIdleAsync(harness.ViewModel);
@@ -66,10 +67,55 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
         Assert.False(harness.ViewModel.HasError);
         Assert.Equal("NotificationDispatch", harness.FinancialDataService.LastProviderTimelineSourceFilter);
         Assert.Equal("failed", harness.FinancialDataService.LastProviderTimelineStatusFilter);
+        Assert.Equal(1, harness.FinancialDataService.LastProviderTimelineTake);
         var filteredEvent = Assert.Single(harness.ViewModel.ProviderTimelineEvents);
         Assert.Equal("NotificationDispatch", filteredEvent.Source);
         Assert.Equal("Failed", filteredEvent.Status);
+        Assert.Contains("requested 1", harness.ViewModel.ProviderTimelineSummary, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Notification Dispatch / failed", harness.ViewModel.ProviderTimelineSummary);
+    }
+
+    [Fact]
+    public async Task ClearProviderTimelineFiltersCommand_ResetsInputs_AndReloadsDefaults()
+    {
+        var harness = CreateHarness();
+        await EnsureLoadedAsync(harness.ViewModel);
+
+        harness.ViewModel.SelectedProviderTimelineSourceFilter = "Notification Dispatch";
+        harness.ViewModel.ProviderTimelineStatusFilter = "failed";
+        harness.ViewModel.ProviderTimelineTake = "1";
+
+        await harness.ViewModel.RefreshProviderTimelineCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(harness.ViewModel);
+
+        await harness.ViewModel.ClearProviderTimelineFiltersCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(harness.ViewModel);
+
+        Assert.False(harness.ViewModel.HasError);
+        Assert.Equal("All Sources", harness.ViewModel.SelectedProviderTimelineSourceFilter);
+        Assert.Equal(string.Empty, harness.ViewModel.ProviderTimelineStatusFilter);
+        Assert.Equal("25", harness.ViewModel.ProviderTimelineTake);
+        Assert.Equal(25, harness.FinancialDataService.LastProviderTimelineTake);
+        Assert.Null(harness.FinancialDataService.LastProviderTimelineSourceFilter);
+        Assert.Null(harness.FinancialDataService.LastProviderTimelineStatusFilter);
+        Assert.Equal(2, harness.ViewModel.ProviderTimelineEvents.Count);
+        Assert.Equal("Provider activity timeline filters cleared.", harness.ViewModel.StatusMessage);
+    }
+
+    [Fact]
+    public async Task RefreshProviderTimelineCommand_WithInvalidTake_SetsValidationError()
+    {
+        var harness = CreateHarness();
+        await EnsureLoadedAsync(harness.ViewModel);
+
+        var previousTake = harness.FinancialDataService.LastProviderTimelineTake;
+        harness.ViewModel.ProviderTimelineTake = "abc";
+
+        await harness.ViewModel.RefreshProviderTimelineCommand.ExecuteAsync(null);
+
+        Assert.True(harness.ViewModel.HasError);
+        Assert.Equal("Timeline take must be a whole number between 1 and 100.", harness.ViewModel.ErrorMessage);
+        Assert.Equal(previousTake, harness.FinancialDataService.LastProviderTimelineTake);
     }
 
     [Fact]

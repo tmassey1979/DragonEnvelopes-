@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `TBD (select next open phase 2 issue after #243 closeout)`.
+- Active task: `TBD (select next open issue after #244 closeout)`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#243` Provider activity timeline: source/status filtering in API and desktop.
+- Previous completed task: `#244` Provider timeline UX: add take filter + clear filters action.
 - Last updated: `2026-03-07`.
