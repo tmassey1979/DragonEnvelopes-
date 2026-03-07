@@ -21,5 +21,5 @@ Use this checklist at the start and end of every task.
 ## Session Run Log
 - Active task: `none (ready for next issue)`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#220` Desktop transactions: add edit/save flow with allocation-preserve option.
+- Previous completed task: `#221` Transactions UI: show allocation summary for split and unassigned entries.
 - Last updated: `2026-03-06`.

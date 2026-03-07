@@ -666,7 +666,7 @@
                                 <DataGridTextColumn Header="Date" Binding="{Binding OccurredDateDisplay}" Width="110" />
                                 <DataGridTextColumn Header="Merchant" Binding="{Binding Merchant}" Width="180" />
                                 <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*" />
-                                <DataGridTextColumn Header="Envelope" Binding="{Binding Envelope}" Width="140" />
+                                <DataGridTextColumn Header="Allocation" Binding="{Binding AllocationDisplay}" Width="140" />
                                 <DataGridTextColumn Header="Category" Binding="{Binding CategoryDisplay}" Width="140" />
                                 <DataGridTextColumn Header="Amount" Binding="{Binding AmountDisplay}" Width="110" />
                             </DataGrid.Columns>

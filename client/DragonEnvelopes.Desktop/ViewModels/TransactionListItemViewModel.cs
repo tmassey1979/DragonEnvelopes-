@@ -41,6 +41,11 @@ public sealed class TransactionListItemViewModel
     public string OccurredDateDisplay => OccurredAt.ToString("yyyy-MM-dd");
     public string AmountDisplay => Amount.ToString("$#,##0.00");
     public string CategoryDisplay => string.IsNullOrWhiteSpace(Category) ? "Uncategorized" : Category!;
+    public string AllocationDisplay => HasSplits
+        ? $"Split ({Splits.Count})"
+        : string.IsNullOrWhiteSpace(Envelope) || string.Equals(Envelope, "-", StringComparison.Ordinal)
+            ? "Unassigned"
+            : Envelope;
 }
 
 public sealed record TransactionSplitSnapshotViewModel(
