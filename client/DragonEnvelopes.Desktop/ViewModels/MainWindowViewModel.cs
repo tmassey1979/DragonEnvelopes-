@@ -214,6 +214,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         return result;
     }
 
+    public Task RefreshFamilyContextForCurrentSessionAsync()
+    {
+        return RefreshFamilyContextAsync();
+    }
+
     private async Task PingApiAsync()
     {
         using var operation = _operationStatusCenter.BeginOperation("Pinging API");

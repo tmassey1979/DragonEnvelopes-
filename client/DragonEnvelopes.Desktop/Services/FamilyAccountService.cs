@@ -44,6 +44,49 @@ public sealed class FamilyAccountService(IBackendApiClient apiClient) : IFamilyA
             createdFamily.Id);
     }
 
+    public async Task<FamilyInviteRedemptionResult> RedeemInviteAsync(
+        string inviteToken,
+        string? memberName = null,
+        string? memberEmail = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(inviteToken))
+        {
+            return new FamilyInviteRedemptionResult(false, "Invite token is required.");
+        }
+
+        using var response = await PostAsync(
+            "families/invites/redeem",
+            new RedeemFamilyInviteRequest(inviteToken.Trim(), memberName, memberEmail),
+            cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var detail = await ReadErrorDetailAsync(response, cancellationToken);
+            return new FamilyInviteRedemptionResult(
+                false,
+                string.IsNullOrWhiteSpace(detail)
+                    ? "Unable to redeem invite. Confirm token and account details."
+                    : detail);
+        }
+
+        var redeemed = await DeserializeAsync<RedeemFamilyInviteResponse>(response, cancellationToken);
+        if (redeemed is null)
+        {
+            return new FamilyInviteRedemptionResult(false, "Invite redeemed but response payload was invalid.");
+        }
+
+        var actionMessage = redeemed.CreatedNewMember
+            ? "You were added to the family."
+            : "Your account was already linked to this family.";
+
+        return new FamilyInviteRedemptionResult(
+            true,
+            actionMessage,
+            redeemed.Invite.FamilyId,
+            redeemed.CreatedNewMember);
+    }
+
     private async Task<HttpResponseMessage> PostAsync(
         string relativePath,
         object payload,
@@ -64,5 +107,39 @@ public sealed class FamilyAccountService(IBackendApiClient apiClient) : IFamilyA
     {
         var json = await response.Content.ReadAsStringAsync(cancellationToken);
         return JsonSerializer.Deserialize<T>(json, SerializerOptions);
+    }
+
+    private static async Task<string> ReadErrorDetailAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(payload);
+            if (document.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                if (document.RootElement.TryGetProperty("detail", out var detailElement))
+                {
+                    return detailElement.GetString() ?? payload;
+                }
+
+                if (document.RootElement.TryGetProperty("title", out var titleElement))
+                {
+                    return titleElement.GetString() ?? payload;
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Fallback to the raw payload for non-JSON errors.
+        }
+
+        return payload;
     }
 }

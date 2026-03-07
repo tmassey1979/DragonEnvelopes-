@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#182` Recurring operations: execution history API + desktop diagnostics.
+- Active task: `#183` Family invites: redeem token into actual family membership + desktop flow.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#181` Onboarding Story: Wizard persistence/resume reliability and end-to-end test coverage.
+- Previous completed task: `#182` Recurring operations: execution history API + desktop diagnostics.
 - Last updated: `2026-03-06`.

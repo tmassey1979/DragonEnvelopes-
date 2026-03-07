@@ -88,6 +88,12 @@
                             IsCancel="True"
                             AutomationProperties.Name="Cancel sign in"
                             Click="OnCancelClicked" />
+                    <Button x:Name="RedeemInviteButton"
+                            MinWidth="130"
+                            Margin="0,0,10,0"
+                            Content="Redeem Invite"
+                            AutomationProperties.Name="Redeem invite token"
+                            Click="OnRedeemInviteClicked" />
                     <Button x:Name="SignInButton"
                             MinWidth="110"
                             Content="Sign In"

@@ -1,4 +1,5 @@
 using System.Windows;
+using DragonEnvelopes.Desktop.Auth;
 using DragonEnvelopes.Desktop.Services;
 using DragonEnvelopes.Desktop.ViewModels;
 
@@ -17,37 +18,53 @@ public partial class LoginWindow : Window
         _familyAccountService = familyAccountService;
         InitializeComponent();
         LoginControl.SignInRequested += OnSignInRequested;
+        LoginControl.RedeemInviteRequested += OnRedeemInviteRequested;
         LoginControl.GetStartedRequested += OnGetStartedRequested;
         LoginControl.CancelRequested += OnCancelRequested;
     }
 
     private async void OnSignInRequested(object? sender, EventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(LoginControl.Username) || string.IsNullOrWhiteSpace(LoginControl.Password))
+        var result = await SignInFromCredentialsAsync();
+        if (!result.Succeeded)
         {
-            LoginControl.SetError("Enter both username/email and password.");
             return;
         }
 
-        LoginControl.SetError(null);
-        LoginControl.SetBusy(true);
+        DialogResult = true;
+        Close();
+    }
 
-        try
+    private async void OnRedeemInviteRequested(object? sender, EventArgs e)
+    {
+        var signInResult = await SignInFromCredentialsAsync();
+        if (!signInResult.Succeeded)
         {
-            var result = await _mainWindowViewModel.SignInWithPasswordAsync(LoginControl.Username, LoginControl.Password);
-            if (!result.Succeeded)
-            {
-                LoginControl.SetError(result.Message);
-                return;
-            }
+            return;
+        }
 
-            DialogResult = true;
-            Close();
-        }
-        finally
+        var redeemWindow = new RedeemFamilyInviteWindow(_familyAccountService, LoginControl.Username)
         {
-            LoginControl.SetBusy(false);
+            Owner = this
+        };
+
+        var redeemed = redeemWindow.ShowDialog() == true;
+        if (!redeemed)
+        {
+            LoginControl.SetStatus("Invite redemption canceled.");
+            return;
         }
+
+        await _mainWindowViewModel.RefreshFamilyContextForCurrentSessionAsync();
+        if (_mainWindowViewModel.AvailableFamilies.Count == 0)
+        {
+            LoginControl.SetError("Invite redeemed, but no family context was loaded. Try signing in again.");
+            return;
+        }
+
+        LoginControl.SetStatus("Invite redeemed successfully.");
+        DialogResult = true;
+        Close();
     }
 
     private void OnGetStartedRequested(object? sender, EventArgs e)
@@ -76,5 +93,32 @@ public partial class LoginWindow : Window
     {
         DialogResult = false;
         Close();
+    }
+
+    private async Task<AuthSignInResult> SignInFromCredentialsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(LoginControl.Username) || string.IsNullOrWhiteSpace(LoginControl.Password))
+        {
+            LoginControl.SetError("Enter both username/email and password.");
+            return new AuthSignInResult(false, false, "Username/email and password are required.");
+        }
+
+        LoginControl.SetError(null);
+        LoginControl.SetBusy(true);
+
+        try
+        {
+            var result = await _mainWindowViewModel.SignInWithPasswordAsync(LoginControl.Username, LoginControl.Password);
+            if (!result.Succeeded)
+            {
+                LoginControl.SetError(result.Message);
+            }
+
+            return result;
+        }
+        finally
+        {
+            LoginControl.SetBusy(false);
+        }
     }
 }

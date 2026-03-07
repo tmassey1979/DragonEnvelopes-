@@ -1,0 +1,77 @@
+<Window x:Class="DragonEnvelopes.Desktop.Views.RedeemFamilyInviteWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Redeem Family Invite"
+        Width="460"
+        Height="320"
+        MinWidth="420"
+        MinHeight="280"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        ResizeMode="CanResizeWithGrip"
+        Background="{StaticResource ShellBackgroundBrush}">
+    <Grid Margin="22">
+        <Border Background="{StaticResource PanelBackgroundBrush}"
+                CornerRadius="14"
+                Padding="22"
+                BorderBrush="{StaticResource PanelOutlineBrush}"
+                BorderThickness="1">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0"
+                           Text="Redeem Family Invite"
+                           FontSize="24"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource PrimaryTextBrush}" />
+
+                <TextBlock Grid.Row="1"
+                           Margin="0,8,0,0"
+                           Text="Paste the invite token from your family admin to join their workspace."
+                           TextWrapping="Wrap"
+                           Style="{StaticResource CaptionTextStyle}" />
+
+                <StackPanel Grid.Row="2"
+                            Margin="0,16,0,0">
+                    <Label Content="_Invite Token"
+                           Target="{Binding ElementName=InviteTokenBox}" />
+                    <TextBox x:Name="InviteTokenBox"
+                             Margin="0,8,0,0"
+                             AutomationProperties.Name="Invite token" />
+
+                    <TextBlock x:Name="ValidationText"
+                               Margin="0,10,0,0"
+                               Foreground="{StaticResource AccentBrush}"
+                               Visibility="Collapsed"
+                               TextWrapping="Wrap"
+                               AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="3"
+                            Margin="0,16,0,0"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+                    <Button x:Name="CancelButton"
+                            MinWidth="90"
+                            Margin="0,0,10,0"
+                            Content="Cancel"
+                            IsCancel="True"
+                            Click="OnCancelClicked" />
+                    <Button x:Name="RedeemButton"
+                            MinWidth="110"
+                            Content="Redeem"
+                            IsDefault="True"
+                            Click="OnRedeemClicked" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

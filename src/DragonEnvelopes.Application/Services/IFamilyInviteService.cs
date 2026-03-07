@@ -22,4 +22,11 @@ public interface IFamilyInviteService
     Task<FamilyInviteDetails> AcceptAsync(
         string inviteToken,
         CancellationToken cancellationToken = default);
+
+    Task<FamilyInviteRedemptionDetails> RedeemAsync(
+        string inviteToken,
+        string keycloakUserId,
+        string? memberName,
+        string? memberEmail,
+        CancellationToken cancellationToken = default);
 }

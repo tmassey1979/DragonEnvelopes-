@@ -77,6 +77,14 @@ internal static class EndpointMappers
             invite.CancelledAtUtc);
     }
 
+    public static RedeemFamilyInviteResponse MapRedeemFamilyInviteResponse(FamilyInviteRedemptionDetails details)
+    {
+        return new RedeemFamilyInviteResponse(
+            MapFamilyInviteResponse(details.Invite),
+            MapFamilyMemberResponse(details.Member),
+            details.CreatedNewMember);
+    }
+
     public static OnboardingProfileResponse MapOnboardingProfileResponse(OnboardingProfileDetails profile)
     {
         return new OnboardingProfileResponse(

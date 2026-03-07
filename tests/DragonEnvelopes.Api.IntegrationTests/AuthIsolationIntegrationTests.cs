@@ -375,6 +375,106 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
     }
 
     [Fact]
+    public async Task Invite_Redeem_Requires_Authentication()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/v1/families/invites/redeem", new
+        {
+            inviteToken = "missing-auth",
+            memberName = "No Auth",
+            memberEmail = "noauth@test.dev"
+        });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Can_Redeem_Invite_And_Become_Family_Member()
+    {
+        using var ownerClient = _factory.CreateClient();
+        ownerClient.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var inviteEmail = "redeemer.user@test.dev";
+        var createInviteResponse = await ownerClient.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/invites", new
+        {
+            email = inviteEmail,
+            role = "Teen",
+            expiresInHours = 24
+        });
+        Assert.Equal(HttpStatusCode.Created, createInviteResponse.StatusCode);
+
+        var createdInvite = await createInviteResponse.Content.ReadFromJsonAsync<CreateFamilyInviteResponse>();
+        Assert.NotNull(createdInvite);
+
+        using var redeemerClient = _factory.CreateClient();
+        redeemerClient.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, "redeemer-user");
+
+        var redeemResponse = await redeemerClient.PostAsJsonAsync("/api/v1/families/invites/redeem", new
+        {
+            inviteToken = createdInvite!.InviteToken,
+            memberName = "Redeemer User",
+            memberEmail = inviteEmail
+        });
+        Assert.Equal(HttpStatusCode.OK, redeemResponse.StatusCode);
+
+        var redeemed = await redeemResponse.Content.ReadFromJsonAsync<RedeemFamilyInviteResponse>();
+        Assert.NotNull(redeemed);
+        Assert.True(redeemed!.CreatedNewMember);
+        Assert.Equal("Accepted", redeemed.Invite.Status);
+        Assert.Equal(TestApiFactory.FamilyAId, redeemed.Member.FamilyId);
+        Assert.Equal("redeemer-user", redeemed.Member.KeycloakUserId);
+
+        var membersResponse = await ownerClient.GetAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/members");
+        Assert.Equal(HttpStatusCode.OK, membersResponse.StatusCode);
+        var members = await membersResponse.Content.ReadFromJsonAsync<List<FamilyMemberResponse>>();
+        Assert.NotNull(members);
+        Assert.Contains(members!, member => member.KeycloakUserId == "redeemer-user");
+    }
+
+    [Fact]
+    public async Task Redeem_Invite_Is_Idempotent_For_Existing_User_Membership()
+    {
+        using var ownerClient = _factory.CreateClient();
+        ownerClient.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        var inviteEmail = "redeemer.idempotent@test.dev";
+        var createInviteResponse = await ownerClient.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/invites", new
+        {
+            email = inviteEmail,
+            role = "Adult",
+            expiresInHours = 24
+        });
+        Assert.Equal(HttpStatusCode.Created, createInviteResponse.StatusCode);
+        var createdInvite = await createInviteResponse.Content.ReadFromJsonAsync<CreateFamilyInviteResponse>();
+        Assert.NotNull(createdInvite);
+
+        using var redeemerClient = _factory.CreateClient();
+        redeemerClient.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, "redeemer-idempotent");
+
+        var firstRedeem = await redeemerClient.PostAsJsonAsync("/api/v1/families/invites/redeem", new
+        {
+            inviteToken = createdInvite!.InviteToken,
+            memberName = "Redeemer Idempotent",
+            memberEmail = inviteEmail
+        });
+        Assert.Equal(HttpStatusCode.OK, firstRedeem.StatusCode);
+
+        var secondRedeem = await redeemerClient.PostAsJsonAsync("/api/v1/families/invites/redeem", new
+        {
+            inviteToken = createdInvite.InviteToken,
+            memberName = "Redeemer Idempotent",
+            memberEmail = inviteEmail
+        });
+        Assert.Equal(HttpStatusCode.OK, secondRedeem.StatusCode);
+
+        var secondPayload = await secondRedeem.Content.ReadFromJsonAsync<RedeemFamilyInviteResponse>();
+        Assert.NotNull(secondPayload);
+        Assert.False(secondPayload!.CreatedNewMember);
+        Assert.Equal("Accepted", secondPayload.Invite.Status);
+    }
+
+    [Fact]
     public async Task RecurringExecutionRepository_HasExecution_ChecksIdempotencyKey()
     {
         await using var scope = _factory.Services.CreateAsyncScope();

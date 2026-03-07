@@ -310,6 +310,38 @@ internal static class FamilyEndpoints
             .WithName("AcceptFamilyInvite")
             .WithOpenApi();
 
+        v1.MapPost("/families/invites/redeem", async (
+                RedeemFamilyInviteRequest request,
+                ClaimsPrincipal user,
+                IFamilyInviteService familyInviteService,
+                CancellationToken cancellationToken) =>
+            {
+                var keycloakUserId = user.FindFirstValue("sub");
+                if (string.IsNullOrWhiteSpace(keycloakUserId))
+                {
+                    return Results.Unauthorized();
+                }
+
+                var memberName = user.FindFirstValue("name")
+                    ?? user.FindFirstValue("preferred_username")
+                    ?? request.MemberName;
+                var memberEmail = user.FindFirstValue(ClaimTypes.Email)
+                    ?? user.FindFirstValue("email")
+                    ?? request.MemberEmail;
+
+                var redemption = await familyInviteService.RedeemAsync(
+                    request.InviteToken,
+                    keycloakUserId,
+                    memberName,
+                    memberEmail,
+                    cancellationToken);
+
+                return Results.Ok(EndpointMappers.MapRedeemFamilyInviteResponse(redemption));
+            })
+            .RequireAuthorization()
+            .WithName("RedeemFamilyInvite")
+            .WithOpenApi();
+
         v1.MapGet("/families/{familyId:guid}/onboarding", async (
                 Guid familyId,
                 ClaimsPrincipal user,

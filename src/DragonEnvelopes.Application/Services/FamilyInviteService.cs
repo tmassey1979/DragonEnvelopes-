@@ -4,6 +4,7 @@ using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Interfaces;
 using DragonEnvelopes.Domain;
 using DragonEnvelopes.Domain.Entities;
+using DragonEnvelopes.Domain.ValueObjects;
 
 namespace DragonEnvelopes.Application.Services;
 
@@ -119,6 +120,77 @@ public sealed class FamilyInviteService(
         return Map(invite);
     }
 
+    public async Task<FamilyInviteRedemptionDetails> RedeemAsync(
+        string inviteToken,
+        string keycloakUserId,
+        string? memberName,
+        string? memberEmail,
+        CancellationToken cancellationToken = default)
+    {
+        var tokenHash = ComputeTokenHash(inviteToken);
+        var invite = await familyInviteRepository.GetByTokenHashForUpdateAsync(tokenHash, cancellationToken)
+            ?? throw new DomainValidationException("Invite was not found.");
+
+        var normalizedUserId = NormalizeRequired(keycloakUserId, "Authenticated user id");
+        var now = clock.UtcNow;
+        invite.Expire(now);
+
+        var resolvedEmail = ResolveMemberEmail(memberEmail, invite.Email);
+        if (!resolvedEmail.Equals(invite.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new DomainValidationException("Invite email does not match the authenticated user email.");
+        }
+
+        var existingMembers = await familyRepository.ListMembersAsync(invite.FamilyId, cancellationToken);
+        var existingMemberByUserId = existingMembers.FirstOrDefault(member =>
+            member.KeycloakUserId.Equals(normalizedUserId, StringComparison.OrdinalIgnoreCase));
+
+        if (existingMemberByUserId is not null)
+        {
+            if (invite.Status == FamilyInviteStatus.Pending)
+            {
+                invite.Accept(now);
+                await familyInviteRepository.SaveChangesAsync(cancellationToken);
+            }
+
+            return new FamilyInviteRedemptionDetails(
+                Map(invite),
+                MapMember(existingMemberByUserId),
+                CreatedNewMember: false);
+        }
+
+        if (existingMembers.Any(member => member.Email.Value.Equals(resolvedEmail, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new DomainValidationException("A family member with this email already exists.");
+        }
+
+        EnsureRedeemable(invite);
+
+        if (!Enum.TryParse<MemberRole>(invite.Role, ignoreCase: true, out var parsedRole))
+        {
+            throw new DomainValidationException("Invite role is invalid.");
+        }
+
+        var resolvedName = ResolveMemberName(memberName, resolvedEmail);
+        var member = new FamilyMember(
+            Guid.NewGuid(),
+            invite.FamilyId,
+            normalizedUserId,
+            resolvedName,
+            EmailAddress.Parse(resolvedEmail),
+            parsedRole);
+
+        await familyRepository.AddMemberAsync(member, cancellationToken);
+
+        invite.Accept(now);
+        await familyInviteRepository.SaveChangesAsync(cancellationToken);
+
+        return new FamilyInviteRedemptionDetails(
+            Map(invite),
+            MapMember(member),
+            CreatedNewMember: true);
+    }
+
     private static string ComputeTokenHash(string token)
     {
         if (string.IsNullOrWhiteSpace(token))
@@ -142,5 +214,70 @@ public sealed class FamilyInviteService(
             invite.ExpiresAtUtc,
             invite.AcceptedAtUtc,
             invite.CancelledAtUtc);
+    }
+
+    private static FamilyMemberDetails MapMember(FamilyMember member)
+    {
+        return new FamilyMemberDetails(
+            member.Id,
+            member.FamilyId,
+            member.KeycloakUserId,
+            member.Name,
+            member.Email.Value,
+            member.Role.ToString());
+    }
+
+    private static void EnsureRedeemable(FamilyInvite invite)
+    {
+        if (invite.Status == FamilyInviteStatus.Pending)
+        {
+            return;
+        }
+
+        var message = invite.Status switch
+        {
+            FamilyInviteStatus.Accepted => "Invite was already redeemed.",
+            FamilyInviteStatus.Cancelled => "Invite was cancelled.",
+            FamilyInviteStatus.Expired => "Invite is expired.",
+            _ => "Invite cannot be redeemed."
+        };
+
+        throw new DomainValidationException(message);
+    }
+
+    private static string ResolveMemberName(string? memberName, string resolvedEmail)
+    {
+        if (!string.IsNullOrWhiteSpace(memberName))
+        {
+            return memberName.Trim();
+        }
+
+        var atIndex = resolvedEmail.IndexOf('@');
+        if (atIndex > 0)
+        {
+            return resolvedEmail[..atIndex];
+        }
+
+        return resolvedEmail;
+    }
+
+    private static string ResolveMemberEmail(string? memberEmail, string inviteEmail)
+    {
+        if (!string.IsNullOrWhiteSpace(memberEmail))
+        {
+            return EmailAddress.Parse(memberEmail).Value;
+        }
+
+        return inviteEmail;
+    }
+
+    private static string NormalizeRequired(string? value, string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new DomainValidationException($"{fieldName} is required.");
+        }
+
+        return value.Trim();
     }
 }

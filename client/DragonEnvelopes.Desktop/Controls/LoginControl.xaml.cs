@@ -15,6 +15,8 @@ public partial class LoginControl : UserControl
 
     public event EventHandler? CancelRequested;
 
+    public event EventHandler? RedeemInviteRequested;
+
     public LoginControl()
     {
         InitializeComponent();
@@ -68,6 +70,7 @@ public partial class LoginControl : UserControl
         UsernameBox.IsEnabled = !busy;
         PasswordBox.IsEnabled = !busy;
         SignInButton.IsEnabled = !busy;
+        RedeemInviteButton.IsEnabled = !busy;
         CancelButton.IsEnabled = !busy;
         SignInButton.Content = busy ? "Signing In..." : "Sign In";
     }
@@ -98,6 +101,11 @@ public partial class LoginControl : UserControl
     private void OnCancelClicked(object sender, RoutedEventArgs e)
     {
         CancelRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnRedeemInviteClicked(object sender, RoutedEventArgs e)
+    {
+        RedeemInviteRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void ApplyEntryState()
