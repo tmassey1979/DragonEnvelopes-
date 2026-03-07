@@ -32,12 +32,7 @@ ApiBootstrap.ApplyDatabaseMigrations(app);
 ApiBootstrap.ConfigureMiddleware(app);
 ApiBootstrap.MapHealthEndpoints(app);
 
-string[] summaries =
-[
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-];
-
-ApiBootstrap.MapVersionedEndpoints(app, summaries);
+ApiBootstrap.MapVersionedEndpoints(app);
 
 app.Run();
 

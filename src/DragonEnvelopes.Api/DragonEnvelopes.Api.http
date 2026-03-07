@@ -1,6 +1,6 @@
 ﻿@DragonEnvelopes.Api_HostAddress = http://localhost:5262
 
-GET {{DragonEnvelopes.Api_HostAddress}}/weatherforecast/
+GET {{DragonEnvelopes.Api_HostAddress}}/api/v1/system/health
 Accept: application/json
 
 ###

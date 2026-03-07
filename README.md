@@ -159,7 +159,7 @@ Verification flow:
    - `Invoke-WebRequest http://localhost:18088/health/live`
    - `Invoke-WebRequest http://localhost:18089/health/live`
    - `Invoke-WebRequest http://localhost:18090/health/live`
-   - `Invoke-WebRequest http://localhost:18088/api/v1/weatherforecast`
+   - `Invoke-WebRequest http://localhost:18088/api/v1/system/health`
 3. Open Grafana Explore and run:
    - `{application=~"dragonenvelopes-(api|family-api|ledger-api)"}`
 4. Confirm logs include `CorrelationId`, `RequestPath`, and `StatusCode`.
@@ -268,7 +268,7 @@ Expected MSI output:
   - Route prefix pattern: `/api/v{version}`
   - Current version: `v1`
 - Example versioned endpoints:
-  - `GET /api/v1/weatherforecast`
+  - `GET /api/v1/system/health`
   - `GET /api/v1/auth/me`
   - `POST /api/v1/families`
   - `POST /api/v1/families/onboard`

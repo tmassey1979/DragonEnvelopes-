@@ -10,24 +10,8 @@ namespace DragonEnvelopes.Api.Endpoints;
 
 internal static class SystemAndAuthEndpoints
 {
-    public static RouteGroupBuilder MapSystemAndAuthEndpoints(this RouteGroupBuilder v1, string[] summaries)
+    public static RouteGroupBuilder MapSystemAndAuthEndpoints(this RouteGroupBuilder v1)
     {
-        v1.MapGet("/weatherforecast", () =>
-            {
-                var forecast = Enumerable.Range(1, 5).Select(index =>
-                        new WeatherForecast
-                        (
-                            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                            Random.Shared.Next(-20, 55),
-                            summaries[Random.Shared.Next(summaries.Length)]
-                        ))
-                    .ToArray();
-                return forecast;
-            })
-            .AllowAnonymous()
-            .WithName("GetWeatherForecast")
-            .WithOpenApi();
-
         v1.MapGet("/auth/me", async (
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
@@ -92,10 +76,5 @@ internal static class SystemAndAuthEndpoints
             .WithOpenApi();
 
         return v1;
-    }
-
-    private sealed record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-    {
-        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
     }
 }

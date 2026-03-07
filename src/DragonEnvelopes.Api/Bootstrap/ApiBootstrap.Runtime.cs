@@ -75,7 +75,7 @@ internal static partial class ApiBootstrap
         .AllowAnonymous();
     }
 
-    public static void MapVersionedEndpoints(WebApplication app, string[] summaries)
+    public static void MapVersionedEndpoints(WebApplication app)
     {
         var versionSet = app.NewApiVersionSet()
             .HasApiVersion(new ApiVersion(1, 0))
@@ -87,7 +87,7 @@ internal static partial class ApiBootstrap
             .MapToApiVersion(new ApiVersion(1, 0))
             .AddFluentValidation();
 
-        v1.MapSystemAndAuthEndpoints(summaries)
+        v1.MapSystemAndAuthEndpoints()
             .MapFamilyEndpoints()
             .MapFinancialIntegrationEndpoints()
             .MapAutomationEndpoints()
