@@ -21,5 +21,5 @@ Use this checklist at the start and end of every task.
 ## Session Run Log
 - Active task: `TBD`.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#206` Ledger API modularization: split account/transaction/import endpoint mapping.
+- Previous completed task: `#207` Security hardening: protect Family API add-member endpoint with parent auth.
 - Last updated: `2026-03-06`.
