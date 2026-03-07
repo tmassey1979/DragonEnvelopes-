@@ -2231,10 +2231,11 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         Assert.Contains("expected", alertEvent.Summary, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("provider", alertEvent.Summary, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("drift", alertEvent.Summary, StringComparison.OrdinalIgnoreCase);
-        Assert.True(alertEvent.PlaidWebhookEventId.HasValue);
+        Assert.True(alertEvent.ReconciliationAlertEventId.HasValue);
+        Assert.Null(alertEvent.PlaidWebhookEventId);
 
         var detailResponse = await client.GetAsync(
-            $"/api/v1/families/{familyId}/financial/provider-activity/timeline/events/PlaidReconciliation/{alertEvent.PlaidWebhookEventId.Value}");
+            $"/api/v1/families/{familyId}/financial/provider-activity/timeline/events/PlaidReconciliation/{alertEvent.ReconciliationAlertEventId.Value}");
         Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
         var detail = await detailResponse.Content.ReadFromJsonAsync<ProviderTimelineEventDetailResponse>();
         Assert.NotNull(detail);

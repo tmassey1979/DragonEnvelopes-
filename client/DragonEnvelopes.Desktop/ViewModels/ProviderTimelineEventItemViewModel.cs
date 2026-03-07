@@ -10,6 +10,7 @@ public sealed record ProviderTimelineEventItemViewModel(
     Guid? StripeWebhookEventId,
     Guid? PlaidWebhookEventId,
     Guid? NotificationDispatchEventId,
+    Guid? ReconciliationAlertEventId,
     bool CanReplayNotification,
     bool CanReplayStripeWebhook)
 {
@@ -17,6 +18,7 @@ public sealed record ProviderTimelineEventItemViewModel(
     public string PlaidWebhookEventIdDisplay => PlaidWebhookEventId?.ToString("D") ?? "-";
 
     public string NotificationDispatchEventIdDisplay => NotificationDispatchEventId?.ToString("D") ?? "-";
+    public string ReconciliationAlertEventIdDisplay => ReconciliationAlertEventId?.ToString("D") ?? "-";
 
     public bool CanReplayAny => CanReplayNotification || CanReplayStripeWebhook;
 

@@ -2700,6 +2700,7 @@
                                     <DataGridTextColumn Header="Stripe Event Id" Binding="{Binding StripeWebhookEventIdDisplay}" Width="250" />
                                     <DataGridTextColumn Header="Plaid Event Id" Binding="{Binding PlaidWebhookEventIdDisplay}" Width="250" />
                                     <DataGridTextColumn Header="Notification Event Id" Binding="{Binding NotificationDispatchEventIdDisplay}" Width="250" />
+                                    <DataGridTextColumn Header="Reconciliation Alert Id" Binding="{Binding ReconciliationAlertEventIdDisplay}" Width="250" />
                                     <DataGridTextColumn Header="Detail" Binding="{Binding Detail}" Width="220" />
                                 </DataGrid.Columns>
                             </DataGrid>

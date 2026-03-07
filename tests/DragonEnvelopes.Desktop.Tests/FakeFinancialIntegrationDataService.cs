@@ -124,7 +124,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
                     Detail: null,
                     StripeWebhookEventId: Guid.Parse("00000000-0000-0000-0000-000000000070"),
                     PlaidWebhookEventId: null,
-                    NotificationDispatchEventId: null),
+                    NotificationDispatchEventId: null,
+                    ReconciliationAlertEventId: null),
                 new ProviderTimelineEventResponse(
                     Source: "NotificationDispatch",
                     EventType: "InApp",
@@ -134,7 +135,19 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
                     Detail: "Simulated delivery failure",
                     StripeWebhookEventId: null,
                     PlaidWebhookEventId: null,
-                    NotificationDispatchEventId: Guid.Parse("00000000-0000-0000-0000-000000000060"))
+                    NotificationDispatchEventId: Guid.Parse("00000000-0000-0000-0000-000000000060"),
+                    ReconciliationAlertEventId: null),
+                new ProviderTimelineEventResponse(
+                    Source: "PlaidReconciliation",
+                    EventType: "DriftAlert",
+                    Status: "Open",
+                    OccurredAtUtc: now.AddMinutes(-4),
+                    Summary: "Drift alert for Primary Checking: expected $1,250.00, provider $1,245.75, drift $-4.25.",
+                    Detail: "Threshold $2.00. Snapshot captured at test time.",
+                    StripeWebhookEventId: null,
+                    PlaidWebhookEventId: null,
+                    NotificationDispatchEventId: null,
+                    ReconciliationAlertEventId: Guid.Parse("00000000-0000-0000-0000-000000000080"))
             ],
             TraceId: "trace-test-002");
         ProviderTimelineEventDetailResponse = new ProviderTimelineEventDetailResponse(
@@ -354,7 +367,8 @@ internal sealed class FakeFinancialIntegrationDataService : IFinancialIntegratio
             evt.Source.Equals(source, StringComparison.OrdinalIgnoreCase)
             && (evt.StripeWebhookEventId == eventId
                 || evt.PlaidWebhookEventId == eventId
-                || evt.NotificationDispatchEventId == eventId));
+                || evt.NotificationDispatchEventId == eventId
+                || evt.ReconciliationAlertEventId == eventId));
         if (timelineEvent is null)
         {
             throw new InvalidOperationException("Timeline event detail was not found.");

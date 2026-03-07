@@ -27,7 +27,7 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
         Assert.NotNull(harness.ViewModel.SelectedCard);
         Assert.NotNull(harness.ViewModel.SelectedFailedNotificationDispatchEvent);
         Assert.Equal("trace-test-002", harness.ViewModel.ProviderHealthTraceId);
-        Assert.Equal(2, harness.ViewModel.ProviderTimelineEvents.Count);
+        Assert.Equal(3, harness.ViewModel.ProviderTimelineEvents.Count);
         Assert.Equal("Financial integrations loaded.", harness.ViewModel.StatusMessage);
     }
 
@@ -116,7 +116,7 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
         Assert.Equal(25, harness.FinancialDataService.LastProviderTimelineTake);
         Assert.Null(harness.FinancialDataService.LastProviderTimelineSourceFilter);
         Assert.Null(harness.FinancialDataService.LastProviderTimelineStatusFilter);
-        Assert.Equal(2, harness.ViewModel.ProviderTimelineEvents.Count);
+        Assert.Equal(3, harness.ViewModel.ProviderTimelineEvents.Count);
         Assert.Equal("Provider activity timeline filters cleared.", harness.ViewModel.StatusMessage);
     }
 
@@ -433,6 +433,27 @@ public sealed class FinancialIntegrationsViewModelSmokeTests
         Assert.False(harness.ViewModel.HasError);
         Assert.Contains("StripeWebhook", harness.ViewModel.ProviderTimelineEventDetailSummary);
         Assert.Contains("***redacted***", harness.ViewModel.ProviderTimelineEventDetailPayload);
+        Assert.Equal("Provider timeline detail loaded.", harness.ViewModel.StatusMessage);
+    }
+
+    [Fact]
+    public async Task LoadSelectedProviderTimelineEventDetailCommand_UsesDedicatedReconciliationAlertEventId()
+    {
+        var harness = CreateHarness();
+        await EnsureLoadedAsync(harness.ViewModel);
+
+        var reconciliationTimelineEvent = Assert.Single(
+            harness.ViewModel.ProviderTimelineEvents.Where(static evt => evt.Source.Equals("PlaidReconciliation", StringComparison.OrdinalIgnoreCase)));
+        Assert.True(reconciliationTimelineEvent.ReconciliationAlertEventId.HasValue);
+        Assert.Null(reconciliationTimelineEvent.PlaidWebhookEventId);
+        harness.ViewModel.SelectedProviderTimelineEvent = reconciliationTimelineEvent;
+
+        await harness.ViewModel.LoadSelectedProviderTimelineEventDetailCommand.ExecuteAsync(null);
+        await WaitForIdleAsync(harness.ViewModel);
+
+        Assert.False(harness.ViewModel.HasError);
+        Assert.Contains("PlaidReconciliation", harness.ViewModel.ProviderTimelineEventDetailSummary);
+        Assert.Contains("DriftAlert", harness.ViewModel.ProviderTimelineEventDetailSummary);
         Assert.Equal("Provider timeline detail loaded.", harness.ViewModel.StatusMessage);
     }
 

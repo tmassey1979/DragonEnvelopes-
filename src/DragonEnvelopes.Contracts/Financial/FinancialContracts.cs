@@ -72,7 +72,8 @@ public sealed record ProviderTimelineEventResponse(
     string? Detail,
     Guid? StripeWebhookEventId,
     Guid? PlaidWebhookEventId,
-    Guid? NotificationDispatchEventId);
+    Guid? NotificationDispatchEventId,
+    Guid? ReconciliationAlertEventId);
 
 public sealed record ProviderActivityTimelineResponse(
     Guid FamilyId,

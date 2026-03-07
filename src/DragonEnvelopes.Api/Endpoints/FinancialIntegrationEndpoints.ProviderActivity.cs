@@ -187,6 +187,7 @@ internal static partial class FinancialIntegrationEndpoints
                             webhook.ErrorMessage,
                             webhook.Id,
                             null,
+                            null,
                             null))
                         .ToArrayAsync(cancellationToken);
                 }
@@ -220,6 +221,7 @@ internal static partial class FinancialIntegrationEndpoints
                             webhook.ErrorMessage,
                             null,
                             webhook.Id,
+                            null,
                             null))
                         .ToArrayAsync(cancellationToken);
                 }
@@ -249,7 +251,8 @@ internal static partial class FinancialIntegrationEndpoints
                             notification.ErrorMessage,
                             null,
                             null,
-                            notification.Id))
+                            notification.Id,
+                            null))
                         .ToArrayAsync(cancellationToken);
                 }
 
@@ -299,8 +302,9 @@ internal static partial class FinancialIntegrationEndpoints
                                 $"Drift alert for {accountName}: expected {expectedBalance}, provider {providerBalance}, drift {driftAmount}.",
                                 $"Threshold {thresholdValue}. Snapshot captured at {snapshot.RefreshedAtUtc:yyyy-MM-dd HH:mm} UTC.",
                                 StripeWebhookEventId: null,
-                                PlaidWebhookEventId: snapshot.Id,
-                                NotificationDispatchEventId: null);
+                                PlaidWebhookEventId: null,
+                                NotificationDispatchEventId: null,
+                                ReconciliationAlertEventId: snapshot.Id);
                         })
                         .Take(normalizedTake)
                         .ToArray();

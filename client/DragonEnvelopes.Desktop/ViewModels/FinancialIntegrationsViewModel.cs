@@ -1578,6 +1578,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
         var previousSelectedNotificationEventId = SelectedProviderTimelineEvent?.NotificationDispatchEventId;
         var previousSelectedStripeWebhookEventId = SelectedProviderTimelineEvent?.StripeWebhookEventId;
         var previousSelectedPlaidWebhookEventId = SelectedProviderTimelineEvent?.PlaidWebhookEventId;
+        var previousSelectedReconciliationAlertEventId = SelectedProviderTimelineEvent?.ReconciliationAlertEventId;
 
         ProviderTimelineEvents = new ObservableCollection<ProviderTimelineEventItemViewModel>(
             timeline.Events.Select(eventItem => new ProviderTimelineEventItemViewModel(
@@ -1590,6 +1591,7 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
                 eventItem.StripeWebhookEventId,
                 eventItem.PlaidWebhookEventId,
                 eventItem.NotificationDispatchEventId,
+                eventItem.ReconciliationAlertEventId,
                 eventItem.Source.Equals("NotificationDispatch", StringComparison.OrdinalIgnoreCase)
                     && eventItem.Status.Equals("Failed", StringComparison.OrdinalIgnoreCase)
                     && eventItem.NotificationDispatchEventId.HasValue,
@@ -1604,6 +1606,8 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
                 ? ProviderTimelineEvents.FirstOrDefault(evt => evt.StripeWebhookEventId == previousSelectedStripeWebhookEventId.Value)
                 : previousSelectedPlaidWebhookEventId.HasValue
                     ? ProviderTimelineEvents.FirstOrDefault(evt => evt.PlaidWebhookEventId == previousSelectedPlaidWebhookEventId.Value)
+                : previousSelectedReconciliationAlertEventId.HasValue
+                    ? ProviderTimelineEvents.FirstOrDefault(evt => evt.ReconciliationAlertEventId == previousSelectedReconciliationAlertEventId.Value)
                 : ProviderTimelineEvents.FirstOrDefault(evt => evt.CanReplayAny);
 
         var sourceSummary = SelectedProviderTimelineSourceFilter;
@@ -1688,9 +1692,15 @@ public sealed partial class FinancialIntegrationsViewModel : ObservableObject
             return eventItem.NotificationDispatchEventId;
         }
 
+        if (eventItem.Source.Equals("PlaidReconciliation", StringComparison.OrdinalIgnoreCase))
+        {
+            return eventItem.ReconciliationAlertEventId;
+        }
+
         return eventItem.StripeWebhookEventId
                ?? eventItem.PlaidWebhookEventId
-               ?? eventItem.NotificationDispatchEventId;
+               ?? eventItem.NotificationDispatchEventId
+               ?? eventItem.ReconciliationAlertEventId;
     }
 
     private async Task LoadFailedNotificationDispatchEventsCoreAsync(CancellationToken cancellationToken)
