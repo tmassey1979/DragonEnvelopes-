@@ -9,6 +9,7 @@ DragonEnvelopes documentation is split by audience.
 - [Technical Guide](./technical-guide.md): architecture, local environment setup, service boundaries, validation commands, and operational notes.
 - [Architecture Decision Records](./adr/README.md)
 - [ADR 0002 - Service Topology v2 and Cutover Contracts](./adr/0002-service-topology-v2-and-cutover-plan.md)
+- [Event Catalog v1](./architecture/event-catalog-v1.md)
 - [Operations: Plaid Balance Drift Workflow](./operations/plaid-balance-drift-workflow.md)
 - [Operations: Provider Secret Key Rotation](./operations/provider-secret-key-rotation.md)
 - [QA: Onboarding Smoke Checklist](./onboarding-smoke-checklist.md)

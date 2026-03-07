@@ -24,6 +24,7 @@ Service boundary intent:
 
 Target topology and cutover contracts:
 - `docs/adr/0002-service-topology-v2-and-cutover-plan.md`
+- `docs/architecture/event-catalog-v1.md` (event-driven contract source of truth)
 
 ## 2. Local Prerequisites
 
