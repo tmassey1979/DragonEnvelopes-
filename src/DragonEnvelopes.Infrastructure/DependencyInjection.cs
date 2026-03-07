@@ -61,6 +61,7 @@ public static class DependencyInjection
         services.AddScoped<IFamilyInviteSender, FamilyInviteSender>();
         services.AddScoped<IRepositoryMarker, RepositoryMarker>();
         services.AddScoped<IFamilyRepository, FamilyRepository>();
+        services.AddScoped<IIntegrationInboxRepository, IntegrationInboxRepository>();
         services.AddScoped<IIntegrationOutboxRepository, IntegrationOutboxRepository>();
         services.AddScoped<IApprovalPolicyRepository, ApprovalPolicyRepository>();
         services.AddScoped<IApprovalRequestRepository, ApprovalRequestRepository>();
@@ -113,6 +114,20 @@ public static class DependencyInjection
             || consumerValue;
         var ledgerQueue = configuration["Messaging:RabbitMq:LedgerTransactionCreatedQueue"]
             ?? "dragonenvelopes.financial.ledger-transaction-created";
+        var ledgerRetryQueue = configuration["Messaging:RabbitMq:LedgerTransactionCreatedRetryQueue"]
+            ?? "dragonenvelopes.financial.ledger-transaction-created.retry";
+        var ledgerRetryRoutingKey = configuration["Messaging:RabbitMq:LedgerTransactionCreatedRetryRoutingKey"]
+            ?? "ledger.transaction.created.retry.v1";
+        var ledgerDeadLetterQueue = configuration["Messaging:RabbitMq:LedgerTransactionCreatedDeadLetterQueue"]
+            ?? "dragonenvelopes.financial.ledger-transaction-created.dlq";
+        var ledgerDeadLetterRoutingKey = configuration["Messaging:RabbitMq:LedgerTransactionCreatedDeadLetterRoutingKey"]
+            ?? "ledger.transaction.created.dlq.v1";
+        var consumerMaxRetryAttempts = int.TryParse(configuration["Messaging:RabbitMq:ConsumerMaxRetryAttempts"], out var maxRetryAttempts)
+            ? Math.Max(1, maxRetryAttempts)
+            : 5;
+        var consumerRetryDelayMilliseconds = int.TryParse(configuration["Messaging:RabbitMq:ConsumerRetryDelayMilliseconds"], out var retryDelayMilliseconds)
+            ? Math.Max(1000, retryDelayMilliseconds)
+            : 30000;
         var prefetchCount = ushort.TryParse(configuration["Messaging:RabbitMq:ConsumerPrefetchCount"], out var prefetchValue)
             ? prefetchValue
             : (ushort)20;
@@ -131,6 +146,12 @@ public static class DependencyInjection
             SourceService = sourceService,
             EnableLedgerTransactionConsumer = enableLedgerConsumer,
             LedgerTransactionCreatedQueue = ledgerQueue,
+            LedgerTransactionCreatedRetryQueue = ledgerRetryQueue,
+            LedgerTransactionCreatedRetryRoutingKey = ledgerRetryRoutingKey,
+            LedgerTransactionCreatedDeadLetterQueue = ledgerDeadLetterQueue,
+            LedgerTransactionCreatedDeadLetterRoutingKey = ledgerDeadLetterRoutingKey,
+            ConsumerMaxRetryAttempts = consumerMaxRetryAttempts,
+            ConsumerRetryDelayMilliseconds = consumerRetryDelayMilliseconds,
             ConsumerPrefetchCount = prefetchCount
         };
     }

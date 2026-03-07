@@ -12,6 +12,7 @@ DragonEnvelopes documentation is split by audience.
 - [Event Catalog v1](./architecture/event-catalog-v1.md)
 - [Operations: Plaid Balance Drift Workflow](./operations/plaid-balance-drift-workflow.md)
 - [Operations: Provider Secret Key Rotation](./operations/provider-secret-key-rotation.md)
+- [Operations: RabbitMQ Consumer Reliability](./operations/rabbitmq-consumer-reliability.md)
 - [QA: Onboarding Smoke Checklist](./onboarding-smoke-checklist.md)
 - [QA: Desktop Financial Integrations Smoke Checklist](./qa/desktop-financial-integrations-smoke-checklist.md)
 - [QA: Desktop Role Command Matrix](./qa/desktop-role-command-matrix.md)

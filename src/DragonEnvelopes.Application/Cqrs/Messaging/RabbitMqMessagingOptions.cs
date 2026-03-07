@@ -26,5 +26,17 @@ public sealed class RabbitMqMessagingOptions
 
     public string LedgerTransactionCreatedQueue { get; init; } = "dragonenvelopes.financial.ledger-transaction-created";
 
+    public string LedgerTransactionCreatedRetryQueue { get; init; } = "dragonenvelopes.financial.ledger-transaction-created.retry";
+
+    public string LedgerTransactionCreatedRetryRoutingKey { get; init; } = "ledger.transaction.created.retry.v1";
+
+    public string LedgerTransactionCreatedDeadLetterQueue { get; init; } = "dragonenvelopes.financial.ledger-transaction-created.dlq";
+
+    public string LedgerTransactionCreatedDeadLetterRoutingKey { get; init; } = "ledger.transaction.created.dlq.v1";
+
+    public int ConsumerMaxRetryAttempts { get; init; } = 5;
+
+    public int ConsumerRetryDelayMilliseconds { get; init; } = 30000;
+
     public ushort ConsumerPrefetchCount { get; init; } = 20;
 }

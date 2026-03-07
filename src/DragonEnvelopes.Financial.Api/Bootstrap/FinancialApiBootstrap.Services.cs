@@ -27,6 +27,8 @@ internal static partial class FinancialApiBootstrap
         builder.Services.AddApplication();
         builder.Services.AddInfrastructure(builder.Configuration);
         builder.Services.AddProviderClients(builder.Configuration);
+        builder.Services.AddScoped<ILedgerTransactionCreatedEventHandler, LedgerTransactionCreatedLoggingHandler>();
+        builder.Services.AddScoped<LedgerTransactionCreatedMessageProcessor>();
         builder.Services.AddSingleton(Options.Create(BuildStripeWebhookOptions(builder.Configuration)));
         builder.Services.AddSingleton(Options.Create(BuildDataRetentionOptions(builder.Configuration)));
         builder.Services.AddSingleton(Options.Create(BuildOutboxWorkerOptions(builder.Configuration)));

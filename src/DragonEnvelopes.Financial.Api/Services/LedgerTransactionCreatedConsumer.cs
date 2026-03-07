@@ -1,6 +1,6 @@
-using System.Text.Json;
 using DragonEnvelopes.Application.Cqrs.Messaging;
-using DragonEnvelopes.Contracts.IntegrationEvents;
+using DragonEnvelopes.Application.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -9,9 +9,10 @@ namespace DragonEnvelopes.Financial.Api.Services;
 
 public sealed class LedgerTransactionCreatedConsumer(
     IOptions<RabbitMqMessagingOptions> optionsAccessor,
+    IServiceScopeFactory serviceScopeFactory,
     ILogger<LedgerTransactionCreatedConsumer> logger) : BackgroundService
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private const string ConsumerName = "financial.ledger-transaction-created-consumer";
     private readonly RabbitMqMessagingOptions _options = optionsAccessor.Value;
     private IConnection? _connection;
     private IModel? _channel;
@@ -36,30 +37,42 @@ public sealed class LedgerTransactionCreatedConsumer(
 
         try
         {
-            var payload = ResolvePayload(args.Body.Span);
-            if (payload is null)
+            LedgerTransactionCreatedMessageProcessResult result;
+            using (var scope = serviceScopeFactory.CreateScope())
             {
-                logger.LogWarning("Received empty or invalid ledger transaction event payload.");
-                _channel.BasicAck(args.DeliveryTag, multiple: false);
-                return;
+                var processor = scope.ServiceProvider.GetRequiredService<LedgerTransactionCreatedMessageProcessor>();
+                result = await processor.ProcessAsync(
+                    args.Body.ToArray(),
+                    args.RoutingKey,
+                    _options.ConsumerMaxRetryAttempts);
             }
 
-            logger.LogInformation(
-                "Consumed ledger transaction event. EventId={EventId}, FamilyId={FamilyId}, TransactionId={TransactionId}, Amount={Amount}",
-                payload.EventId,
-                payload.FamilyId,
-                payload.TransactionId,
-                payload.Amount);
+            switch (result.Disposition)
+            {
+                case ConsumerMessageDisposition.Ack:
+                    _channel.BasicAck(args.DeliveryTag, multiple: false);
+                    break;
 
-            _channel.BasicAck(args.DeliveryTag, multiple: false);
+                case ConsumerMessageDisposition.Retry:
+                    PublishRetryMessage(args, result);
+                    _channel.BasicAck(args.DeliveryTag, multiple: false);
+                    break;
+
+                case ConsumerMessageDisposition.DeadLetter:
+                    await PublishDeadLetterMessageAsync(args, result);
+                    _channel.BasicAck(args.DeliveryTag, multiple: false);
+                    break;
+
+                default:
+                    _channel.BasicNack(args.DeliveryTag, multiple: false, requeue: true);
+                    break;
+            }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to process ledger transaction event; message nacked.");
-            _channel.BasicNack(args.DeliveryTag, multiple: false, requeue: false);
+            logger.LogError(ex, "Failed to process ledger transaction event; message nacked for requeue.");
+            _channel.BasicNack(args.DeliveryTag, multiple: false, requeue: true);
         }
-
-        await Task.CompletedTask;
     }
 
     public override void Dispose()
@@ -102,10 +115,13 @@ public sealed class LedgerTransactionCreatedConsumer(
             {
                 InitializeConsumer();
                 logger.LogInformation(
-                    "Started ledger transaction consumer. Queue={Queue}, Exchange={Exchange}, RoutingKey={RoutingKey}",
+                    "Started ledger transaction consumer. Queue={Queue}, RetryQueue={RetryQueue}, DeadLetterQueue={DeadLetterQueue}, Exchange={Exchange}, RoutingKey={RoutingKey}",
                     _options.LedgerTransactionCreatedQueue,
+                    _options.LedgerTransactionCreatedRetryQueue,
+                    _options.LedgerTransactionCreatedDeadLetterQueue,
                     _options.ExchangeName,
                     IntegrationEventRoutingKeys.LedgerTransactionCreatedV1);
+                LogQueueDepthSnapshot("consumer-start");
 
                 await WaitUntilCancelledAsync(stoppingToken);
             }
@@ -153,6 +169,34 @@ public sealed class LedgerTransactionCreatedConsumer(
             queue: _options.LedgerTransactionCreatedQueue,
             exchange: _options.ExchangeName,
             routingKey: IntegrationEventRoutingKeys.LedgerTransactionCreatedV1);
+
+        _channel.QueueDeclare(
+            queue: _options.LedgerTransactionCreatedRetryQueue,
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            arguments: new Dictionary<string, object>
+            {
+                ["x-message-ttl"] = _options.ConsumerRetryDelayMilliseconds,
+                ["x-dead-letter-exchange"] = _options.ExchangeName,
+                ["x-dead-letter-routing-key"] = IntegrationEventRoutingKeys.LedgerTransactionCreatedV1
+            });
+        _channel.QueueBind(
+            queue: _options.LedgerTransactionCreatedRetryQueue,
+            exchange: _options.ExchangeName,
+            routingKey: _options.LedgerTransactionCreatedRetryRoutingKey);
+
+        _channel.QueueDeclare(
+            queue: _options.LedgerTransactionCreatedDeadLetterQueue,
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            arguments: null);
+        _channel.QueueBind(
+            queue: _options.LedgerTransactionCreatedDeadLetterQueue,
+            exchange: _options.ExchangeName,
+            routingKey: _options.LedgerTransactionCreatedDeadLetterRoutingKey);
+
         _channel.BasicQos(prefetchSize: 0, prefetchCount: _options.ConsumerPrefetchCount, global: false);
 
         var consumer = new AsyncEventingBasicConsumer(_channel);
@@ -172,44 +216,150 @@ public sealed class LedgerTransactionCreatedConsumer(
         _connection = null;
     }
 
-    private LedgerTransactionCreatedIntegrationEvent? ResolvePayload(ReadOnlySpan<byte> bodySpan)
+    private async Task PublishDeadLetterMessageAsync(
+        BasicDeliverEventArgs args,
+        LedgerTransactionCreatedMessageProcessResult result)
     {
         try
         {
-            var envelope = IntegrationEventEnvelopeJson.Deserialize<LedgerTransactionCreatedIntegrationEvent>(bodySpan);
-            if (envelope is not null)
-            {
-                if (!IntegrationEventEnvelopeValidator.TryValidate(envelope, out var errors))
-                {
-                    logger.LogWarning(
-                        "Received invalid event envelope. Errors={Errors}",
-                        string.Join("; ", errors));
-                    return null;
-                }
-
-                if (!IntegrationEventEnvelopeValidator.IsSupportedMajorVersion(envelope.SchemaVersion, supportedMajorVersion: 1))
-                {
-                    logger.LogWarning(
-                        "Unsupported event schema version for ledger transaction event. SchemaVersion={SchemaVersion}",
-                        envelope.SchemaVersion);
-                    return null;
-                }
-
-                return envelope.Payload;
-            }
+            PublishMessage(
+                args,
+                _options.LedgerTransactionCreatedDeadLetterRoutingKey,
+                result.AttemptCount,
+                result.ErrorMessage,
+                isDeadLetter: true);
+            using var scope = serviceScopeFactory.CreateScope();
+            var inboxRepository = scope.ServiceProvider.GetRequiredService<IIntegrationInboxRepository>();
+            var deadLetteredCount = await inboxRepository.CountDeadLetteredAsync(ConsumerName);
+            logger.LogWarning(
+                "Ledger transaction event dead-lettered. IdempotencyKey={IdempotencyKey}, AttemptCount={AttemptCount}, DeadLetteredCount={DeadLetteredCount}",
+                result.IdempotencyKey,
+                result.AttemptCount,
+                deadLetteredCount);
+            LogQueueDepthSnapshot("dead-letter");
         }
-        catch (JsonException)
+        catch (Exception ex)
         {
-            // Fall back to raw payload compatibility path.
+            logger.LogError(
+                ex,
+                "Failed to publish dead-letter message. IdempotencyKey={IdempotencyKey}",
+                result.IdempotencyKey);
+            _channel?.BasicNack(args.DeliveryTag, multiple: false, requeue: true);
+        }
+    }
+
+    private void PublishRetryMessage(
+        BasicDeliverEventArgs args,
+        LedgerTransactionCreatedMessageProcessResult result)
+    {
+        try
+        {
+            PublishMessage(
+                args,
+                _options.LedgerTransactionCreatedRetryRoutingKey,
+                result.AttemptCount,
+                result.ErrorMessage,
+                isDeadLetter: false);
+            logger.LogInformation(
+                "Requeued ledger transaction event for retry. IdempotencyKey={IdempotencyKey}, AttemptCount={AttemptCount}, RetryQueue={RetryQueue}",
+                result.IdempotencyKey,
+                result.AttemptCount,
+                _options.LedgerTransactionCreatedRetryQueue);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Failed to publish retry message. IdempotencyKey={IdempotencyKey}",
+                result.IdempotencyKey);
+            _channel?.BasicNack(args.DeliveryTag, multiple: false, requeue: true);
+        }
+    }
+
+    private void PublishMessage(
+        BasicDeliverEventArgs args,
+        string routingKey,
+        int attemptCount,
+        string? errorMessage,
+        bool isDeadLetter)
+    {
+        if (_channel is null)
+        {
+            throw new InvalidOperationException("Consumer channel is not initialized.");
+        }
+
+        var properties = _channel.CreateBasicProperties();
+        properties.Persistent = true;
+        properties.ContentType = args.BasicProperties?.ContentType ?? "application/json";
+        properties.CorrelationId = args.BasicProperties?.CorrelationId;
+        properties.MessageId = args.BasicProperties?.MessageId ?? Guid.NewGuid().ToString("D");
+        properties.Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        properties.Headers = CloneHeaders(args.BasicProperties?.Headers);
+        properties.Headers["x-dragonenvelopes-consumer"] = ConsumerName;
+        properties.Headers["x-dragonenvelopes-attempt-count"] = (long)attemptCount;
+        properties.Headers["x-dragonenvelopes-original-routing-key"] = args.RoutingKey;
+        if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            properties.Headers["x-dragonenvelopes-last-error"] = errorMessage.Trim();
+        }
+
+        if (isDeadLetter)
+        {
+            properties.Headers["x-dragonenvelopes-dead-lettered"] = true;
+            properties.Headers["x-dragonenvelopes-dead-lettered-at-utc"] = DateTimeOffset.UtcNow.ToString("O");
+        }
+
+        _channel.BasicPublish(
+            exchange: _options.ExchangeName,
+            routingKey: routingKey,
+            mandatory: false,
+            basicProperties: properties,
+            body: args.Body);
+    }
+
+    private void LogQueueDepthSnapshot(string trigger)
+    {
+        if (_channel is null)
+        {
+            return;
         }
 
         try
         {
-            return JsonSerializer.Deserialize<LedgerTransactionCreatedIntegrationEvent>(bodySpan, SerializerOptions);
+            var mainCount = _channel.MessageCount(_options.LedgerTransactionCreatedQueue);
+            var retryCount = _channel.MessageCount(_options.LedgerTransactionCreatedRetryQueue);
+            var deadLetterCount = _channel.MessageCount(_options.LedgerTransactionCreatedDeadLetterQueue);
+            logger.LogInformation(
+                "Ledger transaction queue depth snapshot. Trigger={Trigger}, Main={MainCount}, Retry={RetryCount}, DeadLetter={DeadLetterCount}",
+                trigger,
+                mainCount,
+                retryCount,
+                deadLetterCount);
         }
-        catch (JsonException)
+        catch (Exception ex)
         {
-            return null;
+            logger.LogDebug(ex, "Unable to collect queue depth snapshot for trigger {Trigger}.", trigger);
         }
+    }
+
+    private static Dictionary<string, object> CloneHeaders(IDictionary<string, object>? headers)
+    {
+        if (headers is null || headers.Count == 0)
+        {
+            return new Dictionary<string, object>(StringComparer.Ordinal);
+        }
+
+        var cloned = new Dictionary<string, object>(headers.Count, StringComparer.Ordinal);
+        foreach (var header in headers)
+        {
+            if (header.Value is null)
+            {
+                continue;
+            }
+
+            cloned[header.Key] = header.Value;
+        }
+
+        return cloned;
     }
 }
