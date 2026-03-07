@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using DragonEnvelopes.Contracts.Accounts;
+using DragonEnvelopes.Contracts.Approvals;
 using DragonEnvelopes.Contracts.Anomalies;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.EnvelopeGoals;
@@ -248,6 +249,81 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
         Assert.Contains("baseline", ownPayload[0].Reason, StringComparison.OrdinalIgnoreCase);
 
         Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Approval_Workflow_Blocks_Child_Ledger_Posting_And_Enforces_Parent_Resolution_Authorization()
+    {
+        var childUserId = "ledger-child-approval-a";
+        var parentUserId = "ledger-parent-approval-a";
+        var ownFamilyId = Guid.Parse("e1260000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e1260000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        var ownAccountId = await SeedFamilyMembershipAndApprovalWorkflowAsync(
+            childUserId,
+            parentUserId,
+            ownFamilyId,
+            otherFamilyId);
+
+        client.DefaultRequestHeaders.Remove("X-Test-User");
+        client.DefaultRequestHeaders.Remove("X-Test-Role");
+        client.DefaultRequestHeaders.Add("X-Test-User", childUserId);
+        client.DefaultRequestHeaders.Add("X-Test-Role", "Child");
+
+        var blockedResponse = await client.PostAsJsonAsync(
+            "/api/v1/transactions",
+            new CreateTransactionRequest(
+                ownAccountId,
+                -150m,
+                "Gaming console",
+                "Dragon Electronics",
+                DateTimeOffset.UtcNow,
+                "Shopping",
+                EnvelopeId: null,
+                Splits: null));
+        var blockedPayload = await blockedResponse.Content.ReadFromJsonAsync<ApprovalRequestResponse>();
+
+        Assert.Equal(HttpStatusCode.Accepted, blockedResponse.StatusCode);
+        Assert.NotNull(blockedPayload);
+        Assert.Equal("Blocked", blockedPayload!.Status);
+        Assert.Equal(childUserId, blockedPayload.RequestedByUserId);
+        Assert.Null(blockedPayload.ApprovedTransactionId);
+
+        var parentListForbidden = await client.GetAsync($"/api/v1/approvals/requests?familyId={otherFamilyId}&take=20");
+        Assert.Equal(HttpStatusCode.Forbidden, parentListForbidden.StatusCode);
+
+        var childApproveResponse = await client.PostAsJsonAsync(
+            $"/api/v1/approvals/requests/{blockedPayload.Id}/approve",
+            new ResolveApprovalRequestRequest("child cannot approve"));
+        Assert.Equal(HttpStatusCode.Forbidden, childApproveResponse.StatusCode);
+
+        client.DefaultRequestHeaders.Remove("X-Test-User");
+        client.DefaultRequestHeaders.Remove("X-Test-Role");
+        client.DefaultRequestHeaders.Add("X-Test-User", parentUserId);
+        client.DefaultRequestHeaders.Add("X-Test-Role", "Parent");
+
+        var listResponse = await client.GetAsync($"/api/v1/approvals/requests?familyId={ownFamilyId}&status=Blocked&take=20");
+        var listPayload = await listResponse.Content.ReadFromJsonAsync<List<ApprovalRequestResponse>>();
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+        Assert.NotNull(listPayload);
+        Assert.Contains(listPayload!, item => item.Id == blockedPayload.Id && item.Status == "Blocked");
+
+        var approveResponse = await client.PostAsJsonAsync(
+            $"/api/v1/approvals/requests/{blockedPayload.Id}/approve",
+            new ResolveApprovalRequestRequest("approved by parent"));
+        var approvePayload = await approveResponse.Content.ReadFromJsonAsync<ApprovalRequestResponse>();
+        Assert.Equal(HttpStatusCode.OK, approveResponse.StatusCode);
+        Assert.NotNull(approvePayload);
+        Assert.Equal("Approved", approvePayload!.Status);
+        Assert.NotNull(approvePayload.ApprovedTransactionId);
+
+        var timelineResponse = await client.GetAsync($"/api/v1/approvals/requests/{blockedPayload.Id}/timeline?take=20");
+        var timelinePayload = await timelineResponse.Content.ReadFromJsonAsync<List<ApprovalTimelineEventResponse>>();
+        Assert.Equal(HttpStatusCode.OK, timelineResponse.StatusCode);
+        Assert.NotNull(timelinePayload);
+        Assert.Contains(timelinePayload!, evt => evt.EventType == "Blocked");
+        Assert.Contains(timelinePayload!, evt => evt.EventType == "Approved");
     }
 
     [Fact]
@@ -813,6 +889,73 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
         await dbContext.SaveChangesAsync();
     }
 
+    private async Task<Guid> SeedFamilyMembershipAndApprovalWorkflowAsync(
+        string childUserId,
+        string parentUserId,
+        Guid ownFamilyId,
+        Guid otherFamilyId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+
+        dbContext.PurchaseApprovalTimelineEvents.RemoveRange(dbContext.PurchaseApprovalTimelineEvents);
+        dbContext.PurchaseApprovalRequests.RemoveRange(dbContext.PurchaseApprovalRequests);
+        dbContext.FamilyApprovalPolicies.RemoveRange(dbContext.FamilyApprovalPolicies);
+        dbContext.SpendAnomalyEvents.RemoveRange(dbContext.SpendAnomalyEvents);
+        dbContext.TransactionSplits.RemoveRange(dbContext.TransactionSplits);
+        dbContext.Transactions.RemoveRange(dbContext.Transactions);
+        dbContext.Accounts.RemoveRange(dbContext.Accounts);
+        dbContext.FamilyMembers.RemoveRange(dbContext.FamilyMembers);
+        dbContext.Families.RemoveRange(dbContext.Families);
+
+        var now = DateTimeOffset.UtcNow;
+        var ownAccountId = Guid.NewGuid();
+        var otherAccountId = Guid.NewGuid();
+
+        dbContext.Families.AddRange(
+            new Family(ownFamilyId, "Authorized Ledger Family", now),
+            new Family(otherFamilyId, "Forbidden Ledger Family", now));
+
+        dbContext.FamilyMembers.AddRange(
+            new FamilyMember(
+                Guid.NewGuid(),
+                ownFamilyId,
+                childUserId,
+                "Ledger Child User",
+                EmailAddress.Parse("ledger.child@test.local"),
+                MemberRole.Child),
+            new FamilyMember(
+                Guid.NewGuid(),
+                ownFamilyId,
+                parentUserId,
+                "Ledger Parent User",
+                EmailAddress.Parse("ledger.parent@test.local"),
+                MemberRole.Parent));
+
+        dbContext.Accounts.AddRange(
+            new Account(ownAccountId, ownFamilyId, "Primary Checking", AccountType.Checking, Money.FromDecimal(750m)),
+            new Account(otherAccountId, otherFamilyId, "Other Checking", AccountType.Checking, Money.FromDecimal(750m)));
+
+        dbContext.FamilyApprovalPolicies.AddRange(
+            FamilyApprovalPolicy.Create(
+                Guid.NewGuid(),
+                ownFamilyId,
+                isEnabled: true,
+                amountThreshold: 100m,
+                rolesRequiringApproval: ["Child"],
+                updatedAtUtc: now),
+            FamilyApprovalPolicy.Create(
+                Guid.NewGuid(),
+                otherFamilyId,
+                isEnabled: true,
+                amountThreshold: 100m,
+                rolesRequiringApproval: ["Child"],
+                updatedAtUtc: now));
+
+        await dbContext.SaveChangesAsync();
+        return ownAccountId;
+    }
+
     private async Task SeedFamilyMembershipAndRolloverEnvelopesAsync(
         string userId,
         Guid ownFamilyId,
@@ -960,7 +1103,7 @@ public sealed class LedgerApiFactory : WebApplicationFactory<Program>
             services.AddAuthorization(options =>
             {
                 options.AddPolicy(ApiAuthorizationPolicies.AnyFamilyMember, policy => policy.RequireAuthenticatedUser());
-                options.AddPolicy(ApiAuthorizationPolicies.Parent, policy => policy.RequireAuthenticatedUser());
+                options.AddPolicy(ApiAuthorizationPolicies.Parent, policy => policy.RequireRole("Parent"));
             });
         });
     }
@@ -985,11 +1128,15 @@ internal sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSche
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
+        var role = Request.Headers.TryGetValue("X-Test-Role", out var headerRole) && !string.IsNullOrWhiteSpace(headerRole)
+            ? headerRole.ToString()
+            : "Parent";
+
         var identity = new ClaimsIdentity(
             [
                 new Claim("sub", userId.ToString()),
-                new Claim(ClaimTypes.Role, "Parent"),
-                new Claim("role", "Parent")
+                new Claim(ClaimTypes.Role, role),
+                new Claim("role", role)
             ],
             SchemeName,
             ClaimTypes.Name,

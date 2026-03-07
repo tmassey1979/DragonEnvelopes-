@@ -6,6 +6,7 @@ namespace DragonEnvelopes.Infrastructure.Persistence;
 public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbContext> options) : DbContext(options)
 {
     public DbSet<Family> Families => Set<Family>();
+    public DbSet<FamilyApprovalPolicy> FamilyApprovalPolicies => Set<FamilyApprovalPolicy>();
     public DbSet<FamilyFinancialProfile> FamilyFinancialProfiles => Set<FamilyFinancialProfile>();
     public DbSet<EnvelopeFinancialAccount> EnvelopeFinancialAccounts => Set<EnvelopeFinancialAccount>();
     public DbSet<EnvelopePaymentCard> EnvelopePaymentCards => Set<EnvelopePaymentCard>();
@@ -30,6 +31,8 @@ public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbC
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Envelope> Envelopes => Set<Envelope>();
     public DbSet<EnvelopeGoal> EnvelopeGoals => Set<EnvelopeGoal>();
+    public DbSet<PurchaseApprovalRequest> PurchaseApprovalRequests => Set<PurchaseApprovalRequest>();
+    public DbSet<PurchaseApprovalTimelineEvent> PurchaseApprovalTimelineEvents => Set<PurchaseApprovalTimelineEvent>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<TransactionSplitEntry> TransactionSplits => Set<TransactionSplitEntry>();
     public DbSet<Budget> Budgets => Set<Budget>();

@@ -19,6 +19,7 @@ internal static partial class AccountAndTransactionEndpoints
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
                 ICommandBus commandBus,
+                IApprovalWorkflowService approvalWorkflowService,
                 CancellationToken cancellationToken) =>
             {
                 var accountFamilyId = await dbContext.Accounts
@@ -29,6 +30,41 @@ internal static partial class AccountAndTransactionEndpoints
                 if (!accountFamilyId.HasValue || !await EndpointAccessGuards.UserHasFamilyAccessAsync(user, accountFamilyId.Value, dbContext, cancellationToken))
                 {
                     return Results.Forbid();
+                }
+
+                var userId = user.FindFirstValue("sub");
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Results.Forbid();
+                }
+
+                var memberRole = await dbContext.FamilyMembers
+                    .AsNoTracking()
+                    .Where(member => member.FamilyId == accountFamilyId.Value && member.KeycloakUserId == userId)
+                    .Select(member => (string?)member.Role.ToString())
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (string.IsNullOrWhiteSpace(memberRole))
+                {
+                    return Results.Forbid();
+                }
+
+                var blockedRequest = await approvalWorkflowService.TryCreateBlockedRequestAsync(
+                    accountFamilyId.Value,
+                    request.AccountId,
+                    userId,
+                    memberRole,
+                    request.Amount,
+                    request.Description,
+                    request.Merchant,
+                    request.OccurredAt,
+                    request.Category,
+                    request.EnvelopeId,
+                    cancellationToken);
+                if (blockedRequest is not null)
+                {
+                    return Results.Accepted(
+                        $"/api/v1/approvals/requests/{blockedRequest.Id}",
+                        EndpointMappers.MapApprovalRequestResponse(blockedRequest));
                 }
 
                 var command = new CreateTransactionCommand(

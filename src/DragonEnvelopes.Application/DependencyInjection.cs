@@ -17,6 +17,7 @@ public static class DependencyInjection
         services.AddScoped<IFamilyMemberImportService, FamilyMemberImportService>();
         services.AddScoped<IOnboardingProfileService, OnboardingProfileService>();
         services.AddScoped<IOnboardingBootstrapService, OnboardingBootstrapService>();
+        services.AddScoped<IApprovalWorkflowService, ApprovalWorkflowService>();
         services.AddScoped<IFinancialIntegrationService, FinancialIntegrationService>();
         services.AddScoped<IPlaidTransactionSyncService, PlaidTransactionSyncService>();
         services.AddScoped<IPlaidBalanceReconciliationService, PlaidBalanceReconciliationService>();

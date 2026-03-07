@@ -1,4 +1,5 @@
 using DragonEnvelopes.Contracts.Accounts;
+using DragonEnvelopes.Contracts.Approvals;
 using DragonEnvelopes.Contracts.Automation;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.EnvelopeGoals;
@@ -696,5 +697,73 @@ public sealed class SimulateScenarioRequestValidator : AbstractValidator<Simulat
 
         RuleFor(static request => request.MonthHorizon)
             .InclusiveBetween(1, 120);
+    }
+}
+
+public sealed class UpsertApprovalPolicyRequestValidator : AbstractValidator<UpsertApprovalPolicyRequest>
+{
+    private static readonly string[] AllowedRoles = ["Parent", "Adult", "Teen", "Child"];
+
+    public UpsertApprovalPolicyRequestValidator()
+    {
+        RuleFor(static request => request.FamilyId)
+            .NotEmpty();
+
+        RuleFor(static request => request.AmountThreshold)
+            .GreaterThan(0m);
+
+        RuleFor(static request => request.RolesRequiringApproval)
+            .NotNull();
+
+        RuleFor(static request => request.RolesRequiringApproval)
+            .Must(static roles => roles.Count > 0)
+            .When(static request => request.IsEnabled)
+            .WithMessage("At least one role is required when policy is enabled.");
+
+        RuleForEach(static request => request.RolesRequiringApproval)
+            .NotEmpty()
+            .Must(static role => AllowedRoles.Contains(role, StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"RolesRequiringApproval values must be one of: {string.Join(", ", AllowedRoles)}.");
+    }
+}
+
+public sealed class CreateApprovalRequestRequestValidator : AbstractValidator<CreateApprovalRequestRequest>
+{
+    public CreateApprovalRequestRequestValidator()
+    {
+        RuleFor(static request => request.FamilyId)
+            .NotEmpty();
+
+        RuleFor(static request => request.AccountId)
+            .NotEmpty();
+
+        RuleFor(static request => request.Amount)
+            .NotEqual(0m);
+
+        RuleFor(static request => request.Description)
+            .NotEmpty()
+            .MaximumLength(500);
+
+        RuleFor(static request => request.Merchant)
+            .NotEmpty()
+            .MaximumLength(200);
+
+        RuleFor(static request => request.Category)
+            .MaximumLength(100)
+            .When(static request => !string.IsNullOrWhiteSpace(request.Category));
+
+        RuleFor(static request => request.Notes)
+            .MaximumLength(500)
+            .When(static request => !string.IsNullOrWhiteSpace(request.Notes));
+    }
+}
+
+public sealed class ResolveApprovalRequestRequestValidator : AbstractValidator<ResolveApprovalRequestRequest>
+{
+    public ResolveApprovalRequestRequestValidator()
+    {
+        RuleFor(static request => request.Notes)
+            .MaximumLength(500)
+            .When(static request => !string.IsNullOrWhiteSpace(request.Notes));
     }
 }

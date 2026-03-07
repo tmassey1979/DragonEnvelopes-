@@ -1,5 +1,6 @@
 using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Contracts.Accounts;
+using DragonEnvelopes.Contracts.Approvals;
 using DragonEnvelopes.Contracts.Anomalies;
 using DragonEnvelopes.Contracts.Automation;
 using DragonEnvelopes.Contracts.Budgets;
@@ -112,6 +113,56 @@ internal static class EndpointMappers
             transaction.TransferDirection,
             transaction.DeletedAtUtc,
             transaction.DeletedByUserId);
+    }
+
+    public static ApprovalPolicyResponse MapApprovalPolicyResponse(ApprovalPolicyDetails details)
+    {
+        return new ApprovalPolicyResponse(
+            details.Id,
+            details.FamilyId,
+            details.IsEnabled,
+            details.AmountThreshold,
+            details.RolesRequiringApproval,
+            details.UpdatedAtUtc);
+    }
+
+    public static ApprovalRequestResponse MapApprovalRequestResponse(ApprovalRequestDetails details)
+    {
+        return new ApprovalRequestResponse(
+            details.Id,
+            details.FamilyId,
+            details.AccountId,
+            details.RequestedByUserId,
+            details.RequestedByRole,
+            details.Amount,
+            details.Description,
+            details.Merchant,
+            details.OccurredAt,
+            details.Category,
+            details.EnvelopeId,
+            details.Status.ToString(),
+            details.RequestNotes,
+            details.ResolutionNotes,
+            details.ResolvedByUserId,
+            details.ResolvedByRole,
+            details.ResolvedAtUtc,
+            details.ApprovedTransactionId,
+            details.CreatedAtUtc,
+            details.UpdatedAtUtc);
+    }
+
+    public static ApprovalTimelineEventResponse MapApprovalTimelineEventResponse(ApprovalTimelineEventDetails details)
+    {
+        return new ApprovalTimelineEventResponse(
+            details.Id,
+            details.FamilyId,
+            details.ApprovalRequestId,
+            details.EventType.ToString(),
+            details.ActorUserId,
+            details.ActorRole,
+            details.Status,
+            details.Notes,
+            details.OccurredAtUtc);
     }
 
     public static EnvelopeTransferResponse MapEnvelopeTransferResponse(EnvelopeTransferDetails transfer)

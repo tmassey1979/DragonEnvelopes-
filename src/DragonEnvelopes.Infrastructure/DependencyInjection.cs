@@ -59,6 +59,8 @@ public static class DependencyInjection
         services.AddScoped<IFamilyInviteSender, FamilyInviteSender>();
         services.AddScoped<IRepositoryMarker, RepositoryMarker>();
         services.AddScoped<IFamilyRepository, FamilyRepository>();
+        services.AddScoped<IApprovalPolicyRepository, ApprovalPolicyRepository>();
+        services.AddScoped<IApprovalRequestRepository, ApprovalRequestRepository>();
         services.AddScoped<IFamilyInviteRepository, FamilyInviteRepository>();
         services.AddScoped<IFamilyFinancialProfileRepository, FamilyFinancialProfileRepository>();
         services.AddScoped<IEnvelopeFinancialAccountRepository, EnvelopeFinancialAccountRepository>();
