@@ -19,6 +19,7 @@ public partial class LoginWindow : Window
         InitializeComponent();
         LoginControl.SignInRequested += OnSignInRequested;
         LoginControl.RedeemInviteRequested += OnRedeemInviteRequested;
+        LoginControl.CreateInviteAccountRequested += OnCreateInviteAccountRequested;
         LoginControl.GetStartedRequested += OnGetStartedRequested;
         LoginControl.CancelRequested += OnCancelRequested;
     }
@@ -67,6 +68,44 @@ public partial class LoginWindow : Window
         Close();
     }
 
+    private async void OnCreateInviteAccountRequested(object? sender, EventArgs e)
+    {
+        var createInviteAccountWindow = new CreateInviteAccountWindow(_familyAccountService)
+        {
+            Owner = this
+        };
+
+        var created = createInviteAccountWindow.ShowDialog() == true;
+        if (!created
+            || string.IsNullOrWhiteSpace(createInviteAccountWindow.CreatedEmail)
+            || string.IsNullOrWhiteSpace(createInviteAccountWindow.CreatedPassword))
+        {
+            return;
+        }
+
+        LoginControl.SetUsername(createInviteAccountWindow.CreatedEmail);
+        var result = await SignInFromCredentialsAsync(
+            createInviteAccountWindow.CreatedEmail,
+            createInviteAccountWindow.CreatedPassword);
+        if (!result.Succeeded)
+        {
+            LoginControl.ShowSignInView();
+            LoginControl.SetError(result.Message);
+            return;
+        }
+
+        await _mainWindowViewModel.RefreshFamilyContextForCurrentSessionAsync();
+        if (_mainWindowViewModel.AvailableFamilies.Count == 0)
+        {
+            LoginControl.ShowSignInView();
+            LoginControl.SetError("Invite account created but no family context loaded. Try signing in again.");
+            return;
+        }
+
+        DialogResult = true;
+        Close();
+    }
+
     private void OnGetStartedRequested(object? sender, EventArgs e)
     {
         var createFamilyWindow = new CreateFamilyAccountWindow(_familyAccountService)
@@ -97,7 +136,12 @@ public partial class LoginWindow : Window
 
     private async Task<AuthSignInResult> SignInFromCredentialsAsync()
     {
-        if (string.IsNullOrWhiteSpace(LoginControl.Username) || string.IsNullOrWhiteSpace(LoginControl.Password))
+        return await SignInFromCredentialsAsync(LoginControl.Username, LoginControl.Password);
+    }
+
+    private async Task<AuthSignInResult> SignInFromCredentialsAsync(string usernameOrEmail, string password)
+    {
+        if (string.IsNullOrWhiteSpace(usernameOrEmail) || string.IsNullOrWhiteSpace(password))
         {
             LoginControl.SetError("Enter both username/email and password.");
             return new AuthSignInResult(false, false, "Username/email and password are required.");
@@ -108,7 +152,7 @@ public partial class LoginWindow : Window
 
         try
         {
-            var result = await _mainWindowViewModel.SignInWithPasswordAsync(LoginControl.Username, LoginControl.Password);
+            var result = await _mainWindowViewModel.SignInWithPasswordAsync(usernameOrEmail, password);
             if (!result.Succeeded)
             {
                 LoginControl.SetError(result.Message);

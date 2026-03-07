@@ -87,6 +87,57 @@ public sealed class FamilyAccountService(IBackendApiClient apiClient) : IFamilyA
             redeemed.CreatedNewMember);
     }
 
+    public async Task<FamilyInviteRedemptionResult> RegisterFromInviteAsync(
+        RegisterFamilyInviteAccountRequestData request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request is null)
+        {
+            return new FamilyInviteRedemptionResult(false, "Invite registration payload is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.InviteToken))
+        {
+            return new FamilyInviteRedemptionResult(false, "Invite token is required.");
+        }
+
+        using var response = await PostAsync(
+            "families/invites/register",
+            new RegisterFamilyInviteAccountRequest(
+                request.InviteToken.Trim(),
+                request.FirstName,
+                request.LastName,
+                request.Email,
+                request.Password),
+            cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var detail = await ReadErrorDetailAsync(response, cancellationToken);
+            return new FamilyInviteRedemptionResult(
+                false,
+                string.IsNullOrWhiteSpace(detail)
+                    ? "Unable to register from invite. Confirm token and credentials."
+                    : detail);
+        }
+
+        var registered = await DeserializeAsync<RegisterFamilyInviteAccountResponse>(response, cancellationToken);
+        if (registered is null)
+        {
+            return new FamilyInviteRedemptionResult(false, "Invite registration succeeded but response payload was invalid.");
+        }
+
+        var actionMessage = registered.CreatedNewMember
+            ? "Invite account created and linked to family."
+            : "Account already linked to family.";
+
+        return new FamilyInviteRedemptionResult(
+            true,
+            actionMessage,
+            registered.Invite.FamilyId,
+            registered.CreatedNewMember);
+    }
+
     private async Task<HttpResponseMessage> PostAsync(
         string relativePath,
         object payload,

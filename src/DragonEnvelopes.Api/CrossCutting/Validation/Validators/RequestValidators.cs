@@ -150,6 +150,34 @@ public sealed class AcceptFamilyInviteRequestValidator : AbstractValidator<Accep
     }
 }
 
+public sealed class RegisterFamilyInviteAccountRequestValidator : AbstractValidator<RegisterFamilyInviteAccountRequest>
+{
+    public RegisterFamilyInviteAccountRequestValidator()
+    {
+        RuleFor(static request => request.InviteToken)
+            .NotEmpty()
+            .MaximumLength(256);
+
+        RuleFor(static request => request.FirstName)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(static request => request.LastName)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(static request => request.Email)
+            .NotEmpty()
+            .EmailAddress()
+            .MaximumLength(320);
+
+        RuleFor(static request => request.Password)
+            .NotEmpty()
+            .MinimumLength(8)
+            .MaximumLength(128);
+    }
+}
+
 public sealed class CreatePlaidLinkTokenRequestValidator : AbstractValidator<CreatePlaidLinkTokenRequest>
 {
     public CreatePlaidLinkTokenRequestValidator()

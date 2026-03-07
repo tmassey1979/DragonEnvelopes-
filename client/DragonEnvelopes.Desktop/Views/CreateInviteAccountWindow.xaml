@@ -1,0 +1,100 @@
+<Window x:Class="DragonEnvelopes.Desktop.Views.CreateInviteAccountWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Create Account From Invite"
+        Width="520"
+        Height="560"
+        MinWidth="460"
+        MinHeight="500"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        ResizeMode="CanResizeWithGrip"
+        Background="{StaticResource ShellBackgroundBrush}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="22">
+            <Border Background="{StaticResource PanelBackgroundBrush}"
+                    CornerRadius="14"
+                    Padding="22"
+                    BorderBrush="{StaticResource PanelOutlineBrush}"
+                    BorderThickness="1">
+                <StackPanel KeyboardNavigation.TabNavigation="Cycle">
+                    <TextBlock Text="Create Account From Invite"
+                               FontSize="26"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource PrimaryTextBrush}" />
+                    <TextBlock Margin="0,6,0,16"
+                               Text="Use your invite token to create your account and join the family."
+                               Style="{StaticResource CaptionTextStyle}"
+                               TextWrapping="Wrap" />
+
+                    <Label Content="_Invite Token"
+                           Target="{Binding ElementName=InviteTokenBox}" />
+                    <TextBox x:Name="InviteTokenBox"
+                             Margin="0,8,0,12"
+                             AutomationProperties.Name="Invite token" />
+
+                    <TextBlock Text="Your Name" />
+                    <Grid Margin="0,8,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="FirstNameBox"
+                                 Grid.Column="0"
+                                 ToolTip="First Name"
+                                 AutomationProperties.Name="First Name" />
+                        <TextBox x:Name="LastNameBox"
+                                 Grid.Column="2"
+                                 ToolTip="Last Name"
+                                 AutomationProperties.Name="Last Name" />
+                    </Grid>
+
+                    <Label Content="_Email"
+                           Target="{Binding ElementName=EmailBox}" />
+                    <TextBox x:Name="EmailBox"
+                             Margin="0,8,0,12"
+                             AutomationProperties.Name="Email" />
+
+                    <Label Content="_Password"
+                           Target="{Binding ElementName=PasswordBox}" />
+                    <PasswordBox x:Name="PasswordBox"
+                                 Margin="0,8,0,12"
+                                 AutomationProperties.Name="Password" />
+
+                    <Label Content="_Confirm Password"
+                           Target="{Binding ElementName=ConfirmPasswordBox}" />
+                    <PasswordBox x:Name="ConfirmPasswordBox"
+                                 Margin="0,8,0,0"
+                                 AutomationProperties.Name="Confirm Password" />
+
+                    <TextBlock x:Name="ValidationText"
+                               Margin="0,10,0,0"
+                               Foreground="{StaticResource AccentBrush}"
+                               Visibility="Collapsed"
+                               TextWrapping="Wrap"
+                               AutomationProperties.LiveSetting="Polite" />
+
+                    <StackPanel Margin="0,16,0,0"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right">
+                        <Button x:Name="CancelButton"
+                                MinWidth="88"
+                                Margin="0,0,10,0"
+                                Content="Cancel"
+                                IsCancel="True"
+                                Click="OnCancelClicked" />
+                        <Button x:Name="CreateButton"
+                                MinWidth="130"
+                                Content="Create Account"
+                                IsDefault="True"
+                                Click="OnCreateClicked" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</Window>

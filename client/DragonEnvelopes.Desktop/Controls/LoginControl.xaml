@@ -94,6 +94,12 @@
                             Content="Redeem Invite"
                             AutomationProperties.Name="Redeem invite token"
                             Click="OnRedeemInviteClicked" />
+                    <Button x:Name="CreateInviteAccountButton"
+                            MinWidth="170"
+                            Margin="0,0,10,0"
+                            Content="Create From Invite"
+                            AutomationProperties.Name="Create account from invite token"
+                            Click="OnCreateInviteAccountClicked" />
                     <Button x:Name="SignInButton"
                             MinWidth="110"
                             Content="Sign In"

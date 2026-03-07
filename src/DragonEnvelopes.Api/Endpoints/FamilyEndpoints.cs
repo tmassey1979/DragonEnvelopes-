@@ -342,6 +342,56 @@ internal static class FamilyEndpoints
             .WithName("RedeemFamilyInvite")
             .WithOpenApi();
 
+        v1.MapPost("/families/invites/register", async (
+                RegisterFamilyInviteAccountRequest request,
+                IKeycloakProvisioningService keycloakProvisioningService,
+                IFamilyInviteService familyInviteService,
+                CancellationToken cancellationToken) =>
+            {
+                var keycloakUserId = await keycloakProvisioningService.CreateUserAsync(
+                    request.Email,
+                    request.FirstName,
+                    request.LastName,
+                    request.Password,
+                    cancellationToken);
+
+                try
+                {
+                    var redemption = await familyInviteService.RedeemAsync(
+                        request.InviteToken,
+                        keycloakUserId,
+                        $"{request.FirstName} {request.LastName}".Trim(),
+                        request.Email,
+                        cancellationToken);
+
+                    await keycloakProvisioningService.AssignRealmRoleAsync(
+                        keycloakUserId,
+                        redemption.Member.Role,
+                        cancellationToken);
+
+                    return Results.Ok(new RegisterFamilyInviteAccountResponse(
+                        EndpointMappers.MapFamilyInviteResponse(redemption.Invite),
+                        EndpointMappers.MapFamilyMemberResponse(redemption.Member),
+                        redemption.CreatedNewMember));
+                }
+                catch
+                {
+                    try
+                    {
+                        await keycloakProvisioningService.DeleteUserAsync(keycloakUserId, cancellationToken);
+                    }
+                    catch
+                    {
+                        // Best-effort compensation to avoid orphaned identity users.
+                    }
+
+                    throw;
+                }
+            })
+            .AllowAnonymous()
+            .WithName("RegisterFamilyInviteAccount")
+            .WithOpenApi();
+
         v1.MapGet("/families/{familyId:guid}/onboarding", async (
                 Guid familyId,
                 ClaimsPrincipal user,

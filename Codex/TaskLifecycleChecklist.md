@@ -19,7 +19,7 @@ Use this checklist at the start and end of every task.
 - [ ] Close the GitHub issue.
 
 ## Session Run Log
-- Active task: `#186` Authorization hardening: role matrix tests + UI gating for parent-only operations.
+- Active task: `#187` Recurring operations UX: execution filtering and CSV export.
 - Phase 2 source of truth: `Codex/phase2codex.md`.
-- Previous completed task: `#184` Recurring operations: manual auto-post run API + desktop control.
+- Previous completed task: `#185` Invite onboarding: self-service account registration from invite token.
 - Last updated: `2026-03-06`.

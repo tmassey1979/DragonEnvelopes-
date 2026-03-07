@@ -11,4 +11,8 @@ public interface IFamilyAccountService
         string? memberName = null,
         string? memberEmail = null,
         CancellationToken cancellationToken = default);
+
+    Task<FamilyInviteRedemptionResult> RegisterFromInviteAsync(
+        RegisterFamilyInviteAccountRequestData request,
+        CancellationToken cancellationToken = default);
 }

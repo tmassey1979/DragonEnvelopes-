@@ -17,6 +17,8 @@ public partial class LoginControl : UserControl
 
     public event EventHandler? RedeemInviteRequested;
 
+    public event EventHandler? CreateInviteAccountRequested;
+
     public LoginControl()
     {
         InitializeComponent();
@@ -71,6 +73,7 @@ public partial class LoginControl : UserControl
         PasswordBox.IsEnabled = !busy;
         SignInButton.IsEnabled = !busy;
         RedeemInviteButton.IsEnabled = !busy;
+        CreateInviteAccountButton.IsEnabled = !busy;
         CancelButton.IsEnabled = !busy;
         SignInButton.Content = busy ? "Signing In..." : "Sign In";
     }
@@ -106,6 +109,11 @@ public partial class LoginControl : UserControl
     private void OnRedeemInviteClicked(object sender, RoutedEventArgs e)
     {
         RedeemInviteRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnCreateInviteAccountClicked(object sender, RoutedEventArgs e)
+    {
+        CreateInviteAccountRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void ApplyEntryState()

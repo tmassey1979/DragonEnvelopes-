@@ -62,4 +62,20 @@ public static class OnboardingRegistrationValidator
 
         return null;
     }
+
+    public static string? ValidateInviteRegistrationStep(
+        string? inviteToken,
+        string? firstName,
+        string? lastName,
+        string? email,
+        string? password,
+        string? confirmPassword)
+    {
+        if (string.IsNullOrWhiteSpace(inviteToken))
+        {
+            return "Invite token is required.";
+        }
+
+        return ValidateAccountStep(firstName, lastName, email, password, confirmPassword);
+    }
 }

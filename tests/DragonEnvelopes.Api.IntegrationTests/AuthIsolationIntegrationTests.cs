@@ -3,12 +3,14 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
+using DragonEnvelopes.Api.Services;
 using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Contracts.Financial;
 using DragonEnvelopes.Contracts.Onboarding;
 using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Contracts.Runtime;
 using DragonEnvelopes.Contracts.Transactions;
+using DragonEnvelopes.Domain;
 using DragonEnvelopes.Domain.Entities;
 using DragonEnvelopes.Domain.ValueObjects;
 using DragonEnvelopes.Application.Interfaces;
@@ -19,6 +21,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -372,6 +375,162 @@ public sealed class AuthIsolationIntegrationTests : IClassFixture<TestApiFactory
         var accepted = await acceptResponse.Content.ReadFromJsonAsync<FamilyInviteResponse>();
         Assert.NotNull(accepted);
         Assert.Equal("Accepted", accepted!.Status);
+    }
+
+    [Fact]
+    public async Task Invite_Registration_Creates_Keycloak_User_And_Family_Member()
+    {
+        using var ownerClient = _factory.CreateClient();
+        ownerClient.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        const string inviteEmail = "invite-register@test.dev";
+        var createInviteResponse = await ownerClient.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/invites", new
+        {
+            email = inviteEmail,
+            role = "Adult",
+            expiresInHours = 24
+        });
+        Assert.Equal(HttpStatusCode.Created, createInviteResponse.StatusCode);
+
+        var createdInvite = await createInviteResponse.Content.ReadFromJsonAsync<CreateFamilyInviteResponse>();
+        Assert.NotNull(createdInvite);
+
+        using var anonymousClient = _factory.CreateClient();
+        var registerResponse = await anonymousClient.PostAsJsonAsync("/api/v1/families/invites/register", new
+        {
+            inviteToken = createdInvite!.InviteToken,
+            firstName = "Invite",
+            lastName = "Register",
+            email = inviteEmail,
+            password = "InvitePass123!"
+        });
+
+        Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
+        var payload = await registerResponse.Content.ReadFromJsonAsync<RegisterFamilyInviteAccountResponse>();
+        Assert.NotNull(payload);
+        Assert.True(payload!.CreatedNewMember);
+        Assert.Equal("Accepted", payload.Invite.Status);
+        Assert.Equal(TestApiFactory.FamilyAId, payload.Member.FamilyId);
+        Assert.Equal("Adult", payload.Member.Role);
+
+        var membersResponse = await ownerClient.GetAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/members");
+        Assert.Equal(HttpStatusCode.OK, membersResponse.StatusCode);
+        var members = await membersResponse.Content.ReadFromJsonAsync<List<FamilyMemberResponse>>();
+        Assert.NotNull(members);
+        Assert.Contains(members!, member => member.Email.Equals(inviteEmail, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Invite_Registration_Fails_On_Duplicate_Keycloak_Email()
+    {
+        using var ownerClient = _factory.CreateClient();
+        ownerClient.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        const string inviteEmail = "invite-duplicate@test.dev";
+        var createInviteResponse = await ownerClient.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/invites", new
+        {
+            email = inviteEmail,
+            role = "Teen",
+            expiresInHours = 24
+        });
+        Assert.Equal(HttpStatusCode.Created, createInviteResponse.StatusCode);
+        var createdInvite = await createInviteResponse.Content.ReadFromJsonAsync<CreateFamilyInviteResponse>();
+        Assert.NotNull(createdInvite);
+
+        using var anonymousClient = _factory.CreateClient();
+        var firstRegister = await anonymousClient.PostAsJsonAsync("/api/v1/families/invites/register", new
+        {
+            inviteToken = createdInvite!.InviteToken,
+            firstName = "Duplicate",
+            lastName = "User",
+            email = inviteEmail,
+            password = "InvitePass123!"
+        });
+        Assert.Equal(HttpStatusCode.OK, firstRegister.StatusCode);
+
+        var secondRegister = await anonymousClient.PostAsJsonAsync("/api/v1/families/invites/register", new
+        {
+            inviteToken = createdInvite.InviteToken,
+            firstName = "Duplicate",
+            lastName = "User",
+            email = inviteEmail,
+            password = "InvitePass123!"
+        });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, secondRegister.StatusCode);
+    }
+
+    [Fact]
+    public async Task Invite_Registration_Fails_For_Cancelled_Invite()
+    {
+        using var ownerClient = _factory.CreateClient();
+        ownerClient.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        const string inviteEmail = "invite-cancelled@test.dev";
+        var createInviteResponse = await ownerClient.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/invites", new
+        {
+            email = inviteEmail,
+            role = "Teen",
+            expiresInHours = 24
+        });
+        Assert.Equal(HttpStatusCode.Created, createInviteResponse.StatusCode);
+        var createdInvite = await createInviteResponse.Content.ReadFromJsonAsync<CreateFamilyInviteResponse>();
+        Assert.NotNull(createdInvite);
+
+        var cancelResponse = await ownerClient.PostAsync(
+            $"/api/v1/families/{TestApiFactory.FamilyAId}/invites/{createdInvite!.Invite.Id}/cancel",
+            content: null);
+        Assert.Equal(HttpStatusCode.OK, cancelResponse.StatusCode);
+
+        using var anonymousClient = _factory.CreateClient();
+        var registerResponse = await anonymousClient.PostAsJsonAsync("/api/v1/families/invites/register", new
+        {
+            inviteToken = createdInvite.InviteToken,
+            firstName = "Cancelled",
+            lastName = "Invite",
+            email = inviteEmail,
+            password = "InvitePass123!"
+        });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, registerResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Invite_Registration_Fails_For_Expired_Invite()
+    {
+        using var ownerClient = _factory.CreateClient();
+        ownerClient.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, TestApiFactory.UserAId);
+
+        const string inviteEmail = "invite-expired@test.dev";
+        var createInviteResponse = await ownerClient.PostAsJsonAsync($"/api/v1/families/{TestApiFactory.FamilyAId}/invites", new
+        {
+            email = inviteEmail,
+            role = "Teen",
+            expiresInHours = 24
+        });
+        Assert.Equal(HttpStatusCode.Created, createInviteResponse.StatusCode);
+        var createdInvite = await createInviteResponse.Content.ReadFromJsonAsync<CreateFamilyInviteResponse>();
+        Assert.NotNull(createdInvite);
+
+        await using (var setupScope = _factory.Services.CreateAsyncScope())
+        {
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+            var invite = await dbContext.FamilyInvites.SingleAsync(x => x.Id == createdInvite!.Invite.Id);
+            invite.Expire(DateTimeOffset.UtcNow.AddDays(2));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var anonymousClient = _factory.CreateClient();
+        var registerResponse = await anonymousClient.PostAsJsonAsync("/api/v1/families/invites/register", new
+        {
+            inviteToken = createdInvite!.InviteToken,
+            firstName = "Expired",
+            lastName = "Invite",
+            email = inviteEmail,
+            password = "InvitePass123!"
+        });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, registerResponse.StatusCode);
     }
 
     [Fact]
@@ -1549,6 +1708,9 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
+            services.RemoveAll<IKeycloakProvisioningService>();
+            services.AddSingleton<IKeycloakProvisioningService, TestKeycloakProvisioningService>();
+
             var dbDescriptor = services.SingleOrDefault(
                 descriptor => descriptor.ServiceType == typeof(DbContextOptions<DragonEnvelopesDbContext>));
             if (dbDescriptor is not null)
@@ -1730,6 +1892,49 @@ public sealed class TestApiFactory : WebApplicationFactory<Program>
         dbContext.SpendNotificationEvents.AddRange(notificationA, notificationA2, notificationB);
 
         dbContext.SaveChanges();
+    }
+}
+
+public sealed class TestKeycloakProvisioningService : IKeycloakProvisioningService
+{
+    private readonly Dictionary<string, string> _emailToUserId = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _userIdToEmail = new(StringComparer.OrdinalIgnoreCase);
+
+    public Task<string> CreateUserAsync(
+        string email,
+        string firstName,
+        string lastName,
+        string password,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        if (_emailToUserId.ContainsKey(normalizedEmail))
+        {
+            throw new DomainValidationException("A Keycloak user with this email already exists.");
+        }
+
+        var userId = $"test-kc-{Guid.NewGuid():N}";
+        _emailToUserId[normalizedEmail] = userId;
+        _userIdToEmail[userId] = normalizedEmail;
+        return Task.FromResult(userId);
+    }
+
+    public Task AssignRealmRoleAsync(
+        string userId,
+        string roleName,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        if (_userIdToEmail.Remove(userId, out var email))
+        {
+            _emailToUserId.Remove(email);
+        }
+
+        return Task.CompletedTask;
     }
 }
 
