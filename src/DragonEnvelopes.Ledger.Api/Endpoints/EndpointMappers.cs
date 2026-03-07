@@ -155,6 +155,21 @@ internal static class EndpointMappers
             item.DueDate);
     }
 
+    public static RecurringBillExecutionResponse MapRecurringBillExecutionResponse(
+        RecurringBillExecutionDetails execution)
+    {
+        return new RecurringBillExecutionResponse(
+            execution.Id,
+            execution.RecurringBillId,
+            execution.FamilyId,
+            execution.DueDate,
+            execution.ExecutedAtUtc,
+            execution.TransactionId,
+            execution.Result,
+            execution.Notes,
+            execution.IdempotencyKey);
+    }
+
     public static ImportPreviewResponse MapImportPreviewResponse(ImportPreviewDetails preview)
     {
         return new ImportPreviewResponse(

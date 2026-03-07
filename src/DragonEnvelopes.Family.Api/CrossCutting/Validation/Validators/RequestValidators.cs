@@ -158,6 +158,52 @@ public sealed class AcceptFamilyInviteRequestValidator : AbstractValidator<Accep
     }
 }
 
+public sealed class RedeemFamilyInviteRequestValidator : AbstractValidator<RedeemFamilyInviteRequest>
+{
+    public RedeemFamilyInviteRequestValidator()
+    {
+        RuleFor(static request => request.InviteToken)
+            .NotEmpty()
+            .MaximumLength(256);
+
+        RuleFor(static request => request.MemberName)
+            .MaximumLength(100);
+
+        RuleFor(static request => request.MemberEmail)
+            .EmailAddress()
+            .MaximumLength(320)
+            .When(static request => !string.IsNullOrWhiteSpace(request.MemberEmail));
+    }
+}
+
+public sealed class RegisterFamilyInviteAccountRequestValidator : AbstractValidator<RegisterFamilyInviteAccountRequest>
+{
+    public RegisterFamilyInviteAccountRequestValidator()
+    {
+        RuleFor(static request => request.InviteToken)
+            .NotEmpty()
+            .MaximumLength(256);
+
+        RuleFor(static request => request.FirstName)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(static request => request.LastName)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(static request => request.Email)
+            .NotEmpty()
+            .EmailAddress()
+            .MaximumLength(320);
+
+        RuleFor(static request => request.Password)
+            .NotEmpty()
+            .MinimumLength(8)
+            .MaximumLength(128);
+    }
+}
+
 public sealed class OnboardingBootstrapRequestValidator : AbstractValidator<OnboardingBootstrapRequest>
 {
     public OnboardingBootstrapRequestValidator()

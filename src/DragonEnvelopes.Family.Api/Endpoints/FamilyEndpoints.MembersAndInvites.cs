@@ -2,6 +2,7 @@
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Family.Api.CrossCutting.Auth;
+using DragonEnvelopes.Family.Api.Services;
 using DragonEnvelopes.Infrastructure.Persistence;
 
 namespace DragonEnvelopes.Family.Api.Endpoints;
@@ -166,6 +167,88 @@ internal static partial class FamilyEndpoints
             })
             .AllowAnonymous()
             .WithName("AcceptFamilyInvite")
+            .WithOpenApi();
+
+        v1.MapPost("/families/invites/redeem", async (
+                RedeemFamilyInviteRequest request,
+                ClaimsPrincipal user,
+                IFamilyInviteService familyInviteService,
+                CancellationToken cancellationToken) =>
+            {
+                var keycloakUserId = user.FindFirstValue("sub");
+                if (string.IsNullOrWhiteSpace(keycloakUserId))
+                {
+                    return Results.Unauthorized();
+                }
+
+                var memberName = user.FindFirstValue("name")
+                    ?? user.FindFirstValue("preferred_username")
+                    ?? request.MemberName;
+                var memberEmail = user.FindFirstValue(ClaimTypes.Email)
+                    ?? user.FindFirstValue("email")
+                    ?? request.MemberEmail;
+
+                var redemption = await familyInviteService.RedeemAsync(
+                    request.InviteToken,
+                    keycloakUserId,
+                    memberName,
+                    memberEmail,
+                    cancellationToken);
+
+                return Results.Ok(EndpointMappers.MapRedeemFamilyInviteResponse(redemption));
+            })
+            .RequireAuthorization()
+            .WithName("RedeemFamilyInvite")
+            .WithOpenApi();
+
+        v1.MapPost("/families/invites/register", async (
+                RegisterFamilyInviteAccountRequest request,
+                IKeycloakProvisioningService keycloakProvisioningService,
+                IFamilyInviteService familyInviteService,
+                CancellationToken cancellationToken) =>
+            {
+                var keycloakUserId = await keycloakProvisioningService.CreateUserAsync(
+                    request.Email,
+                    request.FirstName,
+                    request.LastName,
+                    request.Password,
+                    cancellationToken);
+
+                try
+                {
+                    var redemption = await familyInviteService.RedeemAsync(
+                        request.InviteToken,
+                        keycloakUserId,
+                        $"{request.FirstName} {request.LastName}".Trim(),
+                        request.Email,
+                        cancellationToken);
+
+                    await keycloakProvisioningService.AssignRealmRoleAsync(
+                        keycloakUserId,
+                        redemption.Member.Role,
+                        cancellationToken);
+
+                    return Results.Ok(new RegisterFamilyInviteAccountResponse(
+                        EndpointMappers.MapFamilyInviteResponse(redemption.Invite),
+                        EndpointMappers.MapFamilyMemberResponse(redemption.Member),
+                        redemption.CreatedNewMember));
+                }
+                catch
+                {
+                    try
+                    {
+                        await keycloakProvisioningService.DeleteUserAsync(keycloakUserId, cancellationToken);
+                    }
+                    catch
+                    {
+                        // Best-effort compensation to avoid orphaned identity users.
+                    }
+
+                    throw;
+                }
+            })
+            .AllowAnonymous()
+            .WithName("RegisterFamilyInviteAccount")
             .WithOpenApi();
 
         return v1;

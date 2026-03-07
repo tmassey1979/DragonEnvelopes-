@@ -87,6 +87,7 @@ internal static partial class FamilyApiBootstrap
             .MapToApiVersion(new ApiVersion(1, 0))
             .AddFluentValidation();
 
+        v1.MapSystemAndAuthEndpoints();
         v1.MapFamilyEndpoints();
     }
 }

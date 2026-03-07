@@ -5,6 +5,7 @@ using System.Text.Encodings.Web;
 using DragonEnvelopes.Contracts.Accounts;
 using DragonEnvelopes.Contracts.Budgets;
 using DragonEnvelopes.Contracts.Envelopes;
+using DragonEnvelopes.Contracts.RecurringBills;
 using DragonEnvelopes.Contracts.Reports;
 using DragonEnvelopes.Ledger.Api.CrossCutting.Auth;
 using DragonEnvelopes.Domain.Entities;
@@ -180,6 +181,29 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Authenticated_User_Can_List_Own_RecurringBills_But_Not_Other_Family()
+    {
+        var userId = "ledger-user-recurring-a";
+        var ownFamilyId = Guid.Parse("e4000000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("e4000000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAndRecurringBillsAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var ownResponse = await client.GetAsync($"/api/v1/recurring-bills?familyId={ownFamilyId}");
+        var ownPayload = await ownResponse.Content.ReadFromJsonAsync<List<RecurringBillResponse>>();
+
+        var otherResponse = await client.GetAsync($"/api/v1/recurring-bills?familyId={otherFamilyId}");
+
+        Assert.Equal(HttpStatusCode.OK, ownResponse.StatusCode);
+        Assert.NotNull(ownPayload);
+        Assert.Single(ownPayload!);
+        Assert.Equal("Recurring Rent", ownPayload[0].Name);
+        Assert.Equal(HttpStatusCode.Forbidden, otherResponse.StatusCode);
+    }
+
     private async Task SeedFamilyMembershipAndAccountAsync(string userId, Guid ownFamilyId, Guid otherFamilyId)
     {
         using var scope = _factory.Services.CreateScope();
@@ -316,6 +340,59 @@ public sealed class LedgerApiSmokeTests : IClassFixture<LedgerApiFactory>
         dbContext.Budgets.AddRange(
             new Budget(Guid.NewGuid(), ownFamilyId, BudgetMonth.Parse(month), Money.FromDecimal(5000m)),
             new Budget(Guid.NewGuid(), otherFamilyId, BudgetMonth.Parse(month), Money.FromDecimal(7000m)));
+
+        await dbContext.SaveChangesAsync();
+    }
+
+    private async Task SeedFamilyMembershipAndRecurringBillsAsync(
+        string userId,
+        Guid ownFamilyId,
+        Guid otherFamilyId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
+
+        dbContext.RecurringBillExecutions.RemoveRange(dbContext.RecurringBillExecutions);
+        dbContext.RecurringBills.RemoveRange(dbContext.RecurringBills);
+        dbContext.FamilyMembers.RemoveRange(dbContext.FamilyMembers);
+        dbContext.Families.RemoveRange(dbContext.Families);
+
+        var now = DateTimeOffset.UtcNow;
+        dbContext.Families.AddRange(
+            new Family(ownFamilyId, "Authorized Ledger Family", now),
+            new Family(otherFamilyId, "Forbidden Ledger Family", now));
+
+        dbContext.FamilyMembers.Add(new FamilyMember(
+            Guid.NewGuid(),
+            ownFamilyId,
+            userId,
+            "Ledger Parent User",
+            EmailAddress.Parse("ledger.parent@test.local"),
+            MemberRole.Parent));
+
+        dbContext.RecurringBills.AddRange(
+            new RecurringBill(
+                Guid.NewGuid(),
+                ownFamilyId,
+                "Recurring Rent",
+                "Landlord",
+                Money.FromDecimal(1500m),
+                RecurringBillFrequency.Monthly,
+                dayOfMonth: 1,
+                startDate: DateOnly.FromDateTime(DateTime.UtcNow.Date),
+                endDate: null,
+                isActive: true),
+            new RecurringBill(
+                Guid.NewGuid(),
+                otherFamilyId,
+                "Forbidden Utility",
+                "Utilities",
+                Money.FromDecimal(200m),
+                RecurringBillFrequency.Monthly,
+                dayOfMonth: 5,
+                startDate: DateOnly.FromDateTime(DateTime.UtcNow.Date),
+                endDate: null,
+                isActive: true));
 
         await dbContext.SaveChangesAsync();
     }

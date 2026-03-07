@@ -9,7 +9,7 @@ public sealed class RouteRegistry : IRouteRegistry
 {
     private readonly IReadOnlyDictionary<string, RouteDefinition> _routes;
 
-    public RouteRegistry(IBackendApiClient apiClient, IAuthService authService, IFamilyContext familyContext)
+    public RouteRegistry(IBackendApiClient familyApiClient, IBackendApiClient ledgerApiClient, IAuthService authService, IFamilyContext familyContext)
     {
         var routeList = new[]
         {
@@ -18,40 +18,40 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Dashboard",
                 Glyph: "\uE80F",
                 TopBarSubtitle: "Budget health and status",
-                Content: new DashboardViewModel(new DashboardDataService(apiClient, familyContext))),
+                Content: new DashboardViewModel(new DashboardDataService(ledgerApiClient, familyContext))),
             new RouteDefinition(
                 Key: "/envelopes",
                 Label: "Envelopes",
                 Glyph: "\uE713",
                 TopBarSubtitle: "Envelope planning workspace",
-                Content: new EnvelopesViewModel(new EnvelopesDataService(apiClient, familyContext))),
+                Content: new EnvelopesViewModel(new EnvelopesDataService(ledgerApiClient, familyContext))),
             new RouteDefinition(
                 Key: "/budgets",
                 Label: "Budgets",
                 Glyph: "\uE9D2",
                 TopBarSubtitle: "Budget allocation and coverage",
-                Content: new BudgetsViewModel(new BudgetsDataService(apiClient, familyContext))),
+                Content: new BudgetsViewModel(new BudgetsDataService(ledgerApiClient, familyContext))),
             new RouteDefinition(
                 Key: "/transactions",
                 Label: "Transactions",
                 Glyph: "\uE8A7",
                 TopBarSubtitle: "Transaction feed and categorization",
-                Content: new TransactionsViewModel(new TransactionsDataService(apiClient, familyContext))),
+                Content: new TransactionsViewModel(new TransactionsDataService(ledgerApiClient, familyContext))),
             new RouteDefinition(
                 Key: "/accounts",
                 Label: "Accounts",
                 Glyph: "\uEB0F",
                 TopBarSubtitle: "Account balances and sources",
-                Content: new AccountsViewModel(new AccountsDataService(apiClient, familyContext))),
+                Content: new AccountsViewModel(new AccountsDataService(ledgerApiClient, familyContext))),
             new RouteDefinition(
                 Key: "/financial-integrations",
                 Label: "Integrations",
                 Glyph: "\uE9CA",
                 TopBarSubtitle: "Plaid and Stripe onboarding + card controls",
                 Content: new FinancialIntegrationsViewModel(
-                    new FinancialIntegrationDataService(apiClient, familyContext),
-                    new AccountsDataService(apiClient, familyContext),
-                    new EnvelopesDataService(apiClient, familyContext),
+                    new FinancialIntegrationDataService(familyApiClient, familyContext),
+                    new AccountsDataService(ledgerApiClient, familyContext),
+                    new EnvelopesDataService(ledgerApiClient, familyContext),
                     new DesktopPlaidLinkService()),
                 RequiredRole: "Parent"),
             new RouteDefinition(
@@ -59,19 +59,19 @@ public sealed class RouteRegistry : IRouteRegistry
                 Label: "Reports",
                 Glyph: "\uE9D2",
                 TopBarSubtitle: "Spend and budget reporting",
-                Content: new ReportsViewModel(new ReportsDataService(apiClient, familyContext))),
+                Content: new ReportsViewModel(new ReportsDataService(ledgerApiClient, familyContext))),
             new RouteDefinition(
                 Key: "/automation",
                 Label: "Automation",
                 Glyph: "\uE7B8",
                 TopBarSubtitle: "Rules and allocation automations",
-                Content: new AutomationRulesViewModel(new AutomationRulesDataService(apiClient, familyContext))),
+                Content: new AutomationRulesViewModel(new AutomationRulesDataService(ledgerApiClient, familyContext))),
             new RouteDefinition(
                 Key: "/family-members",
                 Label: "Family",
                 Glyph: "\uE716",
                 TopBarSubtitle: "Household membership management",
-                Content: new FamilyMembersViewModel(new FamilyMembersDataService(apiClient, familyContext)),
+                Content: new FamilyMembersViewModel(new FamilyMembersDataService(familyApiClient, familyContext)),
                 RequiredRole: "Parent"),
             new RouteDefinition(
                 Key: "/recurring-bills",
@@ -79,28 +79,28 @@ public sealed class RouteRegistry : IRouteRegistry
                 Glyph: "\uE823",
                 TopBarSubtitle: "Recurring bills and upcoming projection",
                 Content: new RecurringBillsViewModel(
-                    new RecurringBillsDataService(apiClient, familyContext),
+                    new RecurringBillsDataService(ledgerApiClient, familyContext),
                     new RecurringExecutionCsvExporter())),
             new RouteDefinition(
                 Key: "/imports",
                 Label: "Imports",
                 Glyph: "\uE898",
                 TopBarSubtitle: "CSV transaction import workflow",
-                Content: new ImportsViewModel(new ImportsDataService(apiClient, familyContext))),
+                Content: new ImportsViewModel(new ImportsDataService(ledgerApiClient, familyContext))),
             new RouteDefinition(
                 Key: "/onboarding",
                 Label: "Onboarding",
                 Glyph: "\uE8FD",
                 TopBarSubtitle: "Guided initial financial setup",
                 Content: new OnboardingWizardViewModel(
-                    new OnboardingDataService(apiClient, familyContext),
-                    new FamilyMembersDataService(apiClient, familyContext),
-                    new FinancialIntegrationDataService(apiClient, familyContext),
-                    new AccountsDataService(apiClient, familyContext),
+                    new OnboardingDataService(familyApiClient, familyContext),
+                    new FamilyMembersDataService(familyApiClient, familyContext),
+                    new FinancialIntegrationDataService(familyApiClient, familyContext),
+                    new AccountsDataService(ledgerApiClient, familyContext),
                     new DesktopPlaidLinkService(),
-                    new ReportsDataService(apiClient, familyContext),
-                    new EnvelopesDataService(apiClient, familyContext),
-                    new AutomationRulesDataService(apiClient, familyContext)),
+                    new ReportsDataService(ledgerApiClient, familyContext),
+                    new EnvelopesDataService(ledgerApiClient, familyContext),
+                    new AutomationRulesDataService(ledgerApiClient, familyContext)),
                 RequiredRole: "Parent"),
             new RouteDefinition(
                 Key: "/settings",
@@ -109,12 +109,17 @@ public sealed class RouteRegistry : IRouteRegistry
                 TopBarSubtitle: "Session and profile settings",
                 Content: new SettingsViewModel(
                     authService,
-                    new SystemStatusDataService(apiClient),
-                    new FamilySettingsDataService(apiClient, familyContext)))
+                    new SystemStatusDataService(familyApiClient),
+                    new FamilySettingsDataService(familyApiClient, familyContext)))
         };
 
         _routes = routeList.ToDictionary(static route => route.Key, StringComparer.OrdinalIgnoreCase);
         Routes = routeList;
+    }
+
+    public RouteRegistry(IBackendApiClient apiClient, IAuthService authService, IFamilyContext familyContext)
+        : this(apiClient, apiClient, authService, familyContext)
+    {
     }
 
     public IReadOnlyCollection<RouteDefinition> Routes { get; }

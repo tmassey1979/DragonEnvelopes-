@@ -6,6 +6,7 @@ internal static partial class PlanningEndpoints
     {
         MapEnvelopePlanningEndpoints(v1);
         MapBudgetPlanningEndpoints(v1);
+        MapRecurringBillPlanningEndpoints(v1);
         MapReportingEndpoints(v1);
         return v1;
     }

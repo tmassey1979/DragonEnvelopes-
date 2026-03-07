@@ -1,6 +1,7 @@
-﻿using DragonEnvelopes.Application;
+using DragonEnvelopes.Application;
 using DragonEnvelopes.Infrastructure;
 using DragonEnvelopes.Ledger.Api.CrossCutting.Errors;
+using DragonEnvelopes.Ledger.Api.Services;
 using DragonEnvelopes.ProviderClients;
 using FluentValidation;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -24,6 +25,7 @@ internal static partial class LedgerApiBootstrap
         builder.Services.AddApplication();
         builder.Services.AddInfrastructure(builder.Configuration);
         builder.Services.AddProviderClients(builder.Configuration);
+        builder.Services.AddScoped<IRecurringAutoPostService, RecurringAutoPostService>();
     }
 
     public static void ConfigureHealthChecks(IServiceCollection services, string? defaultConnection)
@@ -44,3 +46,4 @@ internal static partial class LedgerApiBootstrap
         }
     }
 }
+

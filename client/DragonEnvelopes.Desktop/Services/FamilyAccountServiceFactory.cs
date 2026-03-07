@@ -1,4 +1,3 @@
-using System.Net.Http;
 using DragonEnvelopes.Desktop.Api;
 using DragonEnvelopes.Desktop.Auth;
 
@@ -10,16 +9,7 @@ public static class FamilyAccountServiceFactory
     {
         var apiOptions = new ApiClientOptions();
         var authService = new DesktopAuthService(new ProtectedTokenSessionStore());
-        var handler = new AuthenticatedApiHttpMessageHandler(authService)
-        {
-            InnerHandler = new HttpClientHandler()
-        };
-
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri(apiOptions.BaseUrl, UriKind.Absolute)
-        };
-
-        return new FamilyAccountService(new DragonEnvelopesApiClient(httpClient));
+        var apiClients = DesktopApiClientFactory.Create(authService, apiOptions);
+        return new FamilyAccountService(apiClients.Family);
     }
 }

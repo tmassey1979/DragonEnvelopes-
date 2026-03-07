@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Text.Encodings.Web;
 using DragonEnvelopes.Contracts.Families;
 using DragonEnvelopes.Family.Api.CrossCutting.Auth;
@@ -101,6 +102,38 @@ public sealed class FamilyApiSmokeTests : IClassFixture<FamilyApiFactory>
         Assert.Equal(created.Invite.Id, resent!.Invite.Id);
         Assert.NotEqual(created.InviteToken, resent.InviteToken);
         Assert.True(resent.Invite.ExpiresAtUtc > created.Invite.ExpiresAtUtc);
+    }
+
+    [Fact]
+    public async Task Authenticated_User_Can_Read_AuthMe_With_FamilyMembership()
+    {
+        var userId = "family-auth-user-a";
+        var ownFamilyId = Guid.Parse("d3000000-0000-0000-0000-000000000001");
+        var otherFamilyId = Guid.Parse("d3000000-0000-0000-0000-000000000002");
+
+        using var client = _factory.CreateClient();
+        await SeedFamilyMembershipAsync(userId, ownFamilyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var response = await client.GetAsync("/api/v1/auth/me");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        using var document = await JsonDocument.ParseAsync(stream);
+        Assert.True(document.RootElement.TryGetProperty("familyIds", out var familyIdsElement));
+        Assert.Equal(JsonValueKind.Array, familyIdsElement.ValueKind);
+        Assert.Contains(familyIdsElement.EnumerateArray().Select(static element => element.GetGuid()), id => id == ownFamilyId);
+        Assert.DoesNotContain(familyIdsElement.EnumerateArray().Select(static element => element.GetGuid()), id => id == otherFamilyId);
+    }
+
+    [Fact]
+    public async Task System_Health_Endpoint_Returns_Ok()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/system/health");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     private async Task SeedFamilyMembershipAsync(string userId, Guid ownFamilyId, Guid otherFamilyId)

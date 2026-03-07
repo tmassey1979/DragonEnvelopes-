@@ -238,8 +238,10 @@ Troubleshooting:
   - Pre-refreshes/renews token when nearing expiry (using refresh token when available).
   - Retries idempotent requests once on `401` after forced refresh.
   - Leaves non-idempotent requests as non-retried for safety.
-- Optional API base URL override:
+- Optional API base URL overrides:
   - `DRAGONENVELOPES_API_BASE_URL` (default `http://localhost:18088/api/v1/`)
+  - `DRAGONENVELOPES_FAMILY_API_BASE_URL` (defaults to `DRAGONENVELOPES_API_BASE_URL` when not set)
+  - `DRAGONENVELOPES_LEDGER_API_BASE_URL` (defaults to `DRAGONENVELOPES_API_BASE_URL` when not set)
 - Optional split-service health probe overrides used by desktop Settings:
   - `DRAGONENVELOPES_FAMILY_API_HEALTH_URL` (default `http://localhost:18089/health/ready`)
   - `DRAGONENVELOPES_LEDGER_API_HEALTH_URL` (default `http://localhost:18090/health/ready`)

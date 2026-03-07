@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
 using DragonEnvelopes.Contracts.Families;
@@ -256,21 +255,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         var authService = new DesktopAuthService(new ProtectedTokenSessionStore());
         var apiOptions = new ApiClientOptions();
-        var handler = new AuthenticatedApiHttpMessageHandler(authService)
-        {
-            InnerHandler = new HttpClientHandler()
-        };
-
-        var httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri(apiOptions.BaseUrl, UriKind.Absolute)
-        };
-
-        var apiClient = new DragonEnvelopesApiClient(httpClient);
+        var apiClients = DesktopApiClientFactory.Create(authService, apiOptions);
+        var apiClient = apiClients.Family;
         var familyContext = new FamilyContext();
         var familySelectionStore = new ProtectedFamilySelectionStore();
         var operationStatusCenter = new OperationStatusCenter();
-        var navigationService = new NavigationService(new RouteRegistry(apiClient, authService, familyContext));
+        var navigationService = new NavigationService(new RouteRegistry(apiClients.Family, apiClients.Ledger, authService, familyContext));
         return (navigationService, authService, apiClient, familyContext, familySelectionStore, operationStatusCenter);
     }
 
