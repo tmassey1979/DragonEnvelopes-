@@ -25,6 +25,7 @@ Service boundary intent:
 Target topology and cutover contracts:
 - `docs/adr/0002-service-topology-v2-and-cutover-plan.md`
 - `docs/architecture/event-catalog-v1.md` (event-driven contract source of truth)
+- `docs/architecture/gateway-route-ownership.md` (gateway route ownership and downstream readiness probes)
 
 ## 2. Local Prerequisites
 
@@ -80,7 +81,7 @@ dotnet test tests/DragonEnvelopes.Desktop.Tests/DragonEnvelopes.Desktop.Tests.cs
 
 ## 5. Runtime Endpoints (Default Local)
 
-- API Gateway (single base URL): `http://localhost:18088`
+- API Gateway (single base URL, microservices profile): `http://localhost:18088`
 - Monolith API (direct): `http://localhost:18092`
 - Family API (microservices profile): `http://localhost:18089`
 - Ledger API (microservices profile): `http://localhost:18090`

@@ -129,8 +129,13 @@ services:
     image: nginx:1.27-alpine
     container_name: dragonenvelopes-api-gateway
     restart: unless-stopped
+    profiles: ["microservices"]
     depends_on:
-      api:
+      family-api:
+        condition: service_started
+      ledger-api:
+        condition: service_started
+      financial-api:
         condition: service_started
     ports:
       - "${API_PORT:-18088}:8080"

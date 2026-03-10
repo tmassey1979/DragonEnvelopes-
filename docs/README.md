@@ -11,6 +11,7 @@ DragonEnvelopes documentation is split by audience.
 - [ADR 0002 - Service Topology v2 and Cutover Contracts](./adr/0002-service-topology-v2-and-cutover-plan.md)
 - [Event Catalog v1](./architecture/event-catalog-v1.md)
 - [Event Contract Catalog v1 (JSON)](./architecture/event-contract-catalog-v1.json)
+- [Gateway Route Ownership](./architecture/gateway-route-ownership.md)
 - [Operations: Plaid Balance Drift Workflow](./operations/plaid-balance-drift-workflow.md)
 - [Operations: Provider Secret Key Rotation](./operations/provider-secret-key-rotation.md)
 - [Operations: RabbitMQ Consumer Reliability](./operations/rabbitmq-consumer-reliability.md)

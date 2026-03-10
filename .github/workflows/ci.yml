@@ -173,7 +173,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Start compose services
-        run: docker compose --profile microservices up -d --build api family-api ledger-api financial-api rabbitmq postgres keycloak
+        run: docker compose --profile microservices up -d --build api-gateway family-api ledger-api financial-api rabbitmq postgres keycloak
 
       - name: Wait for readiness endpoints
         shell: bash
@@ -202,14 +202,21 @@ jobs:
 
             echo "${name} did not become ready in time."
             docker compose ps
-            docker compose logs --tail=200 api family-api ledger-api financial-api rabbitmq keycloak postgres
+            docker compose logs --tail=200 api-gateway family-api ledger-api financial-api rabbitmq keycloak postgres
             return 1
           }
 
-          wait_for "API" "http://localhost:18088/health/ready"
+          wait_for "API Gateway" "http://localhost:18088/health/ready"
           wait_for "Family API" "http://localhost:18089/health/ready"
           wait_for "Ledger API" "http://localhost:18090/health/ready"
           wait_for "Financial API" "http://localhost:18091/health/ready"
+          wait_for "Gateway Family Route" "http://localhost:18088/health/ready/family"
+          wait_for "Gateway Ledger Route" "http://localhost:18088/health/ready/ledger"
+          wait_for "Gateway Financial Route" "http://localhost:18088/health/ready/financial"
+
+      - name: Run gateway route ownership smoke checks
+        shell: bash
+        run: bash ./eng/run-gateway-route-smoke.sh
 
       - name: Run end-to-end smoke scenario
         shell: bash
@@ -221,7 +228,7 @@ jobs:
         run: |
           mkdir -p artifacts/e2e-smoke
           docker compose --profile microservices ps > artifacts/e2e-smoke/compose-ps.txt || true
-          docker compose --profile microservices logs --no-color api family-api ledger-api financial-api rabbitmq keycloak postgres > artifacts/e2e-smoke/compose-logs.txt || true
+          docker compose --profile microservices logs --no-color api-gateway family-api ledger-api financial-api rabbitmq keycloak postgres > artifacts/e2e-smoke/compose-logs.txt || true
 
       - name: Stop compose services
         if: always()
@@ -244,7 +251,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Start compose services with observability
-        run: docker compose --profile observability --profile microservices up -d --build api family-api ledger-api financial-api rabbitmq postgres keycloak loki promtail grafana
+        run: docker compose --profile observability --profile microservices up -d --build api-gateway family-api ledger-api financial-api rabbitmq postgres keycloak loki promtail grafana
 
       - name: Wait for observability readiness endpoints
         shell: bash
@@ -273,14 +280,17 @@ jobs:
 
             echo "${name} did not become ready in time."
             docker compose ps
-            docker compose logs --tail=200 api family-api ledger-api financial-api rabbitmq loki promtail grafana keycloak postgres
+            docker compose logs --tail=200 api-gateway family-api ledger-api financial-api rabbitmq loki promtail grafana keycloak postgres
             return 1
           }
 
-          wait_for "API" "http://localhost:18088/health/ready"
+          wait_for "API Gateway" "http://localhost:18088/health/ready"
           wait_for "Family API" "http://localhost:18089/health/ready"
           wait_for "Ledger API" "http://localhost:18090/health/ready"
           wait_for "Financial API" "http://localhost:18091/health/ready"
+          wait_for "Gateway Family Route" "http://localhost:18088/health/ready/family"
+          wait_for "Gateway Ledger Route" "http://localhost:18088/health/ready/ledger"
+          wait_for "Gateway Financial Route" "http://localhost:18088/health/ready/financial"
           wait_for "Loki" "http://localhost:3100/ready"
           wait_for "Grafana" "http://localhost:3000/api/health"
 
