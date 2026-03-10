@@ -127,6 +127,7 @@ Review these docs for advanced operations:
 - `docs/operations/plaid-balance-drift-workflow.md`
 - `docs/operations/event-pipeline-observability.md`
 - `docs/operations/provider-secret-key-rotation.md`
+- `docs/operations/service-delivery-pipeline.md`
 - `docs/qa/desktop-financial-integrations-smoke-checklist.md`
 
 ## 9. Contribution Workflow (Repo Standard)

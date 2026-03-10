@@ -16,6 +16,7 @@ DragonEnvelopes documentation is split by audience.
 - [Operations: RabbitMQ Consumer Reliability](./operations/rabbitmq-consumer-reliability.md)
 - [Operations: Event Pipeline Observability](./operations/event-pipeline-observability.md)
 - [Operations: Reporting Projections](./operations/reporting-projections.md)
+- [Operations: Service Delivery Pipeline](./operations/service-delivery-pipeline.md)
 - [Operations: Workflow Sagas](./operations/workflow-sagas.md)
 - [QA: Onboarding Smoke Checklist](./onboarding-smoke-checklist.md)
 - [QA: Desktop Financial Integrations Smoke Checklist](./qa/desktop-financial-integrations-smoke-checklist.md)

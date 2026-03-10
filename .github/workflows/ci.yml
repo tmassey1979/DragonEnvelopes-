@@ -85,6 +85,18 @@ jobs:
 
   linux-service-build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: api
+            project: src/DragonEnvelopes.Api/DragonEnvelopes.Api.csproj
+          - name: family-api
+            project: src/DragonEnvelopes.Family.Api/DragonEnvelopes.Family.Api.csproj
+          - name: ledger-api
+            project: src/DragonEnvelopes.Ledger.Api/DragonEnvelopes.Ledger.Api.csproj
+          - name: financial-api
+            project: src/DragonEnvelopes.Financial.Api/DragonEnvelopes.Financial.Api.csproj
 
     steps:
       - name: Checkout
@@ -95,25 +107,37 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Restore API services
-        run: |
-          dotnet restore src/DragonEnvelopes.Api/DragonEnvelopes.Api.csproj
-          dotnet restore src/DragonEnvelopes.Family.Api/DragonEnvelopes.Family.Api.csproj
-          dotnet restore src/DragonEnvelopes.Ledger.Api/DragonEnvelopes.Ledger.Api.csproj
-          dotnet restore src/DragonEnvelopes.Financial.Api/DragonEnvelopes.Financial.Api.csproj
+      - name: Restore service
+        run: dotnet restore ${{ matrix.service.project }}
 
-      - name: Build API services
-        run: |
-          dotnet build src/DragonEnvelopes.Api/DragonEnvelopes.Api.csproj --configuration Release --no-restore
-          dotnet build src/DragonEnvelopes.Family.Api/DragonEnvelopes.Family.Api.csproj --configuration Release --no-restore
-          dotnet build src/DragonEnvelopes.Ledger.Api/DragonEnvelopes.Ledger.Api.csproj --configuration Release --no-restore
-          dotnet build src/DragonEnvelopes.Financial.Api/DragonEnvelopes.Financial.Api.csproj --configuration Release --no-restore
+      - name: Build service
+        run: dotnet build ${{ matrix.service.project }} --configuration Release --no-restore
 
-      - name: Run split integration tests
-        run: |
-          dotnet test tests/DragonEnvelopes.Family.Api.IntegrationTests/DragonEnvelopes.Family.Api.IntegrationTests.csproj --configuration Release --verbosity minimal
-          dotnet test tests/DragonEnvelopes.Ledger.Api.IntegrationTests/DragonEnvelopes.Ledger.Api.IntegrationTests.csproj --configuration Release --verbosity minimal
-          dotnet test tests/DragonEnvelopes.Financial.Api.IntegrationTests/DragonEnvelopes.Financial.Api.IntegrationTests.csproj --configuration Release --verbosity minimal
+  split-integration-tests:
+    runs-on: ubuntu-latest
+    needs: linux-service-build
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - name: family
+            project: tests/DragonEnvelopes.Family.Api.IntegrationTests/DragonEnvelopes.Family.Api.IntegrationTests.csproj
+          - name: ledger
+            project: tests/DragonEnvelopes.Ledger.Api.IntegrationTests/DragonEnvelopes.Ledger.Api.IntegrationTests.csproj
+          - name: financial
+            project: tests/DragonEnvelopes.Financial.Api.IntegrationTests/DragonEnvelopes.Financial.Api.IntegrationTests.csproj
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Run split integration suite
+        run: dotnet test ${{ matrix.suite.project }} --configuration Release --verbosity minimal
 
   docker-smoke-build:
     runs-on: ubuntu-latest
@@ -263,3 +287,59 @@ jobs:
       - name: Stop compose services
         if: always()
         run: docker compose --profile observability --profile microservices down -v --remove-orphans
+
+  docker-publish-ghcr:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - build-test
+      - linux-service-build
+      - split-integration-tests
+      - compose-runtime-smoke
+      - observability-compose-smoke
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: api
+            dockerfile: src/DragonEnvelopes.Api/Dockerfile
+          - name: family-api
+            dockerfile: src/DragonEnvelopes.Family.Api/Dockerfile
+          - name: ledger-api
+            dockerfile: src/DragonEnvelopes.Ledger.Api/Dockerfile
+          - name: financial-api
+            dockerfile: src/DragonEnvelopes.Financial.Api/Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve image owner
+        id: owner
+        shell: bash
+        run: echo "value=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.service.dockerfile }}
+          push: true
+          tags: |
+            ghcr.io/${{ steps.owner.outputs.value }}/dragonenvelopes-${{ matrix.service.name }}:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.value }}/dragonenvelopes-${{ matrix.service.name }}:main
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
