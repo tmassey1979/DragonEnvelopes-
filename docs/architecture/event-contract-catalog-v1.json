@@ -1,0 +1,731 @@
+{
+    "catalogVersion":  "1.0",
+    "generatedAtUtc":  "2026-03-10T15:57:05.2572104Z",
+    "envelopeRequiredFields":  [
+                                   "eventId",
+                                   "eventName",
+                                   "schemaVersion",
+                                   "occurredAtUtc",
+                                   "publishedAtUtc",
+                                   "sourceService",
+                                   "correlationId",
+                                   "payload"
+                               ],
+    "contracts":  [
+                      {
+                          "id":  "family.family.created.v1|1.0",
+                          "routingKey":  "family.family.created.v1",
+                          "eventName":  "FamilyCreated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "family-api",
+                          "payloadType":  "FamilyCreatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "CurrencyCode",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "FamilyName",
+                                                        "OccurredAtUtc",
+                                                        "TimeZoneId"
+                                                    ]
+                      },
+                      {
+                          "id":  "family.member.added.v1|1.0",
+                          "routingKey":  "family.member.added.v1",
+                          "eventName":  "FamilyMemberAdded",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "family-api",
+                          "payloadType":  "FamilyMemberAddedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "Email",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "KeycloakUserId",
+                                                        "MemberId",
+                                                        "Name",
+                                                        "OccurredAtUtc",
+                                                        "Role"
+                                                    ]
+                      },
+                      {
+                          "id":  "family.member.removed.v1|1.0",
+                          "routingKey":  "family.member.removed.v1",
+                          "eventName":  "FamilyMemberRemoved",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "family-api",
+                          "payloadType":  "FamilyMemberRemovedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "Email",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "KeycloakUserId",
+                                                        "MemberId",
+                                                        "Name",
+                                                        "OccurredAtUtc",
+                                                        "Role"
+                                                    ]
+                      },
+                      {
+                          "id":  "family.invite.accepted.v1|1.0",
+                          "routingKey":  "family.invite.accepted.v1",
+                          "eventName":  "FamilyInviteAccepted",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "family-api",
+                          "payloadType":  "FamilyInviteAcceptedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "ActorUserId",
+                                                        "CorrelationId",
+                                                        "Email",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "InviteId",
+                                                        "OccurredAtUtc",
+                                                        "Role"
+                                                    ]
+                      },
+                      {
+                          "id":  "ledger.transaction.created.v1|1.0",
+                          "routingKey":  "ledger.transaction.created.v1",
+                          "eventName":  "TransactionCreated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "ledger-api",
+                          "payloadType":  "LedgerTransactionCreatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "AccountId",
+                                                        "Amount",
+                                                        "Category",
+                                                        "Description",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "IsSplit",
+                                                        "Merchant",
+                                                        "OccurredAtUtc",
+                                                        "TransactionId"
+                                                    ]
+                      },
+                      {
+                          "id":  "ledger.transaction.updated.v1|1.0",
+                          "routingKey":  "ledger.transaction.updated.v1",
+                          "eventName":  "TransactionUpdated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "ledger-api",
+                          "payloadType":  "TransactionUpdatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "AccountId",
+                                                        "Amount",
+                                                        "Category",
+                                                        "CorrelationId",
+                                                        "Description",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "IsSplit",
+                                                        "Merchant",
+                                                        "OccurredAtUtc",
+                                                        "ReplaceAllocation",
+                                                        "TransactionId"
+                                                    ]
+                      },
+                      {
+                          "id":  "ledger.transaction.deleted.v1|1.0",
+                          "routingKey":  "ledger.transaction.deleted.v1",
+                          "eventName":  "TransactionDeleted",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "ledger-api",
+                          "payloadType":  "TransactionDeletedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "AccountId",
+                                                        "Amount",
+                                                        "CorrelationId",
+                                                        "DeletedByUserId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "OccurredAtUtc",
+                                                        "TransactionId"
+                                                    ]
+                      },
+                      {
+                          "id":  "ledger.transaction.restored.v1|1.0",
+                          "routingKey":  "ledger.transaction.restored.v1",
+                          "eventName":  "TransactionRestored",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "ledger-api",
+                          "payloadType":  "TransactionRestoredIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "AccountId",
+                                                        "Amount",
+                                                        "CorrelationId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "OccurredAtUtc",
+                                                        "TransactionId"
+                                                    ]
+                      },
+                      {
+                          "id":  "ledger.approval-request.created.v1|1.0",
+                          "routingKey":  "ledger.approval-request.created.v1",
+                          "eventName":  "ApprovalRequestCreated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "ledger-api",
+                          "payloadType":  "ApprovalRequestCreatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "AccountId",
+                                                        "Amount",
+                                                        "CorrelationId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "OccurredAtUtc",
+                                                        "RequestedByRole",
+                                                        "RequestedByUserId",
+                                                        "RequestId",
+                                                        "Status"
+                                                    ]
+                      },
+                      {
+                          "id":  "ledger.approval-request.approved.v1|1.0",
+                          "routingKey":  "ledger.approval-request.approved.v1",
+                          "eventName":  "ApprovalRequestApproved",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "ledger-api",
+                          "payloadType":  "ApprovalRequestApprovedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "AccountId",
+                                                        "ApprovedTransactionId",
+                                                        "CorrelationId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "OccurredAtUtc",
+                                                        "RequestId",
+                                                        "ResolvedByRole",
+                                                        "ResolvedByUserId"
+                                                    ]
+                      },
+                      {
+                          "id":  "ledger.approval-request.denied.v1|1.0",
+                          "routingKey":  "ledger.approval-request.denied.v1",
+                          "eventName":  "ApprovalRequestDenied",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "ledger-api",
+                          "payloadType":  "ApprovalRequestDeniedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "AccountId",
+                                                        "CorrelationId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "OccurredAtUtc",
+                                                        "RequestId",
+                                                        "ResolvedByRole",
+                                                        "ResolvedByUserId"
+                                                    ]
+                      },
+                      {
+                          "id":  "planning.envelope.created.v1|1.0",
+                          "routingKey":  "planning.envelope.created.v1",
+                          "eventName":  "EnvelopeCreated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "planning-api",
+                          "payloadType":  "EnvelopeCreatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "CurrentBalance",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "IsArchived",
+                                                        "MonthlyBudget",
+                                                        "Name",
+                                                        "OccurredAtUtc",
+                                                        "RolloverCap",
+                                                        "RolloverMode"
+                                                    ]
+                      },
+                      {
+                          "id":  "planning.envelope.updated.v1|1.0",
+                          "routingKey":  "planning.envelope.updated.v1",
+                          "eventName":  "EnvelopeUpdated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "planning-api",
+                          "payloadType":  "EnvelopeUpdatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "CurrentBalance",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "IsArchived",
+                                                        "MonthlyBudget",
+                                                        "Name",
+                                                        "OccurredAtUtc",
+                                                        "RolloverCap",
+                                                        "RolloverMode"
+                                                    ]
+                      },
+                      {
+                          "id":  "planning.envelope.archived.v1|1.0",
+                          "routingKey":  "planning.envelope.archived.v1",
+                          "eventName":  "EnvelopeArchived",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "planning-api",
+                          "payloadType":  "EnvelopeArchivedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "CurrentBalance",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "Name",
+                                                        "OccurredAtUtc"
+                                                    ]
+                      },
+                      {
+                          "id":  "planning.envelope.rollover-policy-updated.v1|1.0",
+                          "routingKey":  "planning.envelope.rollover-policy-updated.v1",
+                          "eventName":  "EnvelopeRolloverPolicyUpdated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "planning-api",
+                          "payloadType":  "EnvelopeRolloverPolicyUpdatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "OccurredAtUtc",
+                                                        "RolloverCap",
+                                                        "RolloverMode"
+                                                    ]
+                      },
+                      {
+                          "id":  "planning.budget.created.v1|1.0",
+                          "routingKey":  "planning.budget.created.v1",
+                          "eventName":  "BudgetCreated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "planning-api",
+                          "payloadType":  "BudgetCreatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "AllocatedAmount",
+                                                        "BudgetId",
+                                                        "CorrelationId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "Month",
+                                                        "OccurredAtUtc",
+                                                        "RemainingAmount",
+                                                        "TotalIncome"
+                                                    ]
+                      },
+                      {
+                          "id":  "planning.budget.updated.v1|1.0",
+                          "routingKey":  "planning.budget.updated.v1",
+                          "eventName":  "BudgetUpdated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "planning-api",
+                          "payloadType":  "BudgetUpdatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "AllocatedAmount",
+                                                        "BudgetId",
+                                                        "CorrelationId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "Month",
+                                                        "OccurredAtUtc",
+                                                        "RemainingAmount",
+                                                        "TotalIncome"
+                                                    ]
+                      },
+                      {
+                          "id":  "planning.recurring-bill.created.v1|1.0",
+                          "routingKey":  "planning.recurring-bill.created.v1",
+                          "eventName":  "RecurringBillCreated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "planning-api",
+                          "payloadType":  "RecurringBillCreatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "Amount",
+                                                        "CorrelationId",
+                                                        "DayOfMonth",
+                                                        "EndDate",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "Frequency",
+                                                        "IsActive",
+                                                        "Merchant",
+                                                        "Name",
+                                                        "OccurredAtUtc",
+                                                        "RecurringBillId",
+                                                        "StartDate"
+                                                    ]
+                      },
+                      {
+                          "id":  "planning.recurring-bill.updated.v1|1.0",
+                          "routingKey":  "planning.recurring-bill.updated.v1",
+                          "eventName":  "RecurringBillUpdated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "planning-api",
+                          "payloadType":  "RecurringBillUpdatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "Amount",
+                                                        "CorrelationId",
+                                                        "DayOfMonth",
+                                                        "EndDate",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "Frequency",
+                                                        "IsActive",
+                                                        "Merchant",
+                                                        "Name",
+                                                        "OccurredAtUtc",
+                                                        "RecurringBillId",
+                                                        "StartDate"
+                                                    ]
+                      },
+                      {
+                          "id":  "planning.recurring-bill.deleted.v1|1.0",
+                          "routingKey":  "planning.recurring-bill.deleted.v1",
+                          "eventName":  "RecurringBillDeleted",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "planning-api",
+                          "payloadType":  "RecurringBillDeletedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "Amount",
+                                                        "CorrelationId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "Frequency",
+                                                        "Merchant",
+                                                        "Name",
+                                                        "OccurredAtUtc",
+                                                        "RecurringBillId"
+                                                    ]
+                      },
+                      {
+                          "id":  "planning.envelope-goal.created.v1|1.0",
+                          "routingKey":  "planning.envelope-goal.created.v1",
+                          "eventName":  "EnvelopeGoalCreated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "planning-api",
+                          "payloadType":  "EnvelopeGoalCreatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "DueDate",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "GoalId",
+                                                        "OccurredAtUtc",
+                                                        "Status",
+                                                        "TargetAmount"
+                                                    ]
+                      },
+                      {
+                          "id":  "planning.envelope-goal.updated.v1|1.0",
+                          "routingKey":  "planning.envelope-goal.updated.v1",
+                          "eventName":  "EnvelopeGoalUpdated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "planning-api",
+                          "payloadType":  "EnvelopeGoalUpdatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "DueDate",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "GoalId",
+                                                        "OccurredAtUtc",
+                                                        "Status",
+                                                        "TargetAmount"
+                                                    ]
+                      },
+                      {
+                          "id":  "planning.envelope-goal.deleted.v1|1.0",
+                          "routingKey":  "planning.envelope-goal.deleted.v1",
+                          "eventName":  "EnvelopeGoalDeleted",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "planning-api",
+                          "payloadType":  "EnvelopeGoalDeletedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "GoalId",
+                                                        "OccurredAtUtc"
+                                                    ]
+                      },
+                      {
+                          "id":  "automation.rule.created.v1|1.0",
+                          "routingKey":  "automation.rule.created.v1",
+                          "eventName":  "AutomationRuleCreated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "automation-api",
+                          "payloadType":  "AutomationRuleCreatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "IsEnabled",
+                                                        "Name",
+                                                        "OccurredAtUtc",
+                                                        "Priority",
+                                                        "RuleId",
+                                                        "RuleType"
+                                                    ]
+                      },
+                      {
+                          "id":  "automation.rule.updated.v1|1.0",
+                          "routingKey":  "automation.rule.updated.v1",
+                          "eventName":  "AutomationRuleUpdated",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "automation-api",
+                          "payloadType":  "AutomationRuleUpdatedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "IsEnabled",
+                                                        "Name",
+                                                        "OccurredAtUtc",
+                                                        "Priority",
+                                                        "RuleId",
+                                                        "RuleType"
+                                                    ]
+                      },
+                      {
+                          "id":  "automation.rule.enabled.v1|1.0",
+                          "routingKey":  "automation.rule.enabled.v1",
+                          "eventName":  "AutomationRuleEnabled",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "automation-api",
+                          "payloadType":  "AutomationRuleEnabledIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "Name",
+                                                        "OccurredAtUtc",
+                                                        "Priority",
+                                                        "RuleId",
+                                                        "RuleType"
+                                                    ]
+                      },
+                      {
+                          "id":  "automation.rule.disabled.v1|1.0",
+                          "routingKey":  "automation.rule.disabled.v1",
+                          "eventName":  "AutomationRuleDisabled",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "automation-api",
+                          "payloadType":  "AutomationRuleDisabledIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "Name",
+                                                        "OccurredAtUtc",
+                                                        "Priority",
+                                                        "RuleId",
+                                                        "RuleType"
+                                                    ]
+                      },
+                      {
+                          "id":  "automation.rule.deleted.v1|1.0",
+                          "routingKey":  "automation.rule.deleted.v1",
+                          "eventName":  "AutomationRuleDeleted",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "automation-api",
+                          "payloadType":  "AutomationRuleDeletedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "IsEnabled",
+                                                        "Name",
+                                                        "OccurredAtUtc",
+                                                        "Priority",
+                                                        "RuleId",
+                                                        "RuleType"
+                                                    ]
+                      },
+                      {
+                          "id":  "automation.rule.executed.v1|1.0",
+                          "routingKey":  "automation.rule.executed.v1",
+                          "eventName":  "AutomationRuleExecuted",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "automation-api",
+                          "payloadType":  "AutomationRuleExecutedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "AppliedSplits",
+                                                        "AssignedCategory",
+                                                        "CorrelationId",
+                                                        "EventId",
+                                                        "ExecutionType",
+                                                        "FamilyId",
+                                                        "OccurredAtUtc",
+                                                        "SplitCount",
+                                                        "TransactionId"
+                                                    ]
+                      },
+                      {
+                          "id":  "financial.stripe.financial-account.provisioned.v1|1.0",
+                          "routingKey":  "financial.stripe.financial-account.provisioned.v1",
+                          "eventName":  "StripeFinancialAccountProvisioned",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "financial-api",
+                          "payloadType":  "StripeFinancialAccountProvisionedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CorrelationId",
+                                                        "EnvelopeFinancialAccountId",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "IsRebind",
+                                                        "OccurredAtUtc",
+                                                        "Provider",
+                                                        "ProviderFinancialAccountId"
+                                                    ]
+                      },
+                      {
+                          "id":  "financial.card.virtual-issued.v1|1.0",
+                          "routingKey":  "financial.card.virtual-issued.v1",
+                          "eventName":  "CardVirtualIssued",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "financial-api",
+                          "payloadType":  "CardVirtualIssuedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "Brand",
+                                                        "CardId",
+                                                        "CorrelationId",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "Last4",
+                                                        "OccurredAtUtc",
+                                                        "Provider",
+                                                        "ProviderCardId",
+                                                        "Status"
+                                                    ]
+                      },
+                      {
+                          "id":  "financial.card.physical-issued.v1|1.0",
+                          "routingKey":  "financial.card.physical-issued.v1",
+                          "eventName":  "CardPhysicalIssued",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "financial-api",
+                          "payloadType":  "CardPhysicalIssuedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CardId",
+                                                        "CorrelationId",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "OccurredAtUtc",
+                                                        "Provider",
+                                                        "ProviderCardId",
+                                                        "ShipmentCarrier",
+                                                        "ShipmentStatus",
+                                                        "ShipmentTrackingNumber",
+                                                        "Status"
+                                                    ]
+                      },
+                      {
+                          "id":  "financial.card.frozen.v1|1.0",
+                          "routingKey":  "financial.card.frozen.v1",
+                          "eventName":  "CardFrozen",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "financial-api",
+                          "payloadType":  "CardFrozenIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CardId",
+                                                        "CorrelationId",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "OccurredAtUtc",
+                                                        "Provider",
+                                                        "ProviderCardId",
+                                                        "Status"
+                                                    ]
+                      },
+                      {
+                          "id":  "financial.card.unfrozen.v1|1.0",
+                          "routingKey":  "financial.card.unfrozen.v1",
+                          "eventName":  "CardUnfrozen",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "financial-api",
+                          "payloadType":  "CardUnfrozenIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CardId",
+                                                        "CorrelationId",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "OccurredAtUtc",
+                                                        "Provider",
+                                                        "ProviderCardId",
+                                                        "Status"
+                                                    ]
+                      },
+                      {
+                          "id":  "financial.card.cancelled.v1|1.0",
+                          "routingKey":  "financial.card.cancelled.v1",
+                          "eventName":  "CardCancelled",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "financial-api",
+                          "payloadType":  "CardCancelledIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "CardId",
+                                                        "CorrelationId",
+                                                        "EnvelopeId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "OccurredAtUtc",
+                                                        "Provider",
+                                                        "ProviderCardId",
+                                                        "Status"
+                                                    ]
+                      },
+                      {
+                          "id":  "financial.provider-notification.dispatch-failed.v1|1.0",
+                          "routingKey":  "financial.provider-notification.dispatch-failed.v1",
+                          "eventName":  "ProviderNotificationDispatchFailed",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "financial-api",
+                          "payloadType":  "ProviderNotificationDispatchFailedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "Amount",
+                                                        "AttemptCount",
+                                                        "Channel",
+                                                        "CorrelationId",
+                                                        "ErrorMessage",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "Merchant",
+                                                        "NotificationEventId",
+                                                        "OccurredAtUtc",
+                                                        "UserId"
+                                                    ]
+                      },
+                      {
+                          "id":  "financial.provider-notification.dispatch-retried.v1|1.0",
+                          "routingKey":  "financial.provider-notification.dispatch-retried.v1",
+                          "eventName":  "ProviderNotificationDispatchRetried",
+                          "schemaVersion":  "1.0",
+                          "sourceService":  "financial-api",
+                          "payloadType":  "ProviderNotificationDispatchRetriedIntegrationEvent",
+                          "requiredPayloadFields":  [
+                                                        "Amount",
+                                                        "AttemptCount",
+                                                        "Channel",
+                                                        "CorrelationId",
+                                                        "EventId",
+                                                        "FamilyId",
+                                                        "Merchant",
+                                                        "NotificationEventId",
+                                                        "OccurredAtUtc",
+                                                        "Status",
+                                                        "UserId"
+                                                    ]
+                      }
+                  ]
+}

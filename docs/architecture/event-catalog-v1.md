@@ -8,6 +8,9 @@
 ## Purpose
 This catalog defines canonical domain events, envelope metadata, and compatibility rules for DragonEnvelopes event-driven integration.
 
+Machine-readable contract source used by CI compatibility gates:
+- `docs/architecture/event-contract-catalog-v1.json`
+
 ## Standard Event Envelope
 Every published event must include:
 
@@ -149,5 +152,6 @@ Breaking changes require:
 
 ## Governance
 - Catalog updates are required for any new event contract.
+- JSON contract catalog updates are required for any producer payload/routing/eventName changes.
 - Event compatibility checks are enforced by contract tests and CI gates (#300).
 - This document is source-of-truth until moved to a dedicated contract registry.

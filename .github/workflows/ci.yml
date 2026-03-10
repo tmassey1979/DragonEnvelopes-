@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -38,6 +40,17 @@ jobs:
         with:
           name: contract-drift-report
           path: artifacts/contract-drift/contract-drift-report.md
+
+      - name: Verify event contract compatibility
+        shell: pwsh
+        run: ./eng/verify-event-contract-compatibility.ps1 -RepoRoot .
+
+      - name: Upload event contract compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: event-contract-compatibility-report
+          path: artifacts/contract-compatibility/event-contract-compatibility-report.md
 
       - name: Build
         run: dotnet build DragonEnvelopes.sln --configuration Release --no-restore

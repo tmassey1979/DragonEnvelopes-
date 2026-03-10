@@ -189,11 +189,32 @@ public sealed class LedgerTransactionCreatedMessageProcessor(
         out ResolvedLedgerMessage? resolvedMessage,
         out string parseError)
     {
+        var looksLikeEnvelope = false;
         try
         {
-            var envelope = IntegrationEventEnvelopeJson.Deserialize<LedgerTransactionCreatedIntegrationEvent>(bodySpan);
-            if (envelope is not null)
+            using var document = JsonDocument.Parse(bodySpan.ToArray());
+            looksLikeEnvelope = document.RootElement.ValueKind == JsonValueKind.Object
+                                && document.RootElement.TryGetProperty("payload", out _);
+        }
+        catch (JsonException ex)
+        {
+            parseError = $"Unable to parse message body: {ex.Message}";
+            resolvedMessage = null;
+            return false;
+        }
+
+        try
+        {
+            if (looksLikeEnvelope)
             {
+                var envelope = IntegrationEventEnvelopeJson.Deserialize<LedgerTransactionCreatedIntegrationEvent>(bodySpan);
+                if (envelope is null)
+                {
+                    parseError = "Event envelope payload is empty.";
+                    resolvedMessage = null;
+                    return false;
+                }
+
                 if (!IntegrationEventEnvelopeValidator.TryValidate(envelope, out var validationErrors))
                 {
                     parseError = $"Invalid event envelope: {string.Join("; ", validationErrors)}";
@@ -225,7 +246,12 @@ public sealed class LedgerTransactionCreatedMessageProcessor(
         }
         catch (JsonException)
         {
-            // Fall through to raw payload compatibility handling.
+            if (looksLikeEnvelope)
+            {
+                parseError = "Unable to deserialize integration event envelope payload.";
+                resolvedMessage = null;
+                return false;
+            }
         }
 
         try

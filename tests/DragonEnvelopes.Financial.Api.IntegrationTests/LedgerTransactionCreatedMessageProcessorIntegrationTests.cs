@@ -6,6 +6,7 @@ using DragonEnvelopes.Infrastructure.Persistence;
 using DragonEnvelopes.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
 
 namespace DragonEnvelopes.Financial.Api.IntegrationTests;
 
@@ -85,6 +86,114 @@ public sealed class LedgerTransactionCreatedMessageProcessorIntegrationTests
         Assert.False(string.IsNullOrWhiteSpace(inboxMessage.LastError));
     }
 
+    [Fact]
+    public async Task ProcessAsync_EnvelopeMinorVersion_IsAccepted()
+    {
+        await using var dbContext = CreateDbContext();
+        var repository = new IntegrationInboxRepository(dbContext);
+        var handler = new RecordingHandler();
+        var processor = new LedgerTransactionCreatedMessageProcessor(
+            repository,
+            new IncrementingClock(),
+            handler,
+            NullLogger<LedgerTransactionCreatedMessageProcessor>.Instance);
+
+        var body = CreateEnvelopePayload(Guid.NewGuid(), Guid.NewGuid(), schemaVersion: "1.1");
+
+        var result = await processor.ProcessAsync(
+            body,
+            IntegrationEventRoutingKeys.LedgerTransactionCreatedV1,
+            maxRetryAttempts: 3);
+
+        Assert.Equal(ConsumerMessageDisposition.Ack, result.Disposition);
+        Assert.Equal(1, handler.InvocationCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_UnsupportedMajorVersion_DeadLettersMessage()
+    {
+        await using var dbContext = CreateDbContext();
+        var repository = new IntegrationInboxRepository(dbContext);
+        var handler = new RecordingHandler();
+        var processor = new LedgerTransactionCreatedMessageProcessor(
+            repository,
+            new IncrementingClock(),
+            handler,
+            NullLogger<LedgerTransactionCreatedMessageProcessor>.Instance);
+
+        var body = CreateEnvelopePayload(Guid.NewGuid(), Guid.NewGuid(), schemaVersion: "2.0");
+
+        var result = await processor.ProcessAsync(
+            body,
+            IntegrationEventRoutingKeys.LedgerTransactionCreatedV1,
+            maxRetryAttempts: 3);
+
+        Assert.Equal(ConsumerMessageDisposition.DeadLetter, result.Disposition);
+        Assert.Equal(0, handler.InvocationCount);
+        Assert.Contains("Unsupported schema version", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+
+        var inboxMessage = await dbContext.IntegrationInboxMessages.SingleAsync();
+        Assert.True(inboxMessage.IsDeadLettered);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_LegacyRawPayload_RemainsCompatible()
+    {
+        await using var dbContext = CreateDbContext();
+        var repository = new IntegrationInboxRepository(dbContext);
+        var handler = new RecordingHandler();
+        var processor = new LedgerTransactionCreatedMessageProcessor(
+            repository,
+            new IncrementingClock(),
+            handler,
+            NullLogger<LedgerTransactionCreatedMessageProcessor>.Instance);
+
+        var body = CreateLegacyRawPayload(Guid.NewGuid(), Guid.NewGuid());
+
+        var result = await processor.ProcessAsync(
+            body,
+            IntegrationEventRoutingKeys.LedgerTransactionCreatedV1,
+            maxRetryAttempts: 3);
+
+        Assert.Equal(ConsumerMessageDisposition.Ack, result.Disposition);
+        Assert.Equal(1, handler.InvocationCount);
+
+        var inboxMessage = await dbContext.IntegrationInboxMessages.SingleAsync();
+        Assert.Equal("legacy-unknown", inboxMessage.SourceService);
+        Assert.Equal("1.0", inboxMessage.SchemaVersion);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_InvalidEnvelopeMetadata_DeadLettersMessage()
+    {
+        await using var dbContext = CreateDbContext();
+        var repository = new IntegrationInboxRepository(dbContext);
+        var handler = new RecordingHandler();
+        var processor = new LedgerTransactionCreatedMessageProcessor(
+            repository,
+            new IncrementingClock(),
+            handler,
+            NullLogger<LedgerTransactionCreatedMessageProcessor>.Instance);
+
+        var body = CreateEnvelopePayload(
+            eventId: Guid.NewGuid(),
+            familyId: Guid.NewGuid(),
+            schemaVersion: "1.0",
+            eventName: "",
+            sourceService: "",
+            correlationId: "",
+            envelopeEventId: "");
+
+        var result = await processor.ProcessAsync(
+            body,
+            IntegrationEventRoutingKeys.LedgerTransactionCreatedV1,
+            maxRetryAttempts: 3);
+
+        Assert.Equal(ConsumerMessageDisposition.DeadLetter, result.Disposition);
+        Assert.Equal(0, handler.InvocationCount);
+        Assert.Contains("Invalid event envelope", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static DragonEnvelopesDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<DragonEnvelopesDbContext>()
@@ -93,7 +202,14 @@ public sealed class LedgerTransactionCreatedMessageProcessorIntegrationTests
         return new DragonEnvelopesDbContext(options);
     }
 
-    private static byte[] CreateEnvelopePayload(Guid eventId, Guid familyId)
+    private static byte[] CreateEnvelopePayload(
+        Guid eventId,
+        Guid familyId,
+        string schemaVersion = "1.0",
+        string? eventName = null,
+        string? sourceService = "ledger-api",
+        string? correlationId = null,
+        string? envelopeEventId = null)
     {
         var now = DateTimeOffset.UtcNow;
         var payload = new LedgerTransactionCreatedIntegrationEvent(
@@ -109,17 +225,34 @@ public sealed class LedgerTransactionCreatedMessageProcessorIntegrationTests
             EnvelopeId: null,
             IsSplit: false);
         var envelope = new IntegrationEventEnvelope<LedgerTransactionCreatedIntegrationEvent>(
-            eventId.ToString("D"),
-            LedgerIntegrationEventNames.TransactionCreated,
-            "1.0",
+            envelopeEventId ?? eventId.ToString("D"),
+            eventName ?? LedgerIntegrationEventNames.TransactionCreated,
+            schemaVersion,
             now,
             now,
-            "ledger-api",
-            Guid.NewGuid().ToString("D"),
+            sourceService ?? "ledger-api",
+            correlationId ?? Guid.NewGuid().ToString("D"),
             CausationId: null,
             familyId,
             payload);
         return IntegrationEventEnvelopeJson.SerializeToUtf8Bytes(envelope);
+    }
+
+    private static byte[] CreateLegacyRawPayload(Guid eventId, Guid familyId)
+    {
+        var payload = new LedgerTransactionCreatedIntegrationEvent(
+            eventId,
+            DateTimeOffset.UtcNow,
+            familyId,
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            -15.12m,
+            "Legacy raw payload",
+            "Dragon Legacy",
+            "Food",
+            EnvelopeId: null,
+            IsSplit: false);
+        return JsonSerializer.SerializeToUtf8Bytes(payload);
     }
 
     private sealed class IncrementingClock : IClock
