@@ -31,12 +31,19 @@ internal static partial class LedgerApiBootstrap
         builder.Services.AddScoped<IRecurringAutoPostService, RecurringAutoPostService>();
         builder.Services.AddSingleton(Options.Create(BuildSpendAnomalyDetectionOptions(builder.Configuration)));
         builder.Services.AddSingleton(Options.Create(BuildOutboxWorkerOptions(builder.Configuration)));
+        builder.Services.AddSingleton(Options.Create(BuildReportingProjectionWorkerOptions(builder.Configuration)));
 
         var enableRabbitMq = builder.Configuration.GetValue<bool>("Messaging:RabbitMq:Enabled");
         var outboxWorkerEnabled = builder.Configuration.GetValue<bool>("Messaging:Outbox:Enabled", true);
+        var reportingProjectionWorkerEnabled = builder.Configuration.GetValue<bool>("Reporting:ProjectionWorker:Enabled", true);
         if (!builder.Environment.IsEnvironment("Testing") && enableRabbitMq && outboxWorkerEnabled)
         {
             builder.Services.AddHostedService<LedgerOutboxDispatchWorker>();
+        }
+
+        if (!builder.Environment.IsEnvironment("Testing") && reportingProjectionWorkerEnabled)
+        {
+            builder.Services.AddHostedService<ReportingProjectionWorker>();
         }
     }
 
@@ -117,6 +124,23 @@ internal static partial class LedgerApiBootstrap
             SourceServices = sourceServices is { Length: > 0 }
                 ? sourceServices
                 : [IntegrationEventSourceServices.LedgerApi, IntegrationEventSourceServices.PlanningApi, IntegrationEventSourceServices.AutomationApi]
+        };
+    }
+
+    private static ReportingProjectionWorkerOptions BuildReportingProjectionWorkerOptions(IConfiguration configuration)
+    {
+        return new ReportingProjectionWorkerOptions
+        {
+            Enabled = !bool.TryParse(configuration["Reporting:ProjectionWorker:Enabled"], out var enabled) || enabled,
+            PollIntervalSeconds = int.TryParse(configuration["Reporting:ProjectionWorker:PollIntervalSeconds"], out var pollIntervalSeconds)
+                ? Math.Max(1, pollIntervalSeconds)
+                : 5,
+            BatchSize = int.TryParse(configuration["Reporting:ProjectionWorker:BatchSize"], out var batchSize)
+                ? Math.Clamp(batchSize, 1, 2000)
+                : 100,
+            BacklogWarningThreshold = int.TryParse(configuration["Reporting:ProjectionWorker:BacklogWarningThreshold"], out var warningThreshold)
+                ? Math.Max(1, warningThreshold)
+                : 100
         };
     }
 }

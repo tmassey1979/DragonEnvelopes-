@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using DragonEnvelopes.Api.CrossCutting.Auth;
 using DragonEnvelopes.Application.Services;
+using DragonEnvelopes.Contracts.Reports;
 using DragonEnvelopes.Infrastructure.Persistence;
 
 namespace DragonEnvelopes.Api.Endpoints;
@@ -90,6 +91,67 @@ internal static partial class PlanningAndReportingEndpoints
             })
             .RequireAuthorization(ApiAuthorizationPolicies.AnyFamilyMember)
             .WithName("GetRemainingBudgetReport")
+            .WithOpenApi();
+
+        v1.MapGet("/reports/projections/status", async (
+                Guid? familyId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IReportingProjectionService reportingProjectionService,
+                CancellationToken cancellationToken) =>
+            {
+                if (familyId.HasValue
+                    && !await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var status = await reportingProjectionService.GetStatusAsync(familyId, cancellationToken);
+                return Results.Ok(new ReportingProjectionStatusResponse(
+                    status.FamilyId,
+                    status.PendingCount,
+                    status.AppliedCount,
+                    status.FailedCount,
+                    status.EnvelopeProjectionRowCount,
+                    status.TransactionProjectionRowCount,
+                    status.LastAppliedAtUtc,
+                    status.LatestEventOccurredAtUtc,
+                    status.ApproximateLagSeconds));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
+            .WithName("GetReportingProjectionStatus")
+            .WithOpenApi();
+
+        v1.MapPost("/reports/projections/replay", async (
+                Guid? familyId,
+                int? batchSize,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IReportingProjectionService reportingProjectionService,
+                CancellationToken cancellationToken) =>
+            {
+                if (familyId.HasValue
+                    && !await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var replay = await reportingProjectionService.ReplayAsync(
+                    familyId,
+                    batchSize ?? 500,
+                    cancellationToken);
+                return Results.Ok(new ReportingProjectionReplayResponse(
+                    replay.FamilyId,
+                    replay.ReplayedCount,
+                    replay.AppliedCount,
+                    replay.FailedCount,
+                    replay.EnvelopeProjectionRowCount,
+                    replay.TransactionProjectionRowCount,
+                    replay.StartedAtUtc,
+                    replay.CompletedAtUtc));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
+            .WithName("ReplayReportingProjections")
             .WithOpenApi();
     }
 }

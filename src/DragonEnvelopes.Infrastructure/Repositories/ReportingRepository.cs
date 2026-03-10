@@ -11,6 +11,22 @@ public sealed class ReportingRepository(DragonEnvelopesDbContext dbContext) : IR
         Guid familyId,
         CancellationToken cancellationToken = default)
     {
+        var hasProjectionData = await HasAppliedProjectionDataAsync(familyId, cancellationToken);
+        if (hasProjectionData)
+        {
+            return await dbContext.ReportEnvelopeBalanceProjections
+                .AsNoTracking()
+                .Where(x => x.FamilyId == familyId)
+                .OrderBy(x => x.EnvelopeName)
+                .Select(x => new EnvelopeBalanceReportDetails(
+                    x.EnvelopeId,
+                    x.EnvelopeName,
+                    x.MonthlyBudget,
+                    x.CurrentBalance,
+                    x.IsArchived))
+                .ToArrayAsync(cancellationToken);
+        }
+
         return await dbContext.Envelopes
             .AsNoTracking()
             .Where(x => x.FamilyId == familyId)
@@ -30,6 +46,22 @@ public sealed class ReportingRepository(DragonEnvelopesDbContext dbContext) : IR
         DateTimeOffset toInclusive,
         CancellationToken cancellationToken = default)
     {
+        var hasProjectionData = await HasAppliedProjectionDataAsync(familyId, cancellationToken);
+        if (hasProjectionData)
+        {
+            return await dbContext.ReportTransactionProjections
+                .AsNoTracking()
+                .Where(x => x.FamilyId == familyId)
+                .Where(x => !x.IsDeleted)
+                .Where(x => x.OccurredAt >= fromInclusive && x.OccurredAt <= toInclusive)
+                .Select(x => new TransactionReportRow(
+                    x.Amount,
+                    x.Category,
+                    x.OccurredAt,
+                    x.TransferId))
+                .ToArrayAsync(cancellationToken);
+        }
+
         return await dbContext.Transactions
             .AsNoTracking()
             .Join(
@@ -46,5 +78,15 @@ public sealed class ReportingRepository(DragonEnvelopesDbContext dbContext) : IR
                 x.transaction.OccurredAt,
                 x.transaction.TransferId))
             .ToArrayAsync(cancellationToken);
+    }
+
+    private Task<bool> HasAppliedProjectionDataAsync(Guid familyId, CancellationToken cancellationToken)
+    {
+        return dbContext.ReportProjectionAppliedEvents
+            .AsNoTracking()
+            .AnyAsync(
+                x => x.FamilyId == familyId
+                     && x.ProcessingStatus == "Applied",
+                cancellationToken);
     }
 }
