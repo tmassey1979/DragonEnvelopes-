@@ -1,6 +1,7 @@
 using System.Security.Claims;
+using DragonEnvelopes.Application.Cqrs;
+using DragonEnvelopes.Application.Cqrs.Financial;
 using DragonEnvelopes.Financial.Api.CrossCutting.Auth;
-using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Financial;
 using DragonEnvelopes.Infrastructure.Persistence;
 
@@ -16,7 +17,7 @@ internal static partial class FinancialIntegrationEndpoints
                 CreateVirtualEnvelopeCardRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopePaymentCardService envelopePaymentCardService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -24,10 +25,11 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var card = await envelopePaymentCardService.IssueVirtualCardAsync(
-                    familyId,
-                    envelopeId,
-                    request.CardholderName,
+                var card = await commandBus.SendAsync(
+                    new IssueVirtualEnvelopeCardCommand(
+                        familyId,
+                        envelopeId,
+                        request.CardholderName),
                     cancellationToken);
                 return Results.Ok(new EnvelopePaymentCardResponse(
                     card.Id,
@@ -53,7 +55,7 @@ internal static partial class FinancialIntegrationEndpoints
                 CreatePhysicalEnvelopeCardRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopePaymentCardService envelopePaymentCardService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -61,17 +63,18 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var issuance = await envelopePaymentCardService.IssuePhysicalCardAsync(
-                    familyId,
-                    envelopeId,
-                    request.CardholderName,
-                    request.RecipientName,
-                    request.AddressLine1,
-                    request.AddressLine2,
-                    request.City,
-                    request.StateOrProvince,
-                    request.PostalCode,
-                    request.CountryCode,
+                var issuance = await commandBus.SendAsync(
+                    new IssuePhysicalEnvelopeCardCommand(
+                        familyId,
+                        envelopeId,
+                        request.CardholderName,
+                        request.RecipientName,
+                        request.AddressLine1,
+                        request.AddressLine2,
+                        request.City,
+                        request.StateOrProvince,
+                        request.PostalCode,
+                        request.CountryCode),
                     cancellationToken);
 
                 return Results.Ok(new EnvelopePhysicalCardIssuanceResponse(
@@ -115,7 +118,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid envelopeId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopePaymentCardService envelopePaymentCardService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -123,9 +126,10 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var cards = await envelopePaymentCardService.ListByEnvelopeAsync(
-                    familyId,
-                    envelopeId,
+                var cards = await queryBus.QueryAsync(
+                    new ListEnvelopeCardsQuery(
+                        familyId,
+                        envelopeId),
                     cancellationToken);
                 return Results.Ok(cards.Select(card => new EnvelopePaymentCardResponse(
                     card.Id,
@@ -151,7 +155,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid cardId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopePaymentCardService envelopePaymentCardService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -159,10 +163,11 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var card = await envelopePaymentCardService.FreezeCardAsync(
-                    familyId,
-                    envelopeId,
-                    cardId,
+                var card = await commandBus.SendAsync(
+                    new FreezeEnvelopeCardCommand(
+                        familyId,
+                        envelopeId,
+                        cardId),
                     cancellationToken);
                 return Results.Ok(new EnvelopePaymentCardResponse(
                     card.Id,
@@ -188,7 +193,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid cardId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopePaymentCardService envelopePaymentCardService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -196,10 +201,11 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var card = await envelopePaymentCardService.UnfreezeCardAsync(
-                    familyId,
-                    envelopeId,
-                    cardId,
+                var card = await commandBus.SendAsync(
+                    new UnfreezeEnvelopeCardCommand(
+                        familyId,
+                        envelopeId,
+                        cardId),
                     cancellationToken);
                 return Results.Ok(new EnvelopePaymentCardResponse(
                     card.Id,
@@ -225,7 +231,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid cardId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopePaymentCardService envelopePaymentCardService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -233,10 +239,11 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var card = await envelopePaymentCardService.CancelCardAsync(
-                    familyId,
-                    envelopeId,
-                    cardId,
+                var card = await commandBus.SendAsync(
+                    new CancelEnvelopeCardCommand(
+                        familyId,
+                        envelopeId,
+                        cardId),
                     cancellationToken);
                 return Results.Ok(new EnvelopePaymentCardResponse(
                     card.Id,
@@ -262,7 +269,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid cardId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopePaymentCardService envelopePaymentCardService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -270,10 +277,11 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var issuance = await envelopePaymentCardService.GetPhysicalCardIssuanceAsync(
-                    familyId,
-                    envelopeId,
-                    cardId,
+                var issuance = await queryBus.QueryAsync(
+                    new GetEnvelopePhysicalCardIssuanceQuery(
+                        familyId,
+                        envelopeId,
+                        cardId),
                     cancellationToken);
 
                 return issuance is null
@@ -320,7 +328,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid cardId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopePaymentCardService envelopePaymentCardService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -328,10 +336,11 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var issuance = await envelopePaymentCardService.RefreshPhysicalCardIssuanceStatusAsync(
-                    familyId,
-                    envelopeId,
-                    cardId,
+                var issuance = await commandBus.SendAsync(
+                    new RefreshEnvelopePhysicalCardIssuanceCommand(
+                        familyId,
+                        envelopeId,
+                        cardId),
                     cancellationToken);
 
                 return Results.Ok(new EnvelopePhysicalCardIssuanceResponse(
@@ -377,7 +386,7 @@ internal static partial class FinancialIntegrationEndpoints
                 UpsertEnvelopePaymentCardControlRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopePaymentCardControlService envelopePaymentCardControlService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -385,14 +394,15 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var control = await envelopePaymentCardControlService.UpsertControlsAsync(
-                    familyId,
-                    envelopeId,
-                    cardId,
-                    request.DailyLimitAmount,
-                    request.AllowedMerchantCategories,
-                    request.AllowedMerchantNames,
-                    user.FindFirstValue("sub"),
+                var control = await commandBus.SendAsync(
+                    new UpsertEnvelopeCardControlsCommand(
+                        familyId,
+                        envelopeId,
+                        cardId,
+                        request.DailyLimitAmount,
+                        request.AllowedMerchantCategories,
+                        request.AllowedMerchantNames,
+                        user.FindFirstValue("sub")),
                     cancellationToken);
                 return Results.Ok(new EnvelopePaymentCardControlResponse(
                     control.Id,
@@ -415,7 +425,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid cardId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopePaymentCardControlService envelopePaymentCardControlService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -423,10 +433,11 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var control = await envelopePaymentCardControlService.GetByCardAsync(
-                    familyId,
-                    envelopeId,
-                    cardId,
+                var control = await queryBus.QueryAsync(
+                    new GetEnvelopeCardControlsQuery(
+                        familyId,
+                        envelopeId,
+                        cardId),
                     cancellationToken);
 
                 return control is null
@@ -452,7 +463,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid cardId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopePaymentCardControlService envelopePaymentCardControlService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -460,10 +471,11 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var audit = await envelopePaymentCardControlService.ListAuditByCardAsync(
-                    familyId,
-                    envelopeId,
-                    cardId,
+                var audit = await queryBus.QueryAsync(
+                    new ListEnvelopeCardControlAuditQuery(
+                        familyId,
+                        envelopeId,
+                        cardId),
                     cancellationToken);
 
                 return Results.Ok(audit.Select(entry => new EnvelopePaymentCardControlAuditResponse(
@@ -488,7 +500,7 @@ internal static partial class FinancialIntegrationEndpoints
                 EvaluateEnvelopeCardSpendRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopePaymentCardControlService envelopePaymentCardControlService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -496,14 +508,15 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var evaluation = await envelopePaymentCardControlService.EvaluateSpendAsync(
-                    familyId,
-                    envelopeId,
-                    cardId,
-                    request.MerchantName,
-                    request.MerchantCategory,
-                    request.Amount,
-                    request.SpentTodayAmount,
+                var evaluation = await queryBus.QueryAsync(
+                    new EvaluateEnvelopeCardSpendQuery(
+                        familyId,
+                        envelopeId,
+                        cardId,
+                        request.MerchantName,
+                        request.MerchantCategory,
+                        request.Amount,
+                        request.SpentTodayAmount),
                     cancellationToken);
 
                 return Results.Ok(new EvaluateEnvelopeCardSpendResponse(

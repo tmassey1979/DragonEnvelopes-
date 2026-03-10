@@ -1,6 +1,8 @@
 using System.IO;
 using System.Security.Claims;
 using System.Text.Json;
+using DragonEnvelopes.Application.Cqrs;
+using DragonEnvelopes.Application.Cqrs.Financial;
 using DragonEnvelopes.Financial.Api.CrossCutting.Auth;
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Financial;
@@ -16,13 +18,15 @@ internal static partial class FinancialIntegrationEndpoints
     {
         v1.MapPost("/webhooks/stripe", async (
                 HttpRequest httpRequest,
-                IStripeWebhookService stripeWebhookService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 using var reader = new StreamReader(httpRequest.Body);
                 var payload = await reader.ReadToEndAsync(cancellationToken);
                 var signatureHeader = httpRequest.Headers["Stripe-Signature"].ToString();
-                var result = await stripeWebhookService.ProcessAsync(payload, signatureHeader, cancellationToken);
+                var result = await commandBus.SendAsync(
+                    new ProcessStripeWebhookCommand(payload, signatureHeader),
+                    cancellationToken);
 
                 if (result.Outcome.Equals("InvalidSignature", StringComparison.OrdinalIgnoreCase)
                     || result.Outcome.Equals("Disabled", StringComparison.OrdinalIgnoreCase))
@@ -52,8 +56,7 @@ internal static partial class FinancialIntegrationEndpoints
                 HttpRequest httpRequest,
                 DragonEnvelopesDbContext dbContext,
                 IPlaidWebhookVerificationService plaidWebhookVerificationService,
-                IPlaidTransactionSyncService plaidTransactionSyncService,
-                IPlaidBalanceReconciliationService plaidBalanceReconciliationService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 var receivedAtUtc = DateTimeOffset.UtcNow;
@@ -197,7 +200,9 @@ internal static partial class FinancialIntegrationEndpoints
                     {
                         if (webhookType != null && webhookType.Equals("TRANSACTIONS", StringComparison.OrdinalIgnoreCase))
                         {
-                            var sync = await plaidTransactionSyncService.SyncFamilyAsync(familyId.Value, cancellationToken);
+                            var sync = await commandBus.SendAsync(
+                                new SyncPlaidTransactionsCommand(familyId.Value),
+                                cancellationToken);
                             return await PersistAndReturnAsync(
                                 outcome: "Processed",
                                 familyId: familyId.Value,
@@ -206,7 +211,9 @@ internal static partial class FinancialIntegrationEndpoints
 
                         if (webhookType != null && webhookType.Equals("BALANCE", StringComparison.OrdinalIgnoreCase))
                         {
-                            var refresh = await plaidBalanceReconciliationService.RefreshFamilyBalancesAsync(familyId.Value, cancellationToken);
+                            var refresh = await commandBus.SendAsync(
+                                new RefreshPlaidBalancesCommand(familyId.Value),
+                                cancellationToken);
                             return await PersistAndReturnAsync(
                                 outcome: "Processed",
                                 familyId: familyId.Value,
@@ -235,7 +242,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid familyId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IParentSpendNotificationService parentSpendNotificationService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -249,9 +256,10 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Unauthorized();
                 }
 
-                var preference = await parentSpendNotificationService.GetPreferenceAsync(
-                    familyId,
-                    userId,
+                var preference = await queryBus.QueryAsync(
+                    new GetNotificationPreferenceQuery(
+                        familyId,
+                        userId),
                     cancellationToken);
                 return Results.Ok(new NotificationPreferenceResponse(
                     preference.FamilyId,
@@ -270,7 +278,7 @@ internal static partial class FinancialIntegrationEndpoints
                 UpdateNotificationPreferenceRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IParentSpendNotificationService parentSpendNotificationService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -284,12 +292,13 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Unauthorized();
                 }
 
-                var preference = await parentSpendNotificationService.UpsertPreferenceAsync(
-                    familyId,
-                    userId,
-                    request.EmailEnabled,
-                    request.InAppEnabled,
-                    request.SmsEnabled,
+                var preference = await commandBus.SendAsync(
+                    new UpsertNotificationPreferenceCommand(
+                        familyId,
+                        userId,
+                        request.EmailEnabled,
+                        request.InAppEnabled,
+                        request.SmsEnabled),
                     cancellationToken);
                 return Results.Ok(new NotificationPreferenceResponse(
                     preference.FamilyId,
@@ -308,7 +317,7 @@ internal static partial class FinancialIntegrationEndpoints
                 int? take,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                ISpendNotificationDispatchService spendNotificationDispatchService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -316,9 +325,10 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var failedEvents = await spendNotificationDispatchService.ListFailedEventsAsync(
-                    familyId,
-                    take ?? 25,
+                var failedEvents = await queryBus.QueryAsync(
+                    new ListFailedNotificationDispatchEventsQuery(
+                        familyId,
+                        take ?? 25),
                     cancellationToken);
                 return Results.Ok(failedEvents.Select(static evt => new FailedNotificationDispatchEventResponse(
                     evt.Id,
@@ -344,7 +354,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid eventId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                ISpendNotificationDispatchService spendNotificationDispatchService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -352,9 +362,10 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var retried = await spendNotificationDispatchService.RetryFailedEventAsync(
-                    familyId,
-                    eventId,
+                var retried = await commandBus.SendAsync(
+                    new RetryNotificationDispatchEventCommand(
+                        familyId,
+                        eventId),
                     cancellationToken);
                 return Results.Ok(new RetryNotificationDispatchEventResponse(
                     retried.Id,
@@ -374,7 +385,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid eventId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                ISpendNotificationDispatchService spendNotificationDispatchService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -382,9 +393,10 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var replayed = await spendNotificationDispatchService.ReplayEventAsync(
-                    familyId,
-                    eventId,
+                var replayed = await commandBus.SendAsync(
+                    new ReplayNotificationDispatchEventCommand(
+                        familyId,
+                        eventId),
                     cancellationToken);
                 return Results.Ok(new RetryNotificationDispatchEventResponse(
                     replayed.Id,
@@ -404,7 +416,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid eventId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IStripeWebhookService stripeWebhookService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -420,9 +432,10 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.NotFound();
                 }
 
-                var replayed = await stripeWebhookService.ReplayFailedEventAsync(
-                    familyId,
-                    eventId,
+                var replayed = await commandBus.SendAsync(
+                    new ReplayStripeWebhookEventCommand(
+                        familyId,
+                        eventId),
                     cancellationToken);
                 return Results.Ok(new ReplayStripeWebhookEventResponse(
                     replayed.Id,
@@ -440,7 +453,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid familyId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IFinancialIntegrationService financialIntegrationService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -448,7 +461,9 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var status = await financialIntegrationService.GetStatusAsync(familyId, cancellationToken);
+                var status = await queryBus.QueryAsync(
+                    new GetFamilyFinancialStatusQuery(familyId),
+                    cancellationToken);
                 return Results.Ok(new FamilyFinancialStatusResponse(
                     status.FamilyId,
                     status.PlaidConnected,
@@ -467,7 +482,7 @@ internal static partial class FinancialIntegrationEndpoints
                 UpdateReconciliationDriftThresholdRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IFinancialIntegrationService financialIntegrationService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -475,9 +490,10 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var status = await financialIntegrationService.UpdateReconciliationDriftThresholdAsync(
-                    familyId,
-                    request.ReconciliationDriftThreshold,
+                var status = await commandBus.SendAsync(
+                    new UpdateReconciliationDriftThresholdCommand(
+                        familyId,
+                        request.ReconciliationDriftThreshold),
                     cancellationToken);
 
                 return Results.Ok(new FamilyFinancialStatusResponse(
@@ -497,7 +513,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid familyId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IFinancialIntegrationService financialIntegrationService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -505,8 +521,8 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var result = await financialIntegrationService.RewrapProviderSecretsAsync(
-                    familyId,
+                var result = await commandBus.SendAsync(
+                    new RewrapProviderSecretsCommand(familyId),
                     cancellationToken);
 
                 return Results.Ok(new RewrapProviderSecretsResponse(

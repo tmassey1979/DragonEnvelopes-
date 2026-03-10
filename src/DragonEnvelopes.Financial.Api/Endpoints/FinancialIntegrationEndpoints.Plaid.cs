@@ -1,6 +1,7 @@
 using System.Security.Claims;
+using DragonEnvelopes.Application.Cqrs;
+using DragonEnvelopes.Application.Cqrs.Financial;
 using DragonEnvelopes.Financial.Api.CrossCutting.Auth;
-using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Financial;
 using DragonEnvelopes.Infrastructure.Persistence;
 
@@ -15,7 +16,7 @@ internal static partial class FinancialIntegrationEndpoints
                 CreatePlaidLinkTokenRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IFinancialIntegrationService financialIntegrationService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -24,10 +25,11 @@ internal static partial class FinancialIntegrationEndpoints
                 }
 
                 var clientUserId = user.FindFirstValue("sub") ?? request.ClientUserId;
-                var token = await financialIntegrationService.CreatePlaidLinkTokenAsync(
-                    familyId,
-                    clientUserId,
-                    request.ClientName,
+                var token = await commandBus.SendAsync(
+                    new CreatePlaidLinkTokenCommand(
+                        familyId,
+                        clientUserId,
+                        request.ClientName),
                     cancellationToken);
 
                 return Results.Ok(new CreatePlaidLinkTokenResponse(token.LinkToken, token.ExpiresAtUtc));
@@ -41,7 +43,7 @@ internal static partial class FinancialIntegrationEndpoints
                 ExchangePlaidPublicTokenRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IFinancialIntegrationService financialIntegrationService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -49,9 +51,10 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var status = await financialIntegrationService.ExchangePlaidPublicTokenAsync(
-                    familyId,
-                    request.PublicToken,
+                var status = await commandBus.SendAsync(
+                    new ExchangePlaidPublicTokenCommand(
+                        familyId,
+                        request.PublicToken),
                     cancellationToken);
 
                 return Results.Ok(new FamilyFinancialStatusResponse(
@@ -72,7 +75,7 @@ internal static partial class FinancialIntegrationEndpoints
                 CreatePlaidAccountLinkRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IPlaidTransactionSyncService plaidTransactionSyncService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -80,10 +83,11 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var link = await plaidTransactionSyncService.UpsertAccountLinkAsync(
-                    familyId,
-                    request.AccountId,
-                    request.PlaidAccountId,
+                var link = await commandBus.SendAsync(
+                    new UpsertPlaidAccountLinkCommand(
+                        familyId,
+                        request.AccountId,
+                        request.PlaidAccountId),
                     cancellationToken);
                 return Results.Ok(new PlaidAccountLinkResponse(
                     link.Id,
@@ -101,7 +105,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid familyId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IPlaidTransactionSyncService plaidTransactionSyncService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -109,7 +113,9 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var links = await plaidTransactionSyncService.ListAccountLinksAsync(familyId, cancellationToken);
+                var links = await queryBus.QueryAsync(
+                    new ListPlaidAccountLinksQuery(familyId),
+                    cancellationToken);
                 return Results.Ok(links.Select(link => new PlaidAccountLinkResponse(
                     link.Id,
                     link.FamilyId,
@@ -127,7 +133,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid linkId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IPlaidTransactionSyncService plaidTransactionSyncService,
+                ICommandBus commandBus,
                 ILogger<Program> logger,
                 CancellationToken cancellationToken) =>
             {
@@ -136,9 +142,10 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                await plaidTransactionSyncService.DeleteAccountLinkAsync(
-                    familyId,
-                    linkId,
+                await commandBus.SendAsync(
+                    new DeletePlaidAccountLinkCommand(
+                        familyId,
+                        linkId),
                     cancellationToken);
 
                 logger.LogInformation(
@@ -157,7 +164,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid familyId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IPlaidTransactionSyncService plaidTransactionSyncService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -165,7 +172,9 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var sync = await plaidTransactionSyncService.SyncFamilyAsync(familyId, cancellationToken);
+                var sync = await commandBus.SendAsync(
+                    new SyncPlaidTransactionsCommand(familyId),
+                    cancellationToken);
                 return Results.Ok(new PlaidTransactionSyncResponse(
                     sync.FamilyId,
                     sync.PulledCount,
@@ -183,7 +192,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid familyId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IPlaidBalanceReconciliationService plaidBalanceReconciliationService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -191,7 +200,9 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var refresh = await plaidBalanceReconciliationService.RefreshFamilyBalancesAsync(familyId, cancellationToken);
+                var refresh = await commandBus.SendAsync(
+                    new RefreshPlaidBalancesCommand(familyId),
+                    cancellationToken);
                 return Results.Ok(new PlaidBalanceRefreshResponse(
                     refresh.FamilyId,
                     refresh.RefreshedCount,
@@ -207,7 +218,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid familyId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IPlaidBalanceReconciliationService plaidBalanceReconciliationService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -215,7 +226,9 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var report = await plaidBalanceReconciliationService.GetReconciliationReportAsync(familyId, cancellationToken);
+                var report = await queryBus.QueryAsync(
+                    new GetPlaidReconciliationReportQuery(familyId),
+                    cancellationToken);
                 return Results.Ok(new PlaidReconciliationReportResponse(
                     report.FamilyId,
                     report.GeneratedAtUtc,

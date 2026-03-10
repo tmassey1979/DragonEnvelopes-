@@ -1,6 +1,7 @@
 using System.Security.Claims;
+using DragonEnvelopes.Application.Cqrs;
+using DragonEnvelopes.Application.Cqrs.Financial;
 using DragonEnvelopes.Financial.Api.CrossCutting.Auth;
-using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Financial;
 using DragonEnvelopes.Infrastructure.Persistence;
 
@@ -15,7 +16,7 @@ internal static partial class FinancialIntegrationEndpoints
                 CreateStripeSetupIntentRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IFinancialIntegrationService financialIntegrationService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -23,10 +24,11 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var setupIntent = await financialIntegrationService.CreateStripeSetupIntentAsync(
-                    familyId,
-                    request.Email,
-                    request.Name,
+                var setupIntent = await commandBus.SendAsync(
+                    new CreateStripeSetupIntentCommand(
+                        familyId,
+                        request.Email,
+                        request.Name),
                     cancellationToken);
 
                 return Results.Ok(new CreateStripeSetupIntentResponse(
@@ -44,7 +46,7 @@ internal static partial class FinancialIntegrationEndpoints
                 CreateStripeEnvelopeFinancialAccountRequest request,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopeFinancialAccountService envelopeFinancialAccountService,
+                ICommandBus commandBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -52,10 +54,11 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var account = await envelopeFinancialAccountService.LinkStripeFinancialAccountAsync(
-                    familyId,
-                    envelopeId,
-                    request.DisplayName,
+                var account = await commandBus.SendAsync(
+                    new LinkStripeEnvelopeFinancialAccountCommand(
+                        familyId,
+                        envelopeId,
+                        request.DisplayName),
                     cancellationToken);
 
                 return Results.Ok(new EnvelopeFinancialAccountResponse(
@@ -76,7 +79,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid envelopeId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopeFinancialAccountService envelopeFinancialAccountService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -84,9 +87,10 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var account = await envelopeFinancialAccountService.GetByEnvelopeAsync(
-                    familyId,
-                    envelopeId,
+                var account = await queryBus.QueryAsync(
+                    new GetEnvelopeFinancialAccountQuery(
+                        familyId,
+                        envelopeId),
                     cancellationToken);
                 return account is null
                     ? Results.NotFound()
@@ -107,7 +111,7 @@ internal static partial class FinancialIntegrationEndpoints
                 Guid familyId,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
-                IEnvelopeFinancialAccountService envelopeFinancialAccountService,
+                IQueryBus queryBus,
                 CancellationToken cancellationToken) =>
             {
                 if (!await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId, dbContext, cancellationToken))
@@ -115,7 +119,9 @@ internal static partial class FinancialIntegrationEndpoints
                     return Results.Forbid();
                 }
 
-                var accounts = await envelopeFinancialAccountService.ListByFamilyAsync(familyId, cancellationToken);
+                var accounts = await queryBus.QueryAsync(
+                    new ListFamilyFinancialAccountsQuery(familyId),
+                    cancellationToken);
                 return Results.Ok(accounts.Select(account => new EnvelopeFinancialAccountResponse(
                     account.Id,
                     account.FamilyId,
