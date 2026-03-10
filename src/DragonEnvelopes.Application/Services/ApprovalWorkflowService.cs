@@ -14,7 +14,8 @@ public sealed class ApprovalWorkflowService(
     ITransactionRepository transactionRepository,
     ITransactionService transactionService,
     IClock clock,
-    IIntegrationOutboxRepository? integrationOutboxRepository = null) : IApprovalWorkflowService
+    IIntegrationOutboxRepository? integrationOutboxRepository = null,
+    ISagaOrchestrationService? sagaOrchestrationService = null) : IApprovalWorkflowService
 {
     private static readonly string[] AllowedRoles = ["Parent", "Adult", "Teen", "Child"];
     private const string OutboxSchemaVersion = "1.0";
@@ -134,6 +135,16 @@ public sealed class ApprovalWorkflowService(
                 approvalRequest.RequestedByRole),
             cancellationToken);
         await approvalRequestRepository.SaveChangesAsync(cancellationToken);
+        await TryRecordApprovalSagaAsync(
+            approvalRequest,
+            step: "ApprovalRequestBlocked",
+            eventType: "StepCompleted",
+            status: WorkflowSagaStatuses.Running,
+            message: "Approval request auto-blocked by policy.",
+            failureReason: null,
+            compensationAction: null,
+            markCompleted: false,
+            cancellationToken);
         return Map(approvalRequest);
     }
 
@@ -198,6 +209,16 @@ public sealed class ApprovalWorkflowService(
                 approvalRequest.RequestedByRole),
             cancellationToken);
         await approvalRequestRepository.SaveChangesAsync(cancellationToken);
+        await TryRecordApprovalSagaAsync(
+            approvalRequest,
+            step: "ApprovalRequestCreated",
+            eventType: "StepCompleted",
+            status: WorkflowSagaStatuses.Running,
+            message: "Approval request created and awaiting decision.",
+            failureReason: null,
+            compensationAction: null,
+            markCompleted: false,
+            cancellationToken);
         return Map(approvalRequest);
     }
 
@@ -228,17 +249,46 @@ public sealed class ApprovalWorkflowService(
         var request = await approvalRequestRepository.GetByIdForUpdateAsync(requestId, cancellationToken)
             ?? throw new DomainValidationException("Approval request was not found.");
 
-        var transaction = await transactionService.CreateAsync(
-            request.AccountId,
-            request.Amount,
-            request.Description,
-            request.Merchant,
-            request.OccurredAt,
-            request.Category,
-            request.EnvelopeId,
-            hasSplits: false,
-            splits: null,
+        await TryRecordApprovalSagaAsync(
+            request,
+            step: "ApprovalResolutionStarted",
+            eventType: "StepStarted",
+            status: WorkflowSagaStatuses.Running,
+            message: "Attempting to post approved transaction.",
+            failureReason: null,
+            compensationAction: null,
+            markCompleted: false,
             cancellationToken);
+
+        TransactionDetails transaction;
+        try
+        {
+            transaction = await transactionService.CreateAsync(
+                request.AccountId,
+                request.Amount,
+                request.Description,
+                request.Merchant,
+                request.OccurredAt,
+                request.Category,
+                request.EnvelopeId,
+                hasSplits: false,
+                splits: null,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await TryRecordApprovalSagaAsync(
+                request,
+                step: "ApprovalResolutionFailed",
+                eventType: "StepFailed",
+                status: WorkflowSagaStatuses.Failed,
+                message: ex.Message,
+                failureReason: ex.Message,
+                compensationAction: "RequestRemainsPendingForManualRetry",
+                markCompleted: false,
+                cancellationToken);
+            throw;
+        }
 
         var normalizedResolverUserId = NormalizeRequired(resolvedByUserId, "Resolved by user id");
         var normalizedResolverRole = NormalizeRole(resolvedByRole);
@@ -276,6 +326,16 @@ public sealed class ApprovalWorkflowService(
                 normalizedResolverRole),
             cancellationToken);
         await approvalRequestRepository.SaveChangesAsync(cancellationToken);
+        await TryRecordApprovalSagaAsync(
+            request,
+            step: "ApprovalResolvedAndPosted",
+            eventType: "StepCompleted",
+            status: WorkflowSagaStatuses.Completed,
+            message: $"Approval resolved and transaction '{transaction.Id}' posted.",
+            failureReason: null,
+            compensationAction: null,
+            markCompleted: true,
+            cancellationToken);
         return Map(request);
     }
 
@@ -323,6 +383,16 @@ public sealed class ApprovalWorkflowService(
                 normalizedResolverRole),
             cancellationToken);
         await approvalRequestRepository.SaveChangesAsync(cancellationToken);
+        await TryRecordApprovalSagaAsync(
+            request,
+            step: "ApprovalDenied",
+            eventType: "Compensation",
+            status: WorkflowSagaStatuses.Compensated,
+            message: "Approval request denied. No ledger mutation posted.",
+            failureReason: null,
+            compensationAction: "NoTransactionPosted",
+            markCompleted: true,
+            cancellationToken);
         return Map(request);
     }
 
@@ -539,6 +609,49 @@ public sealed class ApprovalWorkflowService(
     private static string ResolveCorrelationId()
     {
         return Activity.Current?.Id ?? Guid.NewGuid().ToString("D");
+    }
+
+    private async Task TryRecordApprovalSagaAsync(
+        PurchaseApprovalRequest request,
+        string step,
+        string eventType,
+        string status,
+        string? message,
+        string? failureReason,
+        string? compensationAction,
+        bool markCompleted,
+        CancellationToken cancellationToken)
+    {
+        if (sagaOrchestrationService is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var saga = await sagaOrchestrationService.StartOrGetAsync(
+                WorkflowSagaTypes.Approval,
+                request.FamilyId,
+                request.Id.ToString("D"),
+                request.Id.ToString("D"),
+                initialStep: "ApprovalWorkflowInitialized",
+                message: "Approval workflow saga initialized.",
+                cancellationToken);
+            await sagaOrchestrationService.RecordAsync(
+                saga.Id,
+                step,
+                eventType,
+                status,
+                message,
+                failureReason,
+                compensationAction,
+                markCompleted,
+                cancellationToken);
+        }
+        catch
+        {
+            // Best-effort saga tracking to avoid blocking approval request processing.
+        }
     }
 
     private static string ResolveEventId<TPayload>(TPayload payload)

@@ -28,6 +28,8 @@ public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbC
     public DbSet<FamilyInviteTimelineEvent> FamilyInviteTimelineEvents => Set<FamilyInviteTimelineEvent>();
     public DbSet<IntegrationInboxMessage> IntegrationInboxMessages => Set<IntegrationInboxMessage>();
     public DbSet<IntegrationOutboxMessage> IntegrationOutboxMessages => Set<IntegrationOutboxMessage>();
+    public DbSet<WorkflowSaga> WorkflowSagas => Set<WorkflowSaga>();
+    public DbSet<WorkflowSagaTimelineEvent> WorkflowSagaTimelineEvents => Set<WorkflowSagaTimelineEvent>();
     public DbSet<FamilyMember> FamilyMembers => Set<FamilyMember>();
     public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();
     public DbSet<Account> Accounts => Set<Account>();

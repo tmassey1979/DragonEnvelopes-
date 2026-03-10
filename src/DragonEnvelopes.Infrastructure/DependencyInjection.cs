@@ -61,6 +61,7 @@ public static class DependencyInjection
         services.AddScoped<IFamilyInviteSender, FamilyInviteSender>();
         services.AddScoped<IRepositoryMarker, RepositoryMarker>();
         services.AddScoped<IReportingProjectionService, ReportingProjectionService>();
+        services.AddScoped<IWorkflowSagaRepository, WorkflowSagaRepository>();
         services.AddScoped<IFamilyRepository, FamilyRepository>();
         services.AddScoped<IIntegrationInboxRepository, IntegrationInboxRepository>();
         services.AddScoped<IIntegrationOutboxRepository, IntegrationOutboxRepository>();

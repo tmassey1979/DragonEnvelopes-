@@ -7,6 +7,7 @@ internal static partial class FamilyEndpoints
         return v1
             .MapFamilyCoreEndpoints()
             .MapFamilyMembersAndInvitesEndpoints()
+            .MapFamilySagaEndpoints()
             .MapFamilyOnboardingEndpoints();
     }
 }

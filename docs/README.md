@@ -14,6 +14,7 @@ DragonEnvelopes documentation is split by audience.
 - [Operations: Provider Secret Key Rotation](./operations/provider-secret-key-rotation.md)
 - [Operations: RabbitMQ Consumer Reliability](./operations/rabbitmq-consumer-reliability.md)
 - [Operations: Reporting Projections](./operations/reporting-projections.md)
+- [Operations: Workflow Sagas](./operations/workflow-sagas.md)
 - [QA: Onboarding Smoke Checklist](./onboarding-smoke-checklist.md)
 - [QA: Desktop Financial Integrations Smoke Checklist](./qa/desktop-financial-integrations-smoke-checklist.md)
 - [QA: Desktop Role Command Matrix](./qa/desktop-role-command-matrix.md)

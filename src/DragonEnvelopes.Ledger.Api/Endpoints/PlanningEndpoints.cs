@@ -9,6 +9,7 @@ internal static partial class PlanningEndpoints
         MapApprovalPlanningEndpoints(v1);
         MapBudgetPlanningEndpoints(v1);
         MapRecurringBillPlanningEndpoints(v1);
+        MapSagaPlanningEndpoints(v1);
         MapReportingEndpoints(v1);
         MapScenarioPlanningEndpoints(v1);
         MapSpendAnomalyPlanningEndpoints(v1);
