@@ -20,7 +20,7 @@ Core projects:
 Service boundary intent:
 - `DragonEnvelopes.Family.Api`: family profile, member, and identity-adjacent routes.
 - `DragonEnvelopes.Ledger.Api`: accounts, transactions, envelopes, budgets, and reporting.
-- `DragonEnvelopes.Api`: gateway-style surface and cross-cutting financial integrations.
+- `DragonEnvelopes.Api`: legacy monolith runtime (kept for controlled rollback/archive profile only).
 
 Target topology and cutover contracts:
 - `docs/adr/0002-service-topology-v2-and-cutover-plan.md`
@@ -45,19 +45,25 @@ Optional:
 Copy-Item .env.example .env
 ```
 
-2. Start baseline stack:
+2. Start baseline infrastructure stack:
 
 ```powershell
 docker compose up -d --build
 ```
 
-3. Start split service profile (Family/Ledger/Financial containers behind gateway):
+3. Start split service profile (gateway + Family/Ledger/Financial APIs):
 
 ```powershell
 docker compose --profile microservices up -d --build
 ```
 
-4. Start observability profile (Grafana/Loki/Promtail):
+4. (Optional) Start legacy monolith profile for rollback validation only:
+
+```powershell
+docker compose --profile legacy-monolith up -d --build api
+```
+
+5. Start observability profile (Grafana/Loki/Promtail):
 
 ```powershell
 $env:OBSERVABILITY_ENABLE_LOKI_SINK='true'
@@ -82,7 +88,7 @@ dotnet test tests/DragonEnvelopes.Desktop.Tests/DragonEnvelopes.Desktop.Tests.cs
 ## 5. Runtime Endpoints (Default Local)
 
 - API Gateway (single base URL, microservices profile): `http://localhost:18088`
-- Monolith API (direct): `http://localhost:18092`
+- Monolith API (legacy profile only): `http://localhost:18092`
 - Family API (microservices profile): `http://localhost:18089`
 - Ledger API (microservices profile): `http://localhost:18090`
 - Financial API (microservices profile): `http://localhost:18091`
@@ -127,6 +133,7 @@ Do not commit production secrets. Use `.env.example` for non-secret defaults and
 Review these docs for advanced operations:
 - `docs/operations/plaid-balance-drift-workflow.md`
 - `docs/operations/event-pipeline-observability.md`
+- `docs/operations/monolith-decommission-checklist.md`
 - `docs/operations/provider-secret-key-rotation.md`
 - `docs/operations/service-delivery-pipeline.md`
 - `docs/qa/desktop-financial-integrations-smoke-checklist.md`

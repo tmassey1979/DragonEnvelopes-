@@ -16,6 +16,7 @@ DragonEnvelopes documentation is split by audience.
 - [Operations: Provider Secret Key Rotation](./operations/provider-secret-key-rotation.md)
 - [Operations: RabbitMQ Consumer Reliability](./operations/rabbitmq-consumer-reliability.md)
 - [Operations: Event Pipeline Observability](./operations/event-pipeline-observability.md)
+- [Operations: Monolith Decommission Checklist](./operations/monolith-decommission-checklist.md)
 - [Operations: Reporting Projections](./operations/reporting-projections.md)
 - [Operations: Service Delivery Pipeline](./operations/service-delivery-pipeline.md)
 - [Operations: Workflow Sagas](./operations/workflow-sagas.md)

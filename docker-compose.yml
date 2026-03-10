@@ -91,6 +91,7 @@ services:
 
   api:
     container_name: dragonenvelopes-api
+    profiles: ["legacy-monolith"]
     build:
       context: .
       dockerfile: src/DragonEnvelopes.Api/Dockerfile
