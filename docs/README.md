@@ -14,6 +14,7 @@ DragonEnvelopes documentation is split by audience.
 - [Operations: Plaid Balance Drift Workflow](./operations/plaid-balance-drift-workflow.md)
 - [Operations: Provider Secret Key Rotation](./operations/provider-secret-key-rotation.md)
 - [Operations: RabbitMQ Consumer Reliability](./operations/rabbitmq-consumer-reliability.md)
+- [Operations: Event Pipeline Observability](./operations/event-pipeline-observability.md)
 - [Operations: Reporting Projections](./operations/reporting-projections.md)
 - [Operations: Workflow Sagas](./operations/workflow-sagas.md)
 - [QA: Onboarding Smoke Checklist](./onboarding-smoke-checklist.md)

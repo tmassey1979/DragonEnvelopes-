@@ -27,6 +27,15 @@ public sealed class IntegrationOutboxDispatchService(
             var pendingWithoutDispatch = await integrationOutboxRepository.CountPendingAsync(
                 normalizedSourceService,
                 cancellationToken);
+            EmitMetric(
+                metric: "event.publish.backlog.count",
+                value: pendingWithoutDispatch,
+                unit: "count",
+                sourceService: normalizedSourceService,
+                routingKey: null,
+                correlationId: null,
+                queue: null,
+                stage: "outbox-cycle");
             return new IntegrationOutboxDispatchResult(
                 LoadedCount: 0,
                 PublishedCount: 0,
@@ -55,6 +64,16 @@ public sealed class IntegrationOutboxDispatchService(
                     cancellationToken);
                 message.MarkDispatched(clock.UtcNow);
                 publishedCount += 1;
+
+                EmitMetric(
+                    metric: "event.publish.lag.seconds",
+                    value: ComputeLagSeconds(clock.UtcNow, message.OccurredAtUtc),
+                    unit: "seconds",
+                    sourceService: normalizedSourceService,
+                    routingKey: message.RoutingKey,
+                    correlationId: message.CorrelationId,
+                    queue: null,
+                    stage: "outbox-publish");
             }
             catch (Exception ex)
             {
@@ -64,6 +83,16 @@ public sealed class IntegrationOutboxDispatchService(
                     attemptedAtUtc,
                     ComputeRetryDelay(message.AttemptCount + 1));
                 failedCount += 1;
+
+                EmitMetric(
+                    metric: "event.publish.failure.count",
+                    value: 1,
+                    unit: "count",
+                    sourceService: normalizedSourceService,
+                    routingKey: message.RoutingKey,
+                    correlationId: message.CorrelationId,
+                    queue: null,
+                    stage: "outbox-publish");
                 logger.LogWarning(
                     ex,
                     "Outbox publish failed and will be retried. OutboxMessageId={OutboxMessageId}, EventName={EventName}, AttemptCount={AttemptCount}",
@@ -78,11 +107,66 @@ public sealed class IntegrationOutboxDispatchService(
             normalizedSourceService,
             cancellationToken);
 
+        EmitMetric(
+            metric: "event.publish.published.count",
+            value: publishedCount,
+            unit: "count",
+            sourceService: normalizedSourceService,
+            routingKey: null,
+            correlationId: null,
+            queue: null,
+            stage: "outbox-cycle");
+        EmitMetric(
+            metric: "event.publish.failure.count",
+            value: failedCount,
+            unit: "count",
+            sourceService: normalizedSourceService,
+            routingKey: null,
+            correlationId: null,
+            queue: null,
+            stage: "outbox-cycle");
+        EmitMetric(
+            metric: "event.publish.backlog.count",
+            value: pendingCount,
+            unit: "count",
+            sourceService: normalizedSourceService,
+            routingKey: null,
+            correlationId: null,
+            queue: null,
+            stage: "outbox-cycle");
+
         return new IntegrationOutboxDispatchResult(
             LoadedCount: batch.Count,
             PublishedCount: publishedCount,
             FailedCount: failedCount,
             PendingCount: pendingCount);
+    }
+
+    private void EmitMetric(
+        string metric,
+        double value,
+        string unit,
+        string sourceService,
+        string? routingKey,
+        string? correlationId,
+        string? queue,
+        string stage)
+    {
+        logger.LogInformation(
+            "EventPipelineMetric Metric={Metric} Value={Value} Unit={Unit} SourceService={SourceService} RoutingKey={RoutingKey} Queue={Queue} Stage={Stage} CorrelationId={CorrelationId}",
+            metric,
+            value,
+            unit,
+            sourceService,
+            routingKey,
+            queue,
+            stage,
+            correlationId);
+    }
+
+    private static double ComputeLagSeconds(DateTimeOffset nowUtc, DateTimeOffset occurredAtUtc)
+    {
+        return Math.Max(0d, (nowUtc - occurredAtUtc).TotalSeconds);
     }
 
     private static TimeSpan ComputeRetryDelay(int attemptNumber)

@@ -1,0 +1,436 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "dragonenvelopes-loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 30
+              },
+              {
+                "color": "red",
+                "value": 60
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "dragonenvelopes-loki"
+          },
+          "editorMode": "code",
+          "expr": "max by (SourceService) (max_over_time({application=~\"dragonenvelopes-(family-api|ledger-api|financial-api)\"} |= \"EventPipelineMetric\" | json | Metric=\"event.publish.lag.seconds\" | unwrap Value [5m]))",
+          "legendFormat": "{{SourceService}}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Publish Lag (Max 5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "dragonenvelopes-loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 45
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "dragonenvelopes-loki"
+          },
+          "editorMode": "code",
+          "expr": "max_over_time({application=\"dragonenvelopes-financial-api\"} |= \"EventPipelineMetric\" | json | Metric=\"event.consumer.lag.seconds\" | unwrap Value [5m])",
+          "legendFormat": "financial-api",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Consumer Lag (Max 5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "dragonenvelopes-loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "dragonenvelopes-loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (Queue) (count_over_time({application=\"dragonenvelopes-financial-api\"} |= \"EventPipelineMetric\" | json | Metric=\"event.consumer.retry.count\" [5m]))",
+          "legendFormat": "{{Queue}}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Consumer Retries (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "dragonenvelopes-loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 3
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "dragonenvelopes-loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (Queue) (count_over_time({application=\"dragonenvelopes-financial-api\"} |= \"EventPipelineMetric\" | json | Metric=\"event.consumer.failure.count\" [5m]))",
+          "legendFormat": "{{Queue}}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Consumer Failures (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "dragonenvelopes-loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "dragonenvelopes-loki"
+          },
+          "editorMode": "code",
+          "expr": "max_over_time({application=\"dragonenvelopes-financial-api\"} |= \"EventPipelineMetric\" | json | Metric=\"event.queue.dlq.depth\" | unwrap Value [5m])",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "DLQ Depth (Recent Max)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "dragonenvelopes-loki"
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 6,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "dragonenvelopes-loki"
+          },
+          "editorMode": "code",
+          "expr": "{application=~\"dragonenvelopes-(family-api|ledger-api|financial-api)\", CorrelationId=~\"$correlation_id\"} |= \"EventPipelineMetric\" | json | line_format \"{{.application}} metric={{.Metric}} value={{.Value}} stage={{.Stage}} source={{.SourceService}} queue={{.Queue}} routing={{.RoutingKey}} corr={{.CorrelationId}}\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Metric Event Stream (Correlation Drill-Down)",
+      "type": "logs"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": [
+    "dragonenvelopes",
+    "eventing",
+    "operations",
+    "lag",
+    "dlq"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "loki",
+          "uid": "dragonenvelopes-loki"
+        },
+        "definition": "label_values({application=~\"dragonenvelopes-(family-api|ledger-api|financial-api)\"}, CorrelationId)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "CorrelationId",
+        "multi": false,
+        "name": "correlation_id",
+        "options": [],
+        "query": {
+          "query": "label_values({application=~\"dragonenvelopes-(family-api|ledger-api|financial-api)\"}, CorrelationId)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 3,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "DragonEnvelopes Event Pipeline Health",
+  "uid": "dragonenvelopes-event-pipeline",
+  "version": 1,
+  "weekStart": ""
+}

@@ -37,6 +37,17 @@ This runbook covers the Financial service ledger transaction consumer reliabilit
   - idempotency key
   - attempt count
   - dead-lettered inbox count
+- Event pipeline metric logs (`EventPipelineMetric`) include:
+  - `event.consumer.lag.seconds`
+  - `event.consumer.retry.count`
+  - `event.consumer.failure.count`
+  - `event.consumer.deadletter.count`
+  - `event.queue.main.depth`
+  - `event.queue.retry.depth`
+  - `event.queue.dlq.depth`
+- Grafana dashboard and alert rule definitions:
+  - `infrastructure/observability/grafana/dashboards/dragonenvelopes-event-pipeline-health.json`
+  - `infrastructure/observability/grafana/alert-rules/event-pipeline-alert-rules.yml`
 - DB inspection:
   - `integration_inbox_messages` shows attempt history, processed/dead-letter timestamps, and last error.
 

@@ -125,6 +125,7 @@ Do not commit production secrets. Use `.env.example` for non-secret defaults and
 
 Review these docs for advanced operations:
 - `docs/operations/plaid-balance-drift-workflow.md`
+- `docs/operations/event-pipeline-observability.md`
 - `docs/operations/provider-secret-key-rotation.md`
 - `docs/qa/desktop-financial-integrations-smoke-checklist.md`
 

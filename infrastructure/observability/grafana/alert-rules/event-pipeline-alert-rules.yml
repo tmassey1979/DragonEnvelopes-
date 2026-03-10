@@ -1,0 +1,55 @@
+apiVersion: dragonenvelopes.observability/v1
+kind: EventPipelineAlertRules
+metadata:
+  name: dragonenvelopes-event-pipeline-alerts
+  owner: platform-operations
+  dashboardUid: dragonenvelopes-event-pipeline
+spec:
+  datasource: dragonenvelopes-loki
+  evaluationInterval: 1m
+  rules:
+    - id: publish-lag-sustained
+      title: Event publish lag sustained high
+      severity: warning
+      for: 10m
+      expr: max by (SourceService) (max_over_time({application=~"dragonenvelopes-(family-api|ledger-api|financial-api)"} |= "EventPipelineMetric" | json | Metric="event.publish.lag.seconds" | unwrap Value [10m]))
+      threshold:
+        op: gt
+        value: 60
+      runbook: docs/operations/event-pipeline-observability.md#triage-checklist
+    - id: consumer-lag-sustained
+      title: Consumer lag sustained high
+      severity: warning
+      for: 10m
+      expr: max_over_time({application="dragonenvelopes-financial-api"} |= "EventPipelineMetric" | json | Metric="event.consumer.lag.seconds" | unwrap Value [10m])
+      threshold:
+        op: gt
+        value: 45
+      runbook: docs/operations/event-pipeline-observability.md#triage-checklist
+    - id: consumer-retry-spike
+      title: Consumer retry spike
+      severity: warning
+      for: 5m
+      expr: sum(count_over_time({application="dragonenvelopes-financial-api"} |= "EventPipelineMetric" | json | Metric="event.consumer.retry.count" [5m]))
+      threshold:
+        op: gt
+        value: 25
+      runbook: docs/operations/event-pipeline-observability.md#triage-checklist
+    - id: consumer-failure-spike
+      title: Consumer failure spike
+      severity: critical
+      for: 5m
+      expr: sum(count_over_time({application="dragonenvelopes-financial-api"} |= "EventPipelineMetric" | json | Metric="event.consumer.failure.count" [5m]))
+      threshold:
+        op: gt
+        value: 12
+      runbook: docs/operations/event-pipeline-observability.md#triage-checklist
+    - id: dlq-depth-growth
+      title: DLQ depth growth detected
+      severity: critical
+      for: 10m
+      expr: max_over_time({application="dragonenvelopes-financial-api"} |= "EventPipelineMetric" | json | Metric="event.queue.dlq.depth" | unwrap Value [10m])
+      threshold:
+        op: gt
+        value: 5
+      runbook: docs/operations/event-pipeline-observability.md#triage-checklist

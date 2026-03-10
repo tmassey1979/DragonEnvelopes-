@@ -35,6 +35,20 @@ public sealed class LedgerTransactionCreatedConsumer(
             return;
         }
 
+        var correlationId = ResolveCorrelationId(args.BasicProperties?.CorrelationId);
+        var consumerLagSeconds = TryResolveConsumerLagSeconds(args);
+        if (consumerLagSeconds.HasValue)
+        {
+            EmitMetric(
+                metric: "event.consumer.lag.seconds",
+                value: consumerLagSeconds.Value,
+                unit: "seconds",
+                queue: _options.LedgerTransactionCreatedQueue,
+                stage: "consume",
+                correlationId: correlationId,
+                routingKey: args.RoutingKey);
+        }
+
         try
         {
             LedgerTransactionCreatedMessageProcessResult result;
@@ -54,23 +68,75 @@ public sealed class LedgerTransactionCreatedConsumer(
                     break;
 
                 case ConsumerMessageDisposition.Retry:
-                    PublishRetryMessage(args, result);
+                    EmitMetric(
+                        metric: "event.consumer.retry.count",
+                        value: 1,
+                        unit: "count",
+                        queue: _options.LedgerTransactionCreatedRetryQueue,
+                        stage: "consume-retry",
+                        correlationId: correlationId,
+                        routingKey: args.RoutingKey);
+                    EmitMetric(
+                        metric: "event.consumer.failure.count",
+                        value: 1,
+                        unit: "count",
+                        queue: _options.LedgerTransactionCreatedQueue,
+                        stage: "consume-retry",
+                        correlationId: correlationId,
+                        routingKey: args.RoutingKey);
+                    PublishRetryMessage(args, result, correlationId);
                     _channel.BasicAck(args.DeliveryTag, multiple: false);
                     break;
 
                 case ConsumerMessageDisposition.DeadLetter:
-                    await PublishDeadLetterMessageAsync(args, result);
+                    EmitMetric(
+                        metric: "event.consumer.deadletter.count",
+                        value: 1,
+                        unit: "count",
+                        queue: _options.LedgerTransactionCreatedDeadLetterQueue,
+                        stage: "consume-dead-letter",
+                        correlationId: correlationId,
+                        routingKey: args.RoutingKey);
+                    EmitMetric(
+                        metric: "event.consumer.failure.count",
+                        value: 1,
+                        unit: "count",
+                        queue: _options.LedgerTransactionCreatedQueue,
+                        stage: "consume-dead-letter",
+                        correlationId: correlationId,
+                        routingKey: args.RoutingKey);
+                    await PublishDeadLetterMessageAsync(args, result, correlationId);
                     _channel.BasicAck(args.DeliveryTag, multiple: false);
                     break;
 
                 default:
+                    EmitMetric(
+                        metric: "event.consumer.failure.count",
+                        value: 1,
+                        unit: "count",
+                        queue: _options.LedgerTransactionCreatedQueue,
+                        stage: "consume-unknown-disposition",
+                        correlationId: correlationId,
+                        routingKey: args.RoutingKey);
                     _channel.BasicNack(args.DeliveryTag, multiple: false, requeue: true);
                     break;
             }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to process ledger transaction event; message nacked for requeue.");
+            EmitMetric(
+                metric: "event.consumer.failure.count",
+                value: 1,
+                unit: "count",
+                queue: _options.LedgerTransactionCreatedQueue,
+                stage: "consume-exception",
+                correlationId: correlationId,
+                routingKey: args.RoutingKey);
+            logger.LogError(
+                ex,
+                "Failed to process ledger transaction event; message nacked for requeue. CorrelationId={CorrelationId}, RoutingKey={RoutingKey}",
+                correlationId,
+                args.RoutingKey);
             _channel.BasicNack(args.DeliveryTag, multiple: false, requeue: true);
         }
     }
@@ -121,7 +187,7 @@ public sealed class LedgerTransactionCreatedConsumer(
                     _options.LedgerTransactionCreatedDeadLetterQueue,
                     _options.ExchangeName,
                     IntegrationEventRoutingKeys.LedgerTransactionCreatedV1);
-                LogQueueDepthSnapshot("consumer-start");
+                LogQueueDepthSnapshot("consumer-start", correlationId: null);
 
                 await WaitUntilCancelledAsync(stoppingToken);
             }
@@ -218,7 +284,8 @@ public sealed class LedgerTransactionCreatedConsumer(
 
     private async Task PublishDeadLetterMessageAsync(
         BasicDeliverEventArgs args,
-        LedgerTransactionCreatedMessageProcessResult result)
+        LedgerTransactionCreatedMessageProcessResult result,
+        string correlationId)
     {
         try
         {
@@ -236,21 +303,23 @@ public sealed class LedgerTransactionCreatedConsumer(
                 result.IdempotencyKey,
                 result.AttemptCount,
                 deadLetteredCount);
-            LogQueueDepthSnapshot("dead-letter");
+            LogQueueDepthSnapshot("dead-letter", correlationId);
         }
         catch (Exception ex)
         {
             logger.LogError(
                 ex,
-                "Failed to publish dead-letter message. IdempotencyKey={IdempotencyKey}",
-                result.IdempotencyKey);
+                "Failed to publish dead-letter message. IdempotencyKey={IdempotencyKey}, CorrelationId={CorrelationId}",
+                result.IdempotencyKey,
+                correlationId);
             _channel?.BasicNack(args.DeliveryTag, multiple: false, requeue: true);
         }
     }
 
     private void PublishRetryMessage(
         BasicDeliverEventArgs args,
-        LedgerTransactionCreatedMessageProcessResult result)
+        LedgerTransactionCreatedMessageProcessResult result,
+        string correlationId)
     {
         try
         {
@@ -265,13 +334,15 @@ public sealed class LedgerTransactionCreatedConsumer(
                 result.IdempotencyKey,
                 result.AttemptCount,
                 _options.LedgerTransactionCreatedRetryQueue);
+            LogQueueDepthSnapshot("retry", correlationId);
         }
         catch (Exception ex)
         {
             logger.LogError(
                 ex,
-                "Failed to publish retry message. IdempotencyKey={IdempotencyKey}",
-                result.IdempotencyKey);
+                "Failed to publish retry message. IdempotencyKey={IdempotencyKey}, CorrelationId={CorrelationId}",
+                result.IdempotencyKey,
+                correlationId);
             _channel?.BasicNack(args.DeliveryTag, multiple: false, requeue: true);
         }
     }
@@ -317,7 +388,7 @@ public sealed class LedgerTransactionCreatedConsumer(
             body: args.Body);
     }
 
-    private void LogQueueDepthSnapshot(string trigger)
+    private void LogQueueDepthSnapshot(string trigger, string? correlationId)
     {
         if (_channel is null)
         {
@@ -335,11 +406,76 @@ public sealed class LedgerTransactionCreatedConsumer(
                 mainCount,
                 retryCount,
                 deadLetterCount);
+
+            EmitMetric(
+                metric: "event.queue.main.depth",
+                value: mainCount,
+                unit: "count",
+                queue: _options.LedgerTransactionCreatedQueue,
+                stage: trigger,
+                correlationId: correlationId,
+                routingKey: IntegrationEventRoutingKeys.LedgerTransactionCreatedV1);
+            EmitMetric(
+                metric: "event.queue.retry.depth",
+                value: retryCount,
+                unit: "count",
+                queue: _options.LedgerTransactionCreatedRetryQueue,
+                stage: trigger,
+                correlationId: correlationId,
+                routingKey: _options.LedgerTransactionCreatedRetryRoutingKey);
+            EmitMetric(
+                metric: "event.queue.dlq.depth",
+                value: deadLetterCount,
+                unit: "count",
+                queue: _options.LedgerTransactionCreatedDeadLetterQueue,
+                stage: trigger,
+                correlationId: correlationId,
+                routingKey: _options.LedgerTransactionCreatedDeadLetterRoutingKey);
         }
         catch (Exception ex)
         {
             logger.LogDebug(ex, "Unable to collect queue depth snapshot for trigger {Trigger}.", trigger);
         }
+    }
+
+    private void EmitMetric(
+        string metric,
+        double value,
+        string unit,
+        string queue,
+        string stage,
+        string? correlationId,
+        string? routingKey)
+    {
+        logger.LogInformation(
+            "EventPipelineMetric Metric={Metric} Value={Value} Unit={Unit} SourceService={SourceService} RoutingKey={RoutingKey} Queue={Queue} Stage={Stage} CorrelationId={CorrelationId}",
+            metric,
+            value,
+            unit,
+            "financial-api",
+            routingKey,
+            queue,
+            stage,
+            correlationId);
+    }
+
+    private static string ResolveCorrelationId(string? correlationId)
+    {
+        return string.IsNullOrWhiteSpace(correlationId)
+            ? "unknown"
+            : correlationId.Trim();
+    }
+
+    private static double? TryResolveConsumerLagSeconds(BasicDeliverEventArgs args)
+    {
+        var unixTimeSeconds = args.BasicProperties?.Timestamp.UnixTime ?? 0L;
+        if (unixTimeSeconds <= 0)
+        {
+            return null;
+        }
+
+        var publishedAtUtc = DateTimeOffset.FromUnixTimeSeconds(unixTimeSeconds);
+        return Math.Max(0d, (DateTimeOffset.UtcNow - publishedAtUtc).TotalSeconds);
     }
 
     private static Dictionary<string, object> CloneHeaders(IDictionary<string, object>? headers)

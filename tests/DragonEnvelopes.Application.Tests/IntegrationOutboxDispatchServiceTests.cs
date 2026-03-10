@@ -50,6 +50,9 @@ public sealed class IntegrationOutboxDispatchServiceTests
 
         repository.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
         publisher.Verify(x => x.PublishAsync(It.IsAny<IntegrationOutboxEnvelopeMessage>(), It.IsAny<CancellationToken>()), Times.Once);
+        VerifyMetricLog(logger, "event.publish.lag.seconds", Times.AtLeastOnce());
+        VerifyMetricLog(logger, "event.publish.published.count", Times.AtLeastOnce());
+        VerifyMetricLog(logger, "event.publish.backlog.count", Times.AtLeastOnce());
     }
 
     [Fact]
@@ -90,6 +93,8 @@ public sealed class IntegrationOutboxDispatchServiceTests
         Assert.True(message.NextAttemptAtUtc > fixture.FrozenUtcNow);
 
         repository.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        VerifyMetricLog(logger, "event.publish.failure.count", Times.AtLeastOnce());
+        VerifyMetricLog(logger, "event.publish.backlog.count", Times.AtLeastOnce());
     }
 
     [Fact]
@@ -121,6 +126,24 @@ public sealed class IntegrationOutboxDispatchServiceTests
 
         repository.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         publisher.Verify(x => x.PublishAsync(It.IsAny<IntegrationOutboxEnvelopeMessage>(), It.IsAny<CancellationToken>()), Times.Never);
+        VerifyMetricLog(logger, "event.publish.backlog.count", Times.AtLeastOnce());
+    }
+
+    private static void VerifyMetricLog(
+        Mock<ILogger<IntegrationOutboxDispatchService>> logger,
+        string metricName,
+        Times times)
+    {
+        logger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) =>
+                    state.ToString()!.Contains("EventPipelineMetric", StringComparison.Ordinal)
+                    && state.ToString()!.Contains(metricName, StringComparison.Ordinal)),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            times);
     }
 
     private static IntegrationOutboxMessage CreateMessage(DateTimeOffset createdAtUtc)
