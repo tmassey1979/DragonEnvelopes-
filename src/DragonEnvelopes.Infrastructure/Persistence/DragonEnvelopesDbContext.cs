@@ -42,6 +42,7 @@ public sealed class DragonEnvelopesDbContext(DbContextOptions<DragonEnvelopesDbC
     public DbSet<ReportEnvelopeBalanceProjection> ReportEnvelopeBalanceProjections => Set<ReportEnvelopeBalanceProjection>();
     public DbSet<ReportTransactionProjection> ReportTransactionProjections => Set<ReportTransactionProjection>();
     public DbSet<ReportProjectionAppliedEvent> ReportProjectionAppliedEvents => Set<ReportProjectionAppliedEvent>();
+    public DbSet<ReportProjectionReplayRun> ReportProjectionReplayRuns => Set<ReportProjectionReplayRun>();
     public DbSet<Budget> Budgets => Set<Budget>();
     public DbSet<RecurringBill> RecurringBills => Set<RecurringBill>();
     public DbSet<RecurringBillExecution> RecurringBillExecutions => Set<RecurringBillExecution>();

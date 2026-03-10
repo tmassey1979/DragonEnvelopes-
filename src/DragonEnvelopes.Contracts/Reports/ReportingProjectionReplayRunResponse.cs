@@ -1,7 +1,7 @@
 namespace DragonEnvelopes.Contracts.Reports;
 
-public sealed record ReportingProjectionReplayResponse(
-    Guid ReplayRunId,
+public sealed record ReportingProjectionReplayRunResponse(
+    Guid Id,
     Guid? FamilyId,
     string ProjectionSet,
     DateTimeOffset? FromOccurredAtUtc,
@@ -13,14 +13,12 @@ public sealed record ReportingProjectionReplayResponse(
     int ThrottleMilliseconds,
     int TargetedEventCount,
     int ProcessedEventCount,
-    int BatchesProcessed,
-    bool WasCappedByMaxEvents,
-    int ReplayedCount,
     int AppliedCount,
     int FailedCount,
-    int EnvelopeProjectionRowCount,
-    int TransactionProjectionRowCount,
-    DateTimeOffset StartedAtUtc,
-    DateTimeOffset CompletedAtUtc,
+    int BatchesProcessed,
+    bool WasCappedByMaxEvents,
     string Status,
-    string? ErrorMessage);
+    string? RequestedByUserId,
+    string? ErrorMessage,
+    DateTimeOffset StartedAtUtc,
+    DateTimeOffset CompletedAtUtc);

@@ -9,8 +9,16 @@ public interface IReportingProjectionService
         CancellationToken cancellationToken = default);
 
     Task<ReportingProjectionReplayDetails> ReplayAsync(
+        ReportingProjectionReplayRequestDetails request,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ReportingProjectionReplayRunDetails>> ListReplayRunsAsync(
         Guid? familyId,
-        int batchSize,
+        int take,
+        CancellationToken cancellationToken = default);
+
+    Task<ReportingProjectionReplayRunDetails?> GetReplayRunAsync(
+        Guid replayRunId,
         CancellationToken cancellationToken = default);
 
     Task<ReportingProjectionStatusDetails> GetStatusAsync(

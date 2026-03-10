@@ -17,21 +17,36 @@ public sealed class ReportingProjectionService(
 {
     private const string AppliedStatus = "Applied";
     private const string FailedStatus = "Failed";
+    private const string ReplayRunningStatus = "Running";
+    private const int DefaultReplayBatchSize = 500;
+    private const int DefaultReplayMaxEvents = 50_000;
+    private const int MaxReplayBatchSize = 2_000;
+    private const int MaxReplayMaxEvents = 200_000;
+    private const int MaxReplayThrottleMilliseconds = 5_000;
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
 
-    private static readonly string[] RelevantRoutingKeys =
+    private static readonly string[] EnvelopeProjectionRoutingKeys =
     [
         IntegrationEventRoutingKeys.PlanningEnvelopeCreatedV1,
         IntegrationEventRoutingKeys.PlanningEnvelopeUpdatedV1,
-        IntegrationEventRoutingKeys.PlanningEnvelopeArchivedV1,
+        IntegrationEventRoutingKeys.PlanningEnvelopeArchivedV1
+    ];
+
+    private static readonly string[] TransactionProjectionRoutingKeys =
+    [
         IntegrationEventRoutingKeys.LedgerTransactionCreatedV1,
         IntegrationEventRoutingKeys.LedgerTransactionUpdatedV1,
         IntegrationEventRoutingKeys.LedgerTransactionDeletedV1,
         IntegrationEventRoutingKeys.LedgerTransactionRestoredV1
     ];
+
+    private static readonly string[] RelevantRoutingKeys = EnvelopeProjectionRoutingKeys
+        .Concat(TransactionProjectionRoutingKeys)
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
 
     public Task<ReportingProjectionBatchDetails> ProjectPendingAsync(
         int batchSize,
@@ -44,79 +59,236 @@ public sealed class ReportingProjectionService(
     }
 
     public async Task<ReportingProjectionReplayDetails> ReplayAsync(
-        Guid? familyId,
-        int batchSize,
+        ReportingProjectionReplayRequestDetails request,
         CancellationToken cancellationToken = default)
     {
+        var normalizedRequest = NormalizeReplayRequest(request);
         var startedAtUtc = clock.UtcNow;
-        var normalizedBatchSize = NormalizeBatchSize(batchSize);
 
-        if (familyId.HasValue)
-        {
-            if (familyId.Value == Guid.Empty)
-            {
-                throw new InvalidOperationException("Family id cannot be empty.");
-            }
+        var targetQuery = BuildReplayTargetQuery(normalizedRequest)
+            .OrderBy(x => x.CreatedAtUtc)
+            .ThenBy(x => x.Id);
+        var targetedEventCount = await targetQuery.CountAsync(cancellationToken);
+        var wasCappedByMaxEvents = targetedEventCount > normalizedRequest.MaxEvents;
+        var targetOutboxIds = await targetQuery
+            .Select(x => x.Id)
+            .Take(normalizedRequest.MaxEvents)
+            .ToArrayAsync(cancellationToken);
 
-            var envelopeRows = await dbContext.ReportEnvelopeBalanceProjections
-                .Where(x => x.FamilyId == familyId.Value)
-                .ToArrayAsync(cancellationToken);
-            var transactionRows = await dbContext.ReportTransactionProjections
-                .Where(x => x.FamilyId == familyId.Value)
-                .ToArrayAsync(cancellationToken);
-            var appliedRows = await dbContext.ReportProjectionAppliedEvents
-                .Where(x => x.FamilyId == familyId.Value)
-                .ToArrayAsync(cancellationToken);
-
-            dbContext.ReportEnvelopeBalanceProjections.RemoveRange(envelopeRows);
-            dbContext.ReportTransactionProjections.RemoveRange(transactionRows);
-            dbContext.ReportProjectionAppliedEvents.RemoveRange(appliedRows);
-        }
-        else
-        {
-            var envelopeRows = await dbContext.ReportEnvelopeBalanceProjections.ToArrayAsync(cancellationToken);
-            var transactionRows = await dbContext.ReportTransactionProjections.ToArrayAsync(cancellationToken);
-            var appliedRows = await dbContext.ReportProjectionAppliedEvents.ToArrayAsync(cancellationToken);
-
-            dbContext.ReportEnvelopeBalanceProjections.RemoveRange(envelopeRows);
-            dbContext.ReportTransactionProjections.RemoveRange(transactionRows);
-            dbContext.ReportProjectionAppliedEvents.RemoveRange(appliedRows);
-        }
-
+        var replayRun = new ReportProjectionReplayRun(
+            Guid.NewGuid(),
+            normalizedRequest.FamilyId,
+            normalizedRequest.ProjectionSet,
+            normalizedRequest.FromOccurredAtUtc,
+            normalizedRequest.ToOccurredAtUtc,
+            normalizedRequest.IsDryRun,
+            normalizedRequest.ResetState,
+            normalizedRequest.BatchSize,
+            normalizedRequest.MaxEvents,
+            normalizedRequest.ThrottleMilliseconds,
+            targetOutboxIds.Length,
+            wasCappedByMaxEvents,
+            ReplayRunningStatus,
+            normalizedRequest.RequestedByUserId,
+            errorMessage: null,
+            startedAtUtc,
+            completedAtUtc: startedAtUtc);
+        dbContext.ReportProjectionReplayRuns.Add(replayRun);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var replayedCount = 0;
+        var processedCount = 0;
         var appliedCount = 0;
         var failedCount = 0;
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            var batch = await ProjectPendingInternalAsync(
-                normalizedBatchSize,
-                familyId,
-                cancellationToken);
+        var batchesProcessed = 0;
 
-            if (batch.LoadedCount == 0)
+        try
+        {
+            if (!normalizedRequest.IsDryRun && targetOutboxIds.Length > 0)
             {
-                break;
+                if (normalizedRequest.ResetState)
+                {
+                    await ResetReplayScopeAsync(
+                        targetOutboxIds,
+                        normalizedRequest.IncludeEnvelopeProjection,
+                        normalizedRequest.IncludeTransactionProjection,
+                        cancellationToken);
+                }
+
+                for (var offset = 0; offset < targetOutboxIds.Length; offset += normalizedRequest.BatchSize)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var batchIds = targetOutboxIds
+                        .Skip(offset)
+                        .Take(normalizedRequest.BatchSize)
+                        .ToArray();
+                    if (batchIds.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    var existingAppliedRows = await dbContext.ReportProjectionAppliedEvents
+                        .Where(x => batchIds.Contains(x.OutboxMessageId))
+                        .ToArrayAsync(cancellationToken);
+                    if (existingAppliedRows.Length > 0)
+                    {
+                        dbContext.ReportProjectionAppliedEvents.RemoveRange(existingAppliedRows);
+                    }
+
+                    var messages = await dbContext.IntegrationOutboxMessages
+                        .AsNoTracking()
+                        .Where(x => batchIds.Contains(x.Id))
+                        .OrderBy(x => x.CreatedAtUtc)
+                        .ThenBy(x => x.Id)
+                        .ToArrayAsync(cancellationToken);
+
+                    foreach (var message in messages)
+                    {
+                        try
+                        {
+                            await ApplyMessageAsync(message, cancellationToken);
+                            dbContext.ReportProjectionAppliedEvents.Add(
+                                new ReportProjectionAppliedEvent(
+                                    message.Id,
+                                    message.EventId,
+                                    message.FamilyId,
+                                    message.RoutingKey,
+                                    message.SourceService,
+                                    message.OccurredAtUtc,
+                                    clock.UtcNow,
+                                    AppliedStatus,
+                                    errorMessage: null));
+                            appliedCount += 1;
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(
+                                ex,
+                                "Failed to apply reporting projection replay message. ReplayRunId={ReplayRunId}, OutboxMessageId={OutboxMessageId}, EventId={EventId}, RoutingKey={RoutingKey}",
+                                replayRun.Id,
+                                message.Id,
+                                message.EventId,
+                                message.RoutingKey);
+
+                            dbContext.ReportProjectionAppliedEvents.Add(
+                                new ReportProjectionAppliedEvent(
+                                    message.Id,
+                                    message.EventId,
+                                    message.FamilyId,
+                                    message.RoutingKey,
+                                    message.SourceService,
+                                    message.OccurredAtUtc,
+                                    clock.UtcNow,
+                                    FailedStatus,
+                                    TrimError(ex.Message)));
+                            failedCount += 1;
+                        }
+                    }
+
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    processedCount += messages.Length;
+                    batchesProcessed += 1;
+
+                    if (normalizedRequest.ThrottleMilliseconds > 0
+                        && processedCount < targetOutboxIds.Length)
+                    {
+                        await Task.Delay(normalizedRequest.ThrottleMilliseconds, cancellationToken);
+                    }
+                }
             }
 
-            replayedCount += batch.LoadedCount;
-            appliedCount += batch.AppliedCount;
-            failedCount += batch.FailedCount;
+            replayRun.Complete(
+                processedCount,
+                appliedCount,
+                failedCount,
+                batchesProcessed,
+                clock.UtcNow);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Reporting projection replay failed. ReplayRunId={ReplayRunId}, FamilyId={FamilyId}, ProjectionSet={ProjectionSet}",
+                replayRun.Id,
+                replayRun.FamilyId,
+                replayRun.ProjectionSet);
+
+            replayRun.Fail(
+                ex.Message,
+                processedCount,
+                appliedCount,
+                failedCount,
+                batchesProcessed,
+                clock.UtcNow);
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        var envelopeProjectionRowCount = await CountEnvelopeRowsAsync(familyId, cancellationToken);
-        var transactionProjectionRowCount = await CountTransactionRowsAsync(familyId, cancellationToken);
+        var envelopeProjectionRowCount = await CountEnvelopeRowsAsync(normalizedRequest.FamilyId, cancellationToken);
+        var transactionProjectionRowCount = await CountTransactionRowsAsync(normalizedRequest.FamilyId, cancellationToken);
 
         return new ReportingProjectionReplayDetails(
-            familyId,
-            replayedCount,
-            appliedCount,
-            failedCount,
+            replayRun.Id,
+            replayRun.FamilyId,
+            replayRun.ProjectionSet,
+            replayRun.FromOccurredAtUtc,
+            replayRun.ToOccurredAtUtc,
+            replayRun.IsDryRun,
+            replayRun.ResetState,
+            replayRun.BatchSize,
+            replayRun.MaxEvents,
+            replayRun.ThrottleMilliseconds,
+            replayRun.TargetedEventCount,
+            replayRun.ProcessedEventCount,
+            replayRun.BatchesProcessed,
+            replayRun.WasCappedByMaxEvents,
+            ReplayedCount: replayRun.ProcessedEventCount,
+            replayRun.AppliedCount,
+            replayRun.FailedCount,
             envelopeProjectionRowCount,
             transactionProjectionRowCount,
-            startedAtUtc,
-            clock.UtcNow);
+            replayRun.StartedAtUtc,
+            replayRun.CompletedAtUtc,
+            replayRun.Status,
+            replayRun.ErrorMessage);
+    }
+
+    public async Task<IReadOnlyList<ReportingProjectionReplayRunDetails>> ListReplayRunsAsync(
+        Guid? familyId,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        var boundedTake = Math.Clamp(take <= 0 ? 20 : take, 1, 200);
+        var query = dbContext.ReportProjectionReplayRuns
+            .AsNoTracking()
+            .AsQueryable();
+        if (familyId.HasValue)
+        {
+            query = query.Where(x => x.FamilyId == familyId.Value);
+        }
+
+        var runs = await query
+            .OrderByDescending(x => x.StartedAtUtc)
+            .Take(boundedTake)
+            .ToArrayAsync(cancellationToken);
+        return runs.Select(MapReplayRun).ToArray();
+    }
+
+    public async Task<ReportingProjectionReplayRunDetails?> GetReplayRunAsync(
+        Guid replayRunId,
+        CancellationToken cancellationToken = default)
+    {
+        if (replayRunId == Guid.Empty)
+        {
+            return null;
+        }
+
+        var run = await dbContext.ReportProjectionReplayRuns
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == replayRunId, cancellationToken);
+        return run is null
+            ? null
+            : MapReplayRun(run);
     }
 
     public async Task<ReportingProjectionStatusDetails> GetStatusAsync(
@@ -541,6 +713,249 @@ public sealed class ReportingProjectionService(
                 .CountAsync(cancellationToken);
     }
 
+    private IQueryable<IntegrationOutboxMessage> BuildReplayTargetQuery(NormalizedReplayRequest request)
+    {
+        var applicableRoutingKeys = request.ProjectionSet switch
+        {
+            ReportingProjectionSets.All => RelevantRoutingKeys,
+            ReportingProjectionSets.EnvelopeBalances => EnvelopeProjectionRoutingKeys,
+            ReportingProjectionSets.Transactions => TransactionProjectionRoutingKeys,
+            _ => RelevantRoutingKeys
+        };
+
+        var query = BuildRelevantOutboxQuery(request.FamilyId)
+            .Where(x => applicableRoutingKeys.Contains(x.RoutingKey));
+
+        if (request.FromOccurredAtUtc.HasValue)
+        {
+            query = query.Where(x => x.OccurredAtUtc >= request.FromOccurredAtUtc.Value);
+        }
+
+        if (request.ToOccurredAtUtc.HasValue)
+        {
+            query = query.Where(x => x.OccurredAtUtc <= request.ToOccurredAtUtc.Value);
+        }
+
+        return query;
+    }
+
+    private async Task ResetReplayScopeAsync(
+        Guid[] targetOutboxIds,
+        bool includeEnvelopeProjection,
+        bool includeTransactionProjection,
+        CancellationToken cancellationToken)
+    {
+        if (targetOutboxIds.Length == 0)
+        {
+            return;
+        }
+
+        HashSet<Guid>? envelopeIds = includeEnvelopeProjection ? [] : null;
+        HashSet<Guid>? transactionIds = includeTransactionProjection ? [] : null;
+
+        foreach (var outboxChunk in targetOutboxIds.Chunk(1000))
+        {
+            var batchIds = outboxChunk.ToArray();
+            if (batchIds.Length == 0)
+            {
+                continue;
+            }
+
+            var appliedRows = await dbContext.ReportProjectionAppliedEvents
+                .Where(x => batchIds.Contains(x.OutboxMessageId))
+                .ToArrayAsync(cancellationToken);
+            if (appliedRows.Length > 0)
+            {
+                dbContext.ReportProjectionAppliedEvents.RemoveRange(appliedRows);
+            }
+
+            if (!includeEnvelopeProjection && !includeTransactionProjection)
+            {
+                continue;
+            }
+
+            var messages = await dbContext.IntegrationOutboxMessages
+                .AsNoTracking()
+                .Where(x => batchIds.Contains(x.Id))
+                .ToArrayAsync(cancellationToken);
+
+            foreach (var message in messages)
+            {
+                if (includeEnvelopeProjection && EnvelopeProjectionRoutingKeys.Contains(message.RoutingKey))
+                {
+                    envelopeIds!.Add(GetEnvelopeId(message));
+                }
+
+                if (includeTransactionProjection && TransactionProjectionRoutingKeys.Contains(message.RoutingKey))
+                {
+                    transactionIds!.Add(GetTransactionId(message));
+                }
+            }
+        }
+
+        if (includeEnvelopeProjection && envelopeIds is not null && envelopeIds.Count > 0)
+        {
+            foreach (var envelopeChunk in envelopeIds.Chunk(1000))
+            {
+                var envelopeBatch = envelopeChunk.ToArray();
+                var rows = await dbContext.ReportEnvelopeBalanceProjections
+                    .Where(x => envelopeBatch.Contains(x.EnvelopeId))
+                    .ToArrayAsync(cancellationToken);
+                if (rows.Length > 0)
+                {
+                    dbContext.ReportEnvelopeBalanceProjections.RemoveRange(rows);
+                }
+            }
+        }
+
+        if (includeTransactionProjection && transactionIds is not null && transactionIds.Count > 0)
+        {
+            foreach (var transactionChunk in transactionIds.Chunk(1000))
+            {
+                var transactionBatch = transactionChunk.ToArray();
+                var rows = await dbContext.ReportTransactionProjections
+                    .Where(x => transactionBatch.Contains(x.TransactionId))
+                    .ToArrayAsync(cancellationToken);
+                if (rows.Length > 0)
+                {
+                    dbContext.ReportTransactionProjections.RemoveRange(rows);
+                }
+            }
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static Guid GetEnvelopeId(IntegrationOutboxMessage message)
+    {
+        return message.RoutingKey switch
+        {
+            IntegrationEventRoutingKeys.PlanningEnvelopeCreatedV1 =>
+                DeserializePayload<EnvelopeCreatedIntegrationEvent>(message).EnvelopeId,
+            IntegrationEventRoutingKeys.PlanningEnvelopeUpdatedV1 =>
+                DeserializePayload<EnvelopeUpdatedIntegrationEvent>(message).EnvelopeId,
+            IntegrationEventRoutingKeys.PlanningEnvelopeArchivedV1 =>
+                DeserializePayload<EnvelopeArchivedIntegrationEvent>(message).EnvelopeId,
+            _ => throw new InvalidOperationException(
+                $"Outbox message '{message.Id}' does not contain an envelope projection payload.")
+        };
+    }
+
+    private static Guid GetTransactionId(IntegrationOutboxMessage message)
+    {
+        return message.RoutingKey switch
+        {
+            IntegrationEventRoutingKeys.LedgerTransactionCreatedV1 =>
+                DeserializePayload<LedgerTransactionCreatedIntegrationEvent>(message).TransactionId,
+            IntegrationEventRoutingKeys.LedgerTransactionUpdatedV1 =>
+                DeserializePayload<TransactionUpdatedIntegrationEvent>(message).TransactionId,
+            IntegrationEventRoutingKeys.LedgerTransactionDeletedV1 =>
+                DeserializePayload<TransactionDeletedIntegrationEvent>(message).TransactionId,
+            IntegrationEventRoutingKeys.LedgerTransactionRestoredV1 =>
+                DeserializePayload<TransactionRestoredIntegrationEvent>(message).TransactionId,
+            _ => throw new InvalidOperationException(
+                $"Outbox message '{message.Id}' does not contain a transaction projection payload.")
+        };
+    }
+
+    private static NormalizedReplayRequest NormalizeReplayRequest(ReportingProjectionReplayRequestDetails request)
+    {
+        var familyId = request.FamilyId;
+        if (familyId.HasValue && familyId.Value == Guid.Empty)
+        {
+            throw new InvalidOperationException("Family id cannot be empty.");
+        }
+
+        var projectionSet = string.IsNullOrWhiteSpace(request.ProjectionSet)
+            ? ReportingProjectionSets.All
+            : request.ProjectionSet.Trim();
+
+        projectionSet = projectionSet switch
+        {
+            _ when projectionSet.Equals(ReportingProjectionSets.All, StringComparison.OrdinalIgnoreCase) =>
+                ReportingProjectionSets.All,
+            _ when projectionSet.Equals(ReportingProjectionSets.EnvelopeBalances, StringComparison.OrdinalIgnoreCase) =>
+                ReportingProjectionSets.EnvelopeBalances,
+            _ when projectionSet.Equals(ReportingProjectionSets.Transactions, StringComparison.OrdinalIgnoreCase) =>
+                ReportingProjectionSets.Transactions,
+            _ => throw new InvalidOperationException(
+                $"Projection set '{projectionSet}' is not supported. Allowed values: {ReportingProjectionSets.All}, {ReportingProjectionSets.EnvelopeBalances}, {ReportingProjectionSets.Transactions}.")
+        };
+
+        var fromOccurredAtUtc = request.FromOccurredAtUtc;
+        var toOccurredAtUtc = request.ToOccurredAtUtc;
+        if (fromOccurredAtUtc.HasValue
+            && toOccurredAtUtc.HasValue
+            && fromOccurredAtUtc.Value > toOccurredAtUtc.Value)
+        {
+            throw new InvalidOperationException("FromOccurredAtUtc cannot be greater than ToOccurredAtUtc.");
+        }
+
+        var batchSize = request.BatchSize <= 0
+            ? DefaultReplayBatchSize
+            : Math.Clamp(request.BatchSize, 1, MaxReplayBatchSize);
+        var maxEvents = request.MaxEvents <= 0
+            ? DefaultReplayMaxEvents
+            : Math.Clamp(request.MaxEvents, 1, MaxReplayMaxEvents);
+        var throttleMilliseconds = Math.Clamp(request.ThrottleMilliseconds, 0, MaxReplayThrottleMilliseconds);
+
+        var includeEnvelopeProjection = projectionSet is ReportingProjectionSets.All or ReportingProjectionSets.EnvelopeBalances;
+        var includeTransactionProjection = projectionSet is ReportingProjectionSets.All or ReportingProjectionSets.Transactions;
+
+        return new NormalizedReplayRequest(
+            familyId,
+            projectionSet,
+            fromOccurredAtUtc,
+            toOccurredAtUtc,
+            request.IsDryRun,
+            request.ResetState,
+            batchSize,
+            maxEvents,
+            throttleMilliseconds,
+            TrimToLength(request.RequestedByUserId, 128),
+            includeEnvelopeProjection,
+            includeTransactionProjection);
+    }
+
+    private static ReportingProjectionReplayRunDetails MapReplayRun(ReportProjectionReplayRun run)
+    {
+        return new ReportingProjectionReplayRunDetails(
+            run.Id,
+            run.FamilyId,
+            run.ProjectionSet,
+            run.FromOccurredAtUtc,
+            run.ToOccurredAtUtc,
+            run.IsDryRun,
+            run.ResetState,
+            run.BatchSize,
+            run.MaxEvents,
+            run.ThrottleMilliseconds,
+            run.TargetedEventCount,
+            run.ProcessedEventCount,
+            run.AppliedCount,
+            run.FailedCount,
+            run.BatchesProcessed,
+            run.WasCappedByMaxEvents,
+            run.Status,
+            run.RequestedByUserId,
+            run.ErrorMessage,
+            run.StartedAtUtc,
+            run.CompletedAtUtc);
+    }
+
+    private static string? TrimToLength(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        return normalized.Length <= maxLength
+            ? normalized
+            : normalized[..maxLength];
+    }
+
     private static TPayload DeserializePayload<TPayload>(IntegrationOutboxMessage message)
     {
         try
@@ -578,4 +993,18 @@ public sealed class ReportingProjectionService(
             ? normalized
             : normalized[..1000];
     }
+
+    private sealed record NormalizedReplayRequest(
+        Guid? FamilyId,
+        string ProjectionSet,
+        DateTimeOffset? FromOccurredAtUtc,
+        DateTimeOffset? ToOccurredAtUtc,
+        bool IsDryRun,
+        bool ResetState,
+        int BatchSize,
+        int MaxEvents,
+        int ThrottleMilliseconds,
+        string? RequestedByUserId,
+        bool IncludeEnvelopeProjection,
+        bool IncludeTransactionProjection);
 }

@@ -37,10 +37,33 @@ Reporting endpoints (`/reports/envelope-balances`, `/reports/monthly-spend`, `/r
 ## Manual Operations
 - Status:
   - `GET /api/v1/reports/projections/status?familyId={familyId?}`
-- Replay / rebuild:
-  - `POST /api/v1/reports/projections/replay?familyId={familyId?}&batchSize={batchSize?}`
+- Replay / backfill:
+  - `POST /api/v1/reports/projections/replay?familyId={familyId?}&projectionSet={All|EnvelopeBalances|Transactions}&fromOccurredAtUtc={utc?}&toOccurredAtUtc={utc?}&dryRun={bool?}&resetState={bool?}&batchSize={batchSize?}&maxEvents={maxEvents?}&throttleMilliseconds={ms?}`
+- Replay run audit:
+  - `GET /api/v1/reports/projections/replay-runs?familyId={familyId?}&take={take?}`
+  - `GET /api/v1/reports/projections/replay-runs/{replayRunId}`
 
-Replay clears projection rows and applied markers for the selected family scope (or all families when omitted), then rebuilds from outbox event history.
+### Replay Safety Defaults
+- `projectionSet` default: `All`
+- `resetState` default: `true`
+- `dryRun` default: `false`
+- `batchSize` default: `500` (clamped to `1..2000`)
+- `maxEvents` default: `50000` (clamped to `1..200000`)
+- `throttleMilliseconds` default: `0` (clamped to `0..5000`)
+
+### Recovery Workflow
+1. Check projection health with `GET /reports/projections/status` and capture pending, failed, lag, and row counts.
+2. Run a dry-run replay with intended filters (`familyId`, `projectionSet`, and optional occurred-at range) to validate target volume.
+3. Execute replay with `dryRun=false`, bounded `batchSize`, optional `maxEvents`, and optional throttle.
+4. Watch logs for replay failures and review audit records via `/reports/projections/replay-runs`.
+5. Re-check status and reporting endpoints. Confirm pending backlog is near zero and failed count is not increasing.
+6. If needed, rerun with narrower filters or larger caps after code/data fixes.
+
+### Validation Checklist
+- `PendingCount` trends toward zero after replay.
+- `FailedCount` remains stable or decreases after remediation.
+- `EnvelopeProjectionRowCount` and `TransactionProjectionRowCount` align with expected family data volume.
+- `/reports/envelope-balances`, `/reports/monthly-spend`, and `/reports/category-breakdown` return expected values for sampled families.
 
 ## Failure Handling
 - Projection apply failures are recorded as failed applied-events and excluded from pending scans.

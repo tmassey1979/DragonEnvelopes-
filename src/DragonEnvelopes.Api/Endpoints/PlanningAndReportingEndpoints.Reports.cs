@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using DragonEnvelopes.Api.CrossCutting.Auth;
+using DragonEnvelopes.Application.DTOs;
 using DragonEnvelopes.Application.Services;
 using DragonEnvelopes.Contracts.Reports;
 using DragonEnvelopes.Infrastructure.Persistence;
@@ -124,7 +125,14 @@ internal static partial class PlanningAndReportingEndpoints
 
         v1.MapPost("/reports/projections/replay", async (
                 Guid? familyId,
+                string? projectionSet,
+                DateTimeOffset? fromOccurredAtUtc,
+                DateTimeOffset? toOccurredAtUtc,
+                bool? dryRun,
+                bool? resetState,
                 int? batchSize,
+                int? maxEvents,
+                int? throttleMilliseconds,
                 ClaimsPrincipal user,
                 DragonEnvelopesDbContext dbContext,
                 IReportingProjectionService reportingProjectionService,
@@ -137,21 +145,137 @@ internal static partial class PlanningAndReportingEndpoints
                 }
 
                 var replay = await reportingProjectionService.ReplayAsync(
-                    familyId,
-                    batchSize ?? 500,
+                    new ReportingProjectionReplayRequestDetails(
+                        familyId,
+                        projectionSet ?? ReportingProjectionSets.All,
+                        fromOccurredAtUtc,
+                        toOccurredAtUtc,
+                        dryRun ?? false,
+                        resetState ?? true,
+                        batchSize ?? 500,
+                        maxEvents ?? 50_000,
+                        throttleMilliseconds ?? 0,
+                        user.FindFirstValue("sub")),
                     cancellationToken);
                 return Results.Ok(new ReportingProjectionReplayResponse(
+                    replay.ReplayRunId,
                     replay.FamilyId,
+                    replay.ProjectionSet,
+                    replay.FromOccurredAtUtc,
+                    replay.ToOccurredAtUtc,
+                    replay.IsDryRun,
+                    replay.ResetState,
+                    replay.BatchSize,
+                    replay.MaxEvents,
+                    replay.ThrottleMilliseconds,
+                    replay.TargetedEventCount,
+                    replay.ProcessedEventCount,
+                    replay.BatchesProcessed,
+                    replay.WasCappedByMaxEvents,
                     replay.ReplayedCount,
                     replay.AppliedCount,
                     replay.FailedCount,
                     replay.EnvelopeProjectionRowCount,
                     replay.TransactionProjectionRowCount,
                     replay.StartedAtUtc,
-                    replay.CompletedAtUtc));
+                    replay.CompletedAtUtc,
+                    replay.Status,
+                    replay.ErrorMessage));
             })
             .RequireAuthorization(ApiAuthorizationPolicies.Parent)
             .WithName("ReplayReportingProjections")
+            .WithOpenApi();
+
+        v1.MapGet("/reports/projections/replay-runs", async (
+                Guid? familyId,
+                int? take,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IReportingProjectionService reportingProjectionService,
+                CancellationToken cancellationToken) =>
+            {
+                if (familyId.HasValue
+                    && !await EndpointAccessGuards.UserHasFamilyAccessAsync(user, familyId.Value, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                var runs = await reportingProjectionService.ListReplayRunsAsync(
+                    familyId,
+                    take ?? 20,
+                    cancellationToken);
+
+                return Results.Ok(runs.Select(run => new ReportingProjectionReplayRunResponse(
+                    run.Id,
+                    run.FamilyId,
+                    run.ProjectionSet,
+                    run.FromOccurredAtUtc,
+                    run.ToOccurredAtUtc,
+                    run.IsDryRun,
+                    run.ResetState,
+                    run.BatchSize,
+                    run.MaxEvents,
+                    run.ThrottleMilliseconds,
+                    run.TargetedEventCount,
+                    run.ProcessedEventCount,
+                    run.AppliedCount,
+                    run.FailedCount,
+                    run.BatchesProcessed,
+                    run.WasCappedByMaxEvents,
+                    run.Status,
+                    run.RequestedByUserId,
+                    run.ErrorMessage,
+                    run.StartedAtUtc,
+                    run.CompletedAtUtc)).ToArray());
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
+            .WithName("ListReportingProjectionReplayRuns")
+            .WithOpenApi();
+
+        v1.MapGet("/reports/projections/replay-runs/{replayRunId:guid}", async (
+                Guid replayRunId,
+                ClaimsPrincipal user,
+                DragonEnvelopesDbContext dbContext,
+                IReportingProjectionService reportingProjectionService,
+                CancellationToken cancellationToken) =>
+            {
+                var run = await reportingProjectionService.GetReplayRunAsync(replayRunId, cancellationToken);
+                if (run is null)
+                {
+                    return Results.NotFound();
+                }
+
+                if (run.FamilyId.HasValue
+                    && !await EndpointAccessGuards.UserHasFamilyAccessAsync(user, run.FamilyId.Value, dbContext, cancellationToken))
+                {
+                    return Results.Forbid();
+                }
+
+                return Results.Ok(new ReportingProjectionReplayRunResponse(
+                    run.Id,
+                    run.FamilyId,
+                    run.ProjectionSet,
+                    run.FromOccurredAtUtc,
+                    run.ToOccurredAtUtc,
+                    run.IsDryRun,
+                    run.ResetState,
+                    run.BatchSize,
+                    run.MaxEvents,
+                    run.ThrottleMilliseconds,
+                    run.TargetedEventCount,
+                    run.ProcessedEventCount,
+                    run.AppliedCount,
+                    run.FailedCount,
+                    run.BatchesProcessed,
+                    run.WasCappedByMaxEvents,
+                    run.Status,
+                    run.RequestedByUserId,
+                    run.ErrorMessage,
+                    run.StartedAtUtc,
+                    run.CompletedAtUtc));
+            })
+            .RequireAuthorization(ApiAuthorizationPolicies.Parent)
+            .WithName("GetReportingProjectionReplayRun")
             .WithOpenApi();
     }
 }

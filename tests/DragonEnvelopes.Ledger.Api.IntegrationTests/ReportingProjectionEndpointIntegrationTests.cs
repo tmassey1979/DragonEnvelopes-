@@ -138,6 +138,187 @@ public sealed class ReportingProjectionEndpointIntegrationTests : IClassFixture<
         Assert.Equal(HttpStatusCode.Forbidden, replayResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task Replay_DryRun_Reports_Targets_Without_Changing_Projection_State_And_Audits_Run()
+    {
+        var userId = "ledger-projection-user-c";
+        var familyId = Guid.Parse("e1400000-0000-0000-0000-000000000021");
+        var otherFamilyId = Guid.Parse("e1400000-0000-0000-0000-000000000022");
+
+        using var client = _factory.CreateClient();
+        var accountId = await SeedFamilyMembershipAndAccountAsync(userId, familyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var createdTransaction = await client.PostAsJsonAsync(
+            "/api/v1/transactions",
+            new CreateTransactionRequest(
+                accountId,
+                -75m,
+                "Dry Run Groceries",
+                "Dragon Market",
+                new DateTimeOffset(2026, 1, 13, 12, 0, 0, TimeSpan.Zero),
+                "Food",
+                EnvelopeId: null,
+                Splits: null));
+        Assert.Equal(HttpStatusCode.Created, createdTransaction.StatusCode);
+
+        var replayResponse = await client.PostAsync(
+            $"/api/v1/reports/projections/replay?familyId={familyId}&projectionSet=Transactions&dryRun=true&batchSize=5",
+            content: null);
+        var replayPayload = await replayResponse.Content.ReadFromJsonAsync<ReportingProjectionReplayResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, replayResponse.StatusCode);
+        Assert.NotNull(replayPayload);
+        Assert.True(replayPayload!.IsDryRun);
+        Assert.Equal("Transactions", replayPayload.ProjectionSet);
+        Assert.True(replayPayload.TargetedEventCount >= 1);
+        Assert.Equal(0, replayPayload.ProcessedEventCount);
+        Assert.Equal(0, replayPayload.AppliedCount);
+
+        var statusResponse = await client.GetAsync($"/api/v1/reports/projections/status?familyId={familyId}");
+        var statusPayload = await statusResponse.Content.ReadFromJsonAsync<ReportingProjectionStatusResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, statusResponse.StatusCode);
+        Assert.NotNull(statusPayload);
+        Assert.True(statusPayload!.PendingCount >= 1);
+        Assert.Equal(0, statusPayload.AppliedCount);
+
+        var runsResponse = await client.GetAsync($"/api/v1/reports/projections/replay-runs?familyId={familyId}&take=10");
+        var runsPayload = await runsResponse.Content.ReadFromJsonAsync<List<ReportingProjectionReplayRunResponse>>();
+
+        Assert.Equal(HttpStatusCode.OK, runsResponse.StatusCode);
+        Assert.NotNull(runsPayload);
+        var matchingRun = runsPayload!.Single(x => x.Id == replayPayload.ReplayRunId);
+        Assert.True(matchingRun.IsDryRun);
+        Assert.Equal("Completed", matchingRun.Status);
+
+        var runResponse = await client.GetAsync($"/api/v1/reports/projections/replay-runs/{replayPayload.ReplayRunId}");
+        var runPayload = await runResponse.Content.ReadFromJsonAsync<ReportingProjectionReplayRunResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, runResponse.StatusCode);
+        Assert.NotNull(runPayload);
+        Assert.Equal(replayPayload.ReplayRunId, runPayload!.Id);
+        Assert.Equal("Transactions", runPayload.ProjectionSet);
+    }
+
+    [Fact]
+    public async Task Replay_Can_Target_Projection_Set_And_Event_Range()
+    {
+        var userId = "ledger-projection-user-d";
+        var familyId = Guid.Parse("e1400000-0000-0000-0000-000000000031");
+        var otherFamilyId = Guid.Parse("e1400000-0000-0000-0000-000000000032");
+
+        using var client = _factory.CreateClient();
+        var accountId = await SeedFamilyMembershipAndAccountAsync(userId, familyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var createEnvelopeResponse = await client.PostAsJsonAsync(
+            "/api/v1/envelopes",
+            new CreateEnvelopeRequest(familyId, "Projection Utilities", 140m));
+        Assert.Equal(HttpStatusCode.Created, createEnvelopeResponse.StatusCode);
+
+        var createTransactionResponse = await client.PostAsJsonAsync(
+            "/api/v1/transactions",
+            new CreateTransactionRequest(
+                accountId,
+                -55m,
+                "Utilities",
+                "Dragon Utility",
+                new DateTimeOffset(2026, 2, 1, 12, 0, 0, TimeSpan.Zero),
+                "Bills",
+                EnvelopeId: null,
+                Splits: null));
+        Assert.Equal(HttpStatusCode.Created, createTransactionResponse.StatusCode);
+
+        var envelopeReplayResponse = await client.PostAsync(
+            $"/api/v1/reports/projections/replay?familyId={familyId}&projectionSet=EnvelopeBalances&batchSize=500&resetState=true",
+            content: null);
+        var envelopeReplayPayload = await envelopeReplayResponse.Content.ReadFromJsonAsync<ReportingProjectionReplayResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, envelopeReplayResponse.StatusCode);
+        Assert.NotNull(envelopeReplayPayload);
+        Assert.Equal("EnvelopeBalances", envelopeReplayPayload!.ProjectionSet);
+        Assert.True(envelopeReplayPayload.EnvelopeProjectionRowCount >= 1);
+        Assert.Equal(0, envelopeReplayPayload.TransactionProjectionRowCount);
+
+        var futureDryRunResponse = await client.PostAsync(
+            $"/api/v1/reports/projections/replay?familyId={familyId}&projectionSet=Transactions&dryRun=true&fromOccurredAtUtc=2100-01-01T00:00:00Z&toOccurredAtUtc=2100-01-02T00:00:00Z",
+            content: null);
+        var futureDryRunPayload = await futureDryRunResponse.Content.ReadFromJsonAsync<ReportingProjectionReplayResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, futureDryRunResponse.StatusCode);
+        Assert.NotNull(futureDryRunPayload);
+        Assert.Equal(0, futureDryRunPayload!.TargetedEventCount);
+        Assert.Equal(0, futureDryRunPayload.ProcessedEventCount);
+        Assert.Equal("Transactions", futureDryRunPayload.ProjectionSet);
+
+        var transactionReplayResponse = await client.PostAsync(
+            $"/api/v1/reports/projections/replay?familyId={familyId}&projectionSet=Transactions&resetState=false",
+            content: null);
+        var transactionReplayPayload = await transactionReplayResponse.Content.ReadFromJsonAsync<ReportingProjectionReplayResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, transactionReplayResponse.StatusCode);
+        Assert.NotNull(transactionReplayPayload);
+        Assert.Equal("Transactions", transactionReplayPayload!.ProjectionSet);
+        Assert.True(transactionReplayPayload.TransactionProjectionRowCount >= 1);
+    }
+
+    [Fact]
+    public async Task Replay_Applies_Throughput_Safeguards_And_MaxEvents_Cap()
+    {
+        var userId = "ledger-projection-user-e";
+        var familyId = Guid.Parse("e1400000-0000-0000-0000-000000000041");
+        var otherFamilyId = Guid.Parse("e1400000-0000-0000-0000-000000000042");
+
+        using var client = _factory.CreateClient();
+        var accountId = await SeedFamilyMembershipAndAccountAsync(userId, familyId, otherFamilyId);
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+
+        var createEnvelopeResponse = await client.PostAsJsonAsync(
+            "/api/v1/envelopes",
+            new CreateEnvelopeRequest(familyId, "Projection Safeguards", 160m));
+        Assert.Equal(HttpStatusCode.Created, createEnvelopeResponse.StatusCode);
+
+        var firstTransactionResponse = await client.PostAsJsonAsync(
+            "/api/v1/transactions",
+            new CreateTransactionRequest(
+                accountId,
+                -20m,
+                "Snacks",
+                "Dragon Mart",
+                new DateTimeOffset(2026, 2, 2, 12, 0, 0, TimeSpan.Zero),
+                "Food",
+                EnvelopeId: null,
+                Splits: null));
+        Assert.Equal(HttpStatusCode.Created, firstTransactionResponse.StatusCode);
+
+        var secondTransactionResponse = await client.PostAsJsonAsync(
+            "/api/v1/transactions",
+            new CreateTransactionRequest(
+                accountId,
+                -30m,
+                "Parking",
+                "Dragon Parking",
+                new DateTimeOffset(2026, 2, 3, 12, 0, 0, TimeSpan.Zero),
+                "Transport",
+                EnvelopeId: null,
+                Splits: null));
+        Assert.Equal(HttpStatusCode.Created, secondTransactionResponse.StatusCode);
+
+        var replayResponse = await client.PostAsync(
+            $"/api/v1/reports/projections/replay?familyId={familyId}&batchSize=9999&maxEvents=1&throttleMilliseconds=999999&resetState=true",
+            content: null);
+        var replayPayload = await replayResponse.Content.ReadFromJsonAsync<ReportingProjectionReplayResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, replayResponse.StatusCode);
+        Assert.NotNull(replayPayload);
+        Assert.Equal(2000, replayPayload!.BatchSize);
+        Assert.Equal(1, replayPayload.MaxEvents);
+        Assert.Equal(5000, replayPayload.ThrottleMilliseconds);
+        Assert.Equal(1, replayPayload.TargetedEventCount);
+        Assert.True(replayPayload.WasCappedByMaxEvents);
+    }
+
     private async Task<Guid> SeedFamilyMembershipAndAccountAsync(
         string userId,
         Guid ownFamilyId,
@@ -147,6 +328,7 @@ public sealed class ReportingProjectionEndpointIntegrationTests : IClassFixture<
         var dbContext = scope.ServiceProvider.GetRequiredService<DragonEnvelopesDbContext>();
 
         dbContext.ReportProjectionAppliedEvents.RemoveRange(dbContext.ReportProjectionAppliedEvents);
+        dbContext.ReportProjectionReplayRuns.RemoveRange(dbContext.ReportProjectionReplayRuns);
         dbContext.ReportTransactionProjections.RemoveRange(dbContext.ReportTransactionProjections);
         dbContext.ReportEnvelopeBalanceProjections.RemoveRange(dbContext.ReportEnvelopeBalanceProjections);
         dbContext.IntegrationOutboxMessages.RemoveRange(dbContext.IntegrationOutboxMessages);
